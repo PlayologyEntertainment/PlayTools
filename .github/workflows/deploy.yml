@@ -1,0 +1,24 @@
+name: Deploy PlayTools to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'PlayTools.html'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Upload PlayTools.html via FTP
+        run: |
+          curl -T PlayTools.html \
+            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
+            --max-time 60 \
+            --connect-timeout 15 \
+            "ftp://ftp.playologyentertainment.com/experiments/PlayTools/PlayTools.html"
