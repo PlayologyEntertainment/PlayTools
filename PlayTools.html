@@ -865,7 +865,7 @@ const CABINETS = [
   { id:'dna',        lab:'Gamer DNA', name:'Gamer DNA Hub', icon:'🧬', tag:'mvp', route:'#/dna',
     desc:'Your profile, 7 attributes, class & rank.' },
 
-  { id:'calibration',lab:'Reflex Lab', name:'Latency Calibration', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
+  { id:'calibration',lab:'Reflex Lab', name:'Latency Calibration', railName:'Latency', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
     desc:'3-click baseline to factor out system latency.', dna:'Calibrates t_link' },
   { id:'reaction',   lab:'Reflex Lab', name:'Reaction Time', icon:'⚡', tag:'mvp', route:'#/reflex/reaction',
     desc:'Millisecond visual-stimulus reaction test.', dna:'Reflex +12 · Focus +4' },
@@ -2110,7 +2110,7 @@ const UI = (function(){
       railCabs.filter(x=>x.lab===lab).forEach(cab=>{
         const a=el('a',{ href: cab.locked?'javascript:void 0':cab.route,
           class: cab.locked?'locked':'', 'data-route':cab.route||'' });
-        a.innerHTML = `<span>${cab.icon} ${cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':'<span class="mini-tag mvp">mvp</span>'}`;
+        a.innerHTML = `<span>${cab.icon} ${cab.railName||cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':'<span class="mini-tag mvp">mvp</span>'}`;
         if(cab.locked) a.addEventListener('click', e=>{ e.preventDefault(); toast('Locked','Coming in a later build.'); });
         rail.append(a);
       });
