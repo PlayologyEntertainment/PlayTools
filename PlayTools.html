@@ -94,26 +94,22 @@
   .logo-sign{
     display:inline-block; vertical-align:middle; width:min(72vw,380px); height:auto;
     filter:drop-shadow(0 0 18px rgba(22,242,200,0.4)) drop-shadow(0 0 40px rgba(255,61,240,0.25));
-    /* Mostly steady, with the occasional flicker + glitch of a real neon tube.
-       The two animations have different (co-prime-ish) periods so the bursts drift
-       out of sync and never repeat at a predictable beat. */
-    animation:neonFlicker 11s linear infinite, neonGlitch 8.5s linear infinite;
   }
-  /* Brief, irregular dips in brightness/glow — the tube stuttering before catching. */
+  /* Mostly steady, with the occasional flicker + glitch of a real neon tube.
+     Applied to every place the neon sign appears (nav + splash). The two
+     animations have different (co-prime-ish) periods so the bursts drift out
+     of sync and never repeat at a predictable beat. Lowering opacity dims the
+     image and its glow together, so this reads right regardless of each
+     element's resting drop-shadow. */
+  .logo-sign, .splash-sign{
+    animation:neonFlicker 5.5s linear infinite, neonGlitch 4.25s linear infinite;
+  }
+  /* Brief, irregular dips in brightness — the tube stuttering before it catches. */
   @keyframes neonFlicker{
-    0%,17%,17.6%,18.2%,53%,53.4%,77%,77.5%,78.1%,100%{
-      opacity:1;
-      filter:drop-shadow(0 0 18px rgba(22,242,200,0.45)) drop-shadow(0 0 40px rgba(255,61,240,0.3));
-    }
-    17.3%,77.3%{
-      opacity:.35;
-      filter:drop-shadow(0 0 4px rgba(22,242,200,0.15)) drop-shadow(0 0 8px rgba(255,61,240,0.1));
-    }
+    0%,17%,17.6%,18.2%,53%,53.4%,77%,77.5%,78.1%,100%{ opacity:1; }
+    17.3%,77.3%{ opacity:.35; }
     17.9%{ opacity:.7; }
-    53.2%{
-      opacity:.2;
-      filter:drop-shadow(0 0 2px rgba(22,242,200,0.1)) drop-shadow(0 0 4px rgba(255,61,240,0.08));
-    }
+    53.2%{ opacity:.2; }
     77.8%{ opacity:.55; }
   }
   /* A rare horizontal tear/skew, like a bad ballast kicking the sign sideways. */
@@ -441,8 +437,8 @@
   }
   body.no-crt .splash-logo, body.no-crt .splash-wordmark, body.no-crt .splash-sign, body.no-crt .logo-sign{filter:none; text-shadow:none;}
   /* Honor the CRT toggle and reduced-motion users: hold the sign steady. */
-  body.no-crt .logo-sign{ animation:none; }
-  @media (prefers-reduced-motion:reduce){ .logo-sign{ animation:none; } }
+  body.no-crt .logo-sign, body.no-crt .splash-sign{ animation:none; }
+  @media (prefers-reduced-motion:reduce){ .logo-sign, .splash-sign{ animation:none; } }
 
   @media(max-width:900px){
     .layout{grid-template-columns:1fr;}
