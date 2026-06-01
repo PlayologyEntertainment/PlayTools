@@ -30,7 +30,7 @@ The primary objective of PlayTools is not simply helping users solve a tactical 
 PlayTools acts as an overarching virtual amusement center . Each diagnostic widget or technical calculator is treated like an individual arcade cabinet[cite: 2]. Dropping into a tool feels like starting an arcade session[cite: 2]. The site marries analytical utilities with playful mechanics to build a unified client-side ecosystem .
 
 ### 2.2 Functional Taxonomy (Site Architecture)
-The application architecture is strictly partitioned into six primary functional areas ("Labs"), managed by a global layout frame :
+The application architecture is strictly partitioned into seven primary functional areas ("Labs"), managed by a global layout frame :
 
 [PlayTools Core Architecture]
 ├── 1. Gamer DNA (Global Local Profile & Metagame State)
@@ -38,7 +38,8 @@ The application architecture is strictly partitioned into six primary functional
 ├── 3. Mouse Lab (Hardware diagnostics and cursor tracking fidelity)
 ├── 4. Setup Lab (Gaming calculators, scaling math, and configurations)
 ├── 5. Fun Lab (Identity profiling, entertainment generators, and community roasts)
-└── 6. Retro Arcade (Short-session classic arcade cabinet mini-games)
+├── 6. Tabletop / RPG Lab (Polyhedral dice, modifiers, and tabletop helpers)
+└── 7. Retro Arcade (Short-session classic arcade cabinet mini-games)
 
 ---
 
@@ -237,6 +238,30 @@ $$\text{Target Sens} = \text{Source Sens} \times \left( \frac{\text{Source Scali
 
 ---
 
+### 4.5 Tabletop / RPG Lab
+
+#### 4.5.1 Dice Roller
+* **Functional Purpose:** Provides a complete, client-side polyhedral dice engine for tabletop and role-playing sessions, faithfully reproducing physical dice behavior with the arcade presentation layer wrapped around it . Unlike the skill diagnostics, this cabinet measures fortune rather than mechanics, treating each throw as a luck event that still feeds the global metagame .
+* **Operational Execution Loop:**
+    * **Standard Polyhedral Set:** Single-tap die selection across the full canonical set — $d4, d6, d8, d10, d12, d20,$ and $d100$ .
+    * **Quantity & Modifier:** A quantity field rolls $N$ dice of the chosen type in one throw, and a signed flat modifier $M$ is applied to the aggregate. Each individual die face is surfaced alongside the grand total .
+    * **Advantage / Disadvantage:** For the $d20$, a roll-mode toggle issues the classic tabletop mechanic — two dice are rolled and the higher (Advantage) or lower (Disadvantage) is kept, with the discarded die rendered struck-through for transparency .
+    * **Dice Notation Parser:** A text input accepts standard tabletop grammar of the form `NdS[kh|kl|dh|dl]K[±M]` — for example `2d6+3`, `4d6kh3` (keep highest 3), `8d6-1`, or a bare `d20`. The parser validates the string, rejects malformed input, and bounds die quantity to protect the client .
+    * **RPG Presets:** One-tap shortcuts cover common tabletop throws — Attack ($d20$), Initiative ($d20+2$), Fireball ($8d6$), Sneak ($3d6$), Percentile ($d100$), and a six-line **Ability Score** generator that rolls $4d6$ drop-lowest six times to produce a full attribute array .
+* **Presentation Layer:** Each throw animates a tumbling, CRT-styled dice tray accompanied by retro WebAudio blips. A **natural 20** ignites a gold critical glow and a **natural 1** flags a red fumble state. A muteable sound control and full deference to the global Reduce-CRT motion preference are provided for accessibility . A session-scoped **Roll Log** retains the most recent throws .
+* **Telemetry Outputs:**
+    * The kept-dice array, the discarded dice (where keep/drop applies), the applied modifier, and the resolved **Total** .
+    * **Best Total:** The highest aggregate the user has ever produced on the cabinet, persisted to the local profile .
+    * **Natural 20 Counter:** A running tally of critical $d20$ results stored in the client profile .
+* **DNA Attribution Vector:** Applies a luck-scaled delta to the global $\text{Strategy}$ vector. The applied quality is normalized against the theoretical range of the kept dice (a luckier throw yields a larger delta):
+
+$$q = \frac{\sum_{i}\,r_{i} - n_{\text{kept}}}{n_{\text{kept}} \cdot S - n_{\text{kept}}}, \qquad \text{Strategy}_{\text{new}} = \min\!\left(100,\ \text{Strategy}_{\text{old}} + 6 \cdot q\right)$$
+
+  * To preserve Gamer Score integrity against single-click repetition, a dice session is registered as a *completed tool* only on the first throw, while best totals, the Natural 20 counter, and the Strategy delta continue to update on every subsequent roll .
+  * **Achievements:** Unlocks **Natural 20** (roll a natural 20) and **High Roller** (resolve a single throw totalling $\ge 50$) . Generates a tailored Share Card .
+
+---
+
 ## 5. Expansion Tool Modules
 
 ### 5.1 Reflex Lab Expansion Pack
@@ -315,6 +340,8 @@ The generated media layout strictly follows a classic arcade trading card struct
     * *Speed Demon:* Triggered by maintaining a clicking pace $\ge 12\text{ CPS}$ inside the Reflex Lab .
     * *Tracking Expert:* Earned by keeping path deviation error under 4 pixels on the Mouse Accuracy tracking test .
     * *Setup Specialist:* Unlocked after calculating configurations across all Setup Lab calculators .
+    * *Natural 20:* Triggered by rolling a natural 20 on a $d20$ in the Tabletop / RPG Dice Roller .
+    * *High Roller:* Earned by resolving a single dice throw totalling $\ge 50$ .
     * *Completionist / Achievement Hunter:* Awarded for unlocking all other core operational milestones .
 
 ### 6.3 Interface Art Direction & Presentation Layer
