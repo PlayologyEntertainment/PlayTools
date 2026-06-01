@@ -95,17 +95,15 @@
     display:inline-block; vertical-align:middle; width:min(72vw,380px); height:auto;
     filter:drop-shadow(0 0 18px rgba(22,242,200,0.4)) drop-shadow(0 0 40px rgba(255,61,240,0.25));
   }
-  /* Mostly steady, with the occasional flicker + glitch of a real neon tube.
-     Applied to every place the neon sign appears (nav + splash). The two
-     animations have different (co-prime-ish) periods so the bursts drift out
-     of sync and never repeat at a predictable beat. Lowering opacity dims the
+  /* Mostly steady, with the occasional flicker of a real neon tube. Applied to
+     every place the neon sign appears (nav + splash). Lowering opacity dims the
      image and its glow together, so this reads right regardless of each
      element's resting drop-shadow. */
   .logo-sign, .splash-sign{
-    animation:neonFlicker 5.5s linear infinite, neonGlitch 4.25s linear infinite;
+    animation:neonFlicker 11s linear infinite;
   }
   /* Irregular dips in brightness — the tube stuttering before it catches.
-     Each step spans ~1% (~55ms at this duration) so it lasts several frames
+     Each step spans ~1% (~110ms at this duration) so it lasts several frames
      and is actually visible; sub-frame spikes get skipped by the compositor. */
   @keyframes neonFlicker{
     0%,18%,22%,58%,61%,83%,87%,100%{ opacity:1; }
@@ -119,15 +117,6 @@
     84%{ opacity:.2; }
     85%{ opacity:.85; }
     86%{ opacity:.1; }
-  }
-  /* An occasional horizontal tear/skew, like a bad ballast kicking the sign
-     sideways. Each jolt spans ~1% (~42ms) so it renders across a few frames. */
-  @keyframes neonGlitch{
-    0%,38%,43%,100%{ transform:translateX(0) skewX(0deg); }
-    39%{ transform:translateX(-8px) skewX(-8deg); }
-    40%{ transform:translateX(7px) skewX(6deg); }
-    41%{ transform:translateX(-5px) skewX(-4deg); }
-    42%{ transform:translateX(3px) skewX(2deg); }
   }
   .subtitle{ font-size:12px; color:var(--ink-dim); letter-spacing:3px; text-transform:uppercase; }
 
