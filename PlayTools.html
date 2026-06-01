@@ -94,6 +94,7 @@
   .logo-sign{
     display:inline-block; vertical-align:middle; width:min(72vw,380px); height:auto;
     filter:drop-shadow(0 0 18px rgba(22,242,200,0.4)) drop-shadow(0 0 40px rgba(255,61,240,0.25));
+    transition:filter .25s ease, opacity .25s ease;
   }
   /* Mostly steady, with the occasional flicker of a real neon tube. Applied to
      every place the neon sign appears (nav + splash). Lowering opacity dims the
@@ -101,6 +102,13 @@
      element's resting drop-shadow. */
   .logo-sign, .splash-sign{
     animation:neonFlicker 5.5s linear infinite;
+  }
+  /* Header neon sign "powered off" — desaturated, dimmed, with the neon glow
+     and flicker killed so the tube reads as actually switched off. Toggled by
+     the header's "Turn On/Off Sign" button (header sign only). */
+  body.sign-off .logo-sign{
+    filter:grayscale(1) brightness(0.32) contrast(0.95);
+    opacity:0.6; animation:none;
   }
   /* Irregular dips in brightness — the tube stuttering before it catches.
      Each step spans ~1% (~55ms at this duration) so it lasts several frames
@@ -477,8 +485,8 @@
       <span class="sep">·</span> RANK <b id="ssRank">NEWBIE</b>
     </div>
     <div class="controls-actions">
-      <button class="btn" id="dnaBtn">◈ Gamer DNA</button>
-      <button class="btn ghost" id="crtToggle">Reduce CRT FX</button>
+      <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
+      <button class="btn ghost" id="crtToggle">💡 Turn On/Off Sign</button>
     </div>
   </div>
 
@@ -2092,11 +2100,14 @@ const UI = (function(){
   function buildRail(){
     rail.innerHTML='';
     rail.append(el('a',{href:'#/', html:'🏠 Arcade Lobby'}));
+    // Gamer DNA Hub is reachable from the header "Gamer DNA" button, so keep its
+    // category + item out of the rail to free up the valuable sidebar space.
+    const railCabs = CABINETS.filter(cab=> cab.id!=='dna');
     const labs=[];
-    CABINETS.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
+    railCabs.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
     labs.forEach(lab=>{
       rail.append(el('h3',{text:lab}));
-      CABINETS.filter(x=>x.lab===lab).forEach(cab=>{
+      railCabs.filter(x=>x.lab===lab).forEach(cab=>{
         const a=el('a',{ href: cab.locked?'javascript:void 0':cab.route,
           class: cab.locked?'locked':'', 'data-route':cab.route||'' });
         a.innerHTML = `<span>${cab.icon} ${cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':'<span class="mini-tag mvp">mvp</span>'}`;
@@ -2121,10 +2132,9 @@ const UI = (function(){
     document.documentElement.style.setProperty('--neon', hex);
   }
 
-  function applyCrt(){
-    const reduce=Store.getPrefs().reduceCrt;
-    document.body.classList.toggle('no-crt', reduce);
-    document.getElementById('crtToggle').textContent = reduce?'Enable CRT FX':'Reduce CRT FX';
+  function applySign(){
+    const off=Store.getPrefs().signOff;
+    document.body.classList.toggle('sign-off', off);
   }
 
   function toast(title, body){
@@ -2138,11 +2148,11 @@ const UI = (function(){
   function init(){
     buildRail();
     applyAccent(Store.get().profile.accent);
-    applyCrt();
+    applySign();
     refreshStrip();
     Store.subscribe(refreshStrip);
 
-    document.getElementById('crtToggle').onclick=()=>{ Store.setPref('reduceCrt', !Store.getPrefs().reduceCrt); applyCrt(); };
+    document.getElementById('crtToggle').onclick=()=>{ Store.setPref('signOff', !Store.getPrefs().signOff); applySign(); };
     document.getElementById('dnaBtn').onclick=()=> Router.go('#/dna');
     document.getElementById('logoHome').onclick=()=> Router.go('#/');
   }
