@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PlayTools — The Digital Arcade | Playology Entertainment</title>
+<!--
+  ============================================================
+  PLAYTOOLS — The Digital Arcade
+  Playology Entertainment · Single standalone HTML application
+  ============================================================
+  This is the APPLICATION (not the design document).
+  Build footprint: Foundation (DD §10 build order, steps 1-4)
+    1. SPA shell + hash routing + GamerDNA state + status strip + CRT theme
+    2. Gamer DNA hub (profile editor, attribute radar, rank/class display)
+    3. Reflex Lab MVP cabinets (Calibration -> Reaction -> CPS -> Precision)
+    4. Share Card + Achievement engines (shared services)
+  Zero external dependencies. All logic client-side. Persists to localStorage.
+  ============================================================
+-->
+<style>
+  /* ============================================================
+     THEME TOKENS (Playology retro-arcade / CRT)
+     ============================================================ */
+  :root{
+    --bg:#070912;
+    --bg-2:#0c1024;
+    --panel:#101736;
+    --panel-2:#0a0e22;
+    --ink:#e8ecff;
+    --ink-dim:#9aa3d4;
+    --neon:#16f2c8;      /* primary accent — overridden by user persona color */
+    --neon-2:#ff3df0;    /* magenta */
+    --neon-3:#ffd23d;    /* arcade gold */
+    --neon-4:#7c5cff;    /* violet */
+    --neon-5:#37e35b;    /* go-green */
+    --danger:#ff4d6d;
+    --grid:rgba(124,92,255,0.10);
+    --line:rgba(124,92,255,0.30);
+    --shadow:0 0 0 2px rgba(22,242,200,0.18), 0 0 24px rgba(22,242,200,0.10);
+    --mono:"DejaVu Sans Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --pixel:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(124,92,255,0.18), transparent 60%),
+      radial-gradient(900px 500px at 90% 10%, rgba(255,61,240,0.10), transparent 55%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:15px;
+    line-height:1.6;
+    letter-spacing:0.2px;
+    min-height:100vh;
+  }
+  a{color:var(--neon); text-decoration:none;}
+
+  /* ---- CRT scanline + vignette overlay ---- */
+  .crt-overlay{
+    position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0px, rgba(0,0,0,0.16) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:multiply; opacity:0.7;
+  }
+  .crt-overlay::after{
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(120% 120% at 50% 50%, transparent 60%, rgba(0,0,0,0.45) 100%);
+  }
+  body.no-crt .crt-overlay{display:none;}
+  body.no-crt .logo, body.no-crt .screen{ text-shadow:none; }
+
+  /* ============================================================
+     LAYOUT FRAME
+     ============================================================ */
+  .frame{max-width:1180px; margin:0 auto; padding:0 18px 90px;}
+
+  header.marquee{ position:relative; text-align:center; padding:30px 12px 14px; }
+  .brand-kicker{
+    font-size:11px; letter-spacing:6px; text-transform:uppercase;
+    color:var(--neon-3); text-shadow:0 0 10px rgba(255,210,61,0.6);
+  }
+  .logo{
+    font-family:var(--pixel); font-weight:800; font-size:clamp(34px,7vw,64px);
+    margin:6px 0 2px; letter-spacing:2px; line-height:1; color:#fff; cursor:pointer;
+    text-shadow:0 0 8px var(--neon),0 0 22px rgba(22,242,200,0.7),3px 3px 0 var(--neon-2),6px 6px 0 rgba(255,61,240,0.4);
+  }
+  .logo .play{color:var(--neon);}
+  .logo .tools{color:var(--neon-2);}
+  .subtitle{ font-size:12px; color:var(--ink-dim); letter-spacing:3px; text-transform:uppercase; }
+
+  /* ---- Status strip (sticky) ---- */
+  .controls{
+    position:sticky; top:0; z-index:50;
+    display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:10px 14px; margin:16px 0 22px;
+    background:rgba(10,14,34,0.92); border:1px solid var(--line); border-radius:4px;
+    backdrop-filter:blur(6px); box-shadow:var(--shadow);
+  }
+  .score-strip{font-size:12px; color:var(--ink-dim); letter-spacing:1px;}
+  .score-strip b{color:var(--neon); font-family:var(--pixel);}
+  .score-strip .sep{opacity:0.4; margin:0 4px;}
+  .controls-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn{
+    font-family:var(--mono); font-size:12px; letter-spacing:1px; cursor:pointer;
+    color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:3px;
+    padding:7px 12px; text-transform:uppercase; transition:.15s;
+  }
+  .btn:hover{border-color:var(--neon); color:var(--neon); box-shadow:0 0 12px rgba(22,242,200,0.25);}
+  .btn:disabled{opacity:0.4; cursor:not-allowed;}
+  .btn.primary{background:var(--neon); color:#04120a; border-color:var(--neon); font-weight:700;}
+  .btn.primary:hover{box-shadow:0 0 16px rgba(22,242,200,0.5); color:#04120a;}
+  .btn.ghost{background:transparent;}
+  .btn.danger:hover{border-color:var(--danger); color:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.25);}
+
+  /* ============================================================
+     APP LAYOUT (rail + screen)
+     ============================================================ */
+  .layout{display:grid; grid-template-columns:230px 1fr; gap:20px; align-items:start;}
+  nav.rail{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:14px 12px; position:sticky; top:70px;
+  }
+  nav.rail h3{
+    font-family:var(--pixel); font-size:11px; letter-spacing:3px; text-transform:uppercase;
+    color:var(--neon-3); margin:14px 8px 6px;
+  }
+  nav.rail h3:first-child{margin-top:2px;}
+  nav.rail a{
+    display:flex; align-items:center; gap:8px; justify-content:space-between;
+    color:var(--ink-dim); padding:7px 10px; border-radius:4px; font-size:13px;
+    border:1px solid transparent; transition:.12s;
+  }
+  nav.rail a:hover{color:var(--neon); background:rgba(22,242,200,0.06); border-color:var(--line);}
+  nav.rail a.active{color:var(--neon); background:rgba(22,242,200,0.10); border-color:var(--line);}
+  nav.rail a.locked{opacity:0.5; cursor:not-allowed;}
+  nav.rail a.locked:hover{color:var(--ink-dim); background:transparent; border-color:transparent;}
+  .mini-tag{font-size:9px; letter-spacing:1px; padding:1px 5px; border-radius:3px; text-transform:uppercase;}
+  .mini-tag.soon{background:#2a3160; color:var(--ink-dim);}
+  .mini-tag.mvp{background:var(--neon-5); color:#04120a;}
+
+  main.screen{ min-height:480px; position:relative; }
+
+  /* ---- Generic section/panel styling ---- */
+  .panel{
+    background:linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border:1px solid var(--line); border-radius:8px; padding:24px 26px; margin:0 0 22px;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.4), 0 14px 40px rgba(0,0,0,0.35);
+    position:relative; overflow:hidden;
+  }
+  .panel::before{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background-image:linear-gradient(var(--grid) 1px, transparent 1px),linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:34px 34px; opacity:0.5;
+  }
+  .panel > *{position:relative;}
+  body.no-crt .panel::before{display:none;}
+
+  .view-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px;}
+  h1.title{font-family:var(--pixel); font-weight:800; font-size:24px; color:#fff; margin:0; letter-spacing:1px;}
+  .lab-tag{font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--neon-2);}
+  .view-desc{color:var(--ink-dim); margin:4px 0 18px; max-width:680px;}
+  h2.sub{
+    font-family:var(--pixel); font-size:16px; color:var(--neon); margin:22px 0 8px;
+    letter-spacing:1px; border-left:3px solid var(--neon); padding-left:10px;
+  }
+  .muted{color:var(--ink-dim);}
+  strong{color:#fff;}
+  code{font-family:var(--mono); background:rgba(124,92,255,0.16); color:var(--neon); padding:1px 6px; border-radius:3px; font-size:13px;}
+
+  /* ---- Cabinet grid (home/lobby) ---- */
+  .cab-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; margin:16px 0;}
+  .cab{
+    display:block; background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+    padding:16px; transition:.15s; position:relative; color:inherit; cursor:pointer;
+  }
+  .cab:hover{border-color:var(--neon); box-shadow:0 0 16px rgba(22,242,200,0.18); transform:translateY(-2px);}
+  .cab.locked{opacity:0.55; cursor:not-allowed;}
+  .cab.locked:hover{border-color:var(--line); box-shadow:none; transform:none;}
+  .cab .cab-icon{font-size:26px; line-height:1; margin-bottom:8px;}
+  .cab .cab-name{font-family:var(--pixel); color:#fff; font-size:15px; letter-spacing:.5px; display:flex; gap:6px; align-items:center;}
+  .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
+  .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
+
+  .tag{display:inline-block; font-size:9px; letter-spacing:1px; font-weight:700; padding:2px 6px; border-radius:3px; text-transform:uppercase;}
+  .tag.mvp{background:var(--neon-5); color:#04120a;}
+  .tag.p2{background:var(--neon-3); color:#1a1400;}
+  .tag.soon{background:#2a3160; color:var(--ink-dim);}
+
+  /* ---- Forms ---- */
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px 18px; margin:12px 0;}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--neon-3);}
+  .field input, .field select{
+    font-family:var(--mono); font-size:14px; color:var(--ink);
+    background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:9px 11px;
+  }
+  .field input:focus, .field select:focus{outline:none; border-color:var(--neon); box-shadow:0 0 10px rgba(22,242,200,0.2);}
+  .field input[type=color]{height:42px; padding:3px; cursor:pointer;}
+  .field .hint{font-size:11px; color:var(--ink-dim);}
+  .field.invalid input{border-color:var(--danger);}
+  .field.invalid .hint{color:var(--danger);}
+
+  /* ---- Attribute radar / bars ---- */
+  .dna-layout{display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:start;}
+  .radar-wrap{display:flex; flex-direction:column; align-items:center; gap:10px;}
+  .attr-bars{display:flex; flex-direction:column; gap:10px;}
+  .attr-row{display:grid; grid-template-columns:96px 1fr 42px; align-items:center; gap:10px; font-size:12px;}
+  .attr-row .lbl{text-transform:uppercase; letter-spacing:1px; color:var(--ink-dim);}
+  .attr-row .track{height:12px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  .attr-row .fill{height:100%; background:linear-gradient(90deg, var(--neon-4), var(--neon)); border-radius:6px; transition:width .6s ease;}
+  .attr-row .val{text-align:right; color:var(--neon); font-family:var(--pixel);}
+
+  .stat-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin:14px 0;}
+  .stat-card{background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:14px; text-align:center;}
+  .stat-card .k{font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--ink-dim);}
+  .stat-card .v{font-family:var(--pixel); font-size:26px; color:var(--neon); margin-top:4px;}
+  .stat-card .v.gold{color:var(--neon-3);}
+
+  /* rank badge */
+  .rank-badge{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:4px;
+    font-family:var(--pixel); letter-spacing:2px; text-transform:uppercase; font-size:14px;
+    border:1px solid var(--neon-3); color:var(--neon-3); background:rgba(255,210,61,0.08);
+    box-shadow:0 0 14px rgba(255,210,61,0.2);
+  }
+
+  /* ============================================================
+     TOOL / GAME SURFACES
+     ============================================================ */
+  .stage{
+    background:#05070f; border:1px solid var(--line); border-radius:8px;
+    min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:30px; user-select:none; cursor:pointer; position:relative; overflow:hidden;
+    box-shadow:inset 0 0 40px rgba(124,92,255,0.10);
+  }
+  .stage.ready{background:radial-gradient(circle at center, rgba(22,242,200,0.12), #05070f 70%);}
+  .stage .big{font-family:var(--pixel); font-size:clamp(28px,5vw,46px); color:#fff; letter-spacing:1px;}
+  .stage .small{font-size:14px; color:var(--ink-dim); margin-top:10px; max-width:480px;}
+  .stage.wait{background:linear-gradient(180deg,#3a2a00,#1a1400); }
+  .stage.wait .big{color:var(--neon-3);}
+  .stage.go{background:radial-gradient(circle at center, rgba(55,227,91,0.35), #04120a 75%);}
+  .stage.go .big{color:var(--neon-5); text-shadow:0 0 30px rgba(55,227,91,0.8);}
+  .stage.foul{background:radial-gradient(circle at center, rgba(255,77,109,0.30), #16060b 75%);}
+  .stage.foul .big{color:var(--danger);}
+  canvas.game{display:block; background:#04060e; border:1px solid var(--line); border-radius:8px; max-width:100%; cursor:crosshair;}
+
+  .results{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin:16px 0;}
+  .result-tile{background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:14px; text-align:center;}
+  .result-tile .k{font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--ink-dim);}
+  .result-tile .v{font-family:var(--pixel); font-size:24px; color:var(--neon); margin-top:4px;}
+  .grade-badge{
+    font-family:var(--pixel); font-size:40px; width:74px; height:74px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center; margin:0 auto;
+  }
+  .grade-S{background:rgba(255,210,61,0.15); color:var(--neon-3); border:2px solid var(--neon-3); box-shadow:0 0 22px rgba(255,210,61,0.4);}
+  .grade-A{background:rgba(55,227,91,0.15); color:var(--neon-5); border:2px solid var(--neon-5);}
+  .grade-B{background:rgba(22,242,200,0.15); color:var(--neon); border:2px solid var(--neon);}
+  .grade-C{background:rgba(124,92,255,0.15); color:var(--neon-4); border:2px solid var(--neon-4);}
+  .grade-F{background:rgba(255,77,109,0.15); color:var(--danger); border:2px solid var(--danger);}
+
+  .controls-row{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0;}
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .seg button{
+    font-family:var(--mono); font-size:12px; background:var(--panel-2); color:var(--ink-dim);
+    border:none; padding:8px 14px; cursor:pointer; letter-spacing:1px; border-right:1px solid var(--line);
+  }
+  .seg button:last-child{border-right:none;}
+  .seg button.on{background:var(--neon); color:#04120a; font-weight:700;}
+
+  /* ============================================================
+     SHARE CARD MODAL
+     ============================================================ */
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:200; background:rgba(2,4,12,0.82);
+    display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px);
+  }
+  .modal{
+    background:var(--panel); border:1px solid var(--neon); border-radius:10px; padding:22px;
+    max-width:520px; width:100%; box-shadow:0 0 40px rgba(22,242,200,0.25); position:relative;
+  }
+  .modal h3{font-family:var(--pixel); color:var(--neon); margin:0 0 14px; letter-spacing:1px;}
+  .modal canvas{display:block; width:100%; max-width:440px; margin:0 auto 16px; border-radius:8px; border:1px solid var(--line);}
+  .modal-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  .modal-close{position:absolute; top:10px; right:14px; cursor:pointer; color:var(--ink-dim); font-size:20px; background:none; border:none;}
+  .modal-close:hover{color:var(--danger);}
+
+  /* ============================================================
+     TOASTS (achievement unlocks)
+     ============================================================ */
+  #toast-stack{position:fixed; top:16px; right:16px; z-index:300; display:flex; flex-direction:column; gap:10px; max-width:320px;}
+  .toast{
+    background:var(--panel); border:1px solid var(--neon-3); border-left:4px solid var(--neon-3);
+    border-radius:6px; padding:12px 14px; box-shadow:0 0 24px rgba(255,210,61,0.25);
+    animation:slidein .3s ease, fadeout .4s ease 4.6s forwards;
+  }
+  .toast .t-title{font-family:var(--pixel); color:var(--neon-3); font-size:13px; letter-spacing:1px;}
+  .toast .t-body{font-size:12.5px; color:var(--ink); margin-top:3px;}
+  @keyframes slidein{from{transform:translateX(120%); opacity:0;}to{transform:translateX(0); opacity:1;}}
+  @keyframes fadeout{to{opacity:0; transform:translateX(120%);}}
+
+  /* achievements grid */
+  .ach-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin:14px 0;}
+  .ach{background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:12px; display:flex; gap:10px; align-items:flex-start;}
+  .ach.locked{opacity:0.45;}
+  .ach .a-icon{font-size:24px; line-height:1;}
+  .ach .a-name{font-family:var(--pixel); font-size:12px; color:#fff;}
+  .ach .a-desc{font-size:11px; color:var(--ink-dim); margin-top:2px;}
+  .ach.unlocked{border-color:var(--neon-3); box-shadow:0 0 12px rgba(255,210,61,0.15);}
+
+  footer{text-align:center; padding:36px 16px 10px; color:var(--ink-dim); font-size:12px; letter-spacing:1px;}
+  footer .pl{color:var(--neon); font-family:var(--pixel); letter-spacing:2px;}
+
+  .blink{animation:blink 1.1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0.2;}}
+
+  /* ============================================================
+     SPLASH / BOOT SCREEN
+     ============================================================ */
+  #splash{
+    position:fixed; inset:0; z-index:9000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:28px; cursor:pointer; user-select:none;
+    background:
+      radial-gradient(1000px 700px at 50% 30%, rgba(124,92,255,0.22), transparent 60%),
+      radial-gradient(800px 500px at 50% 100%, rgba(255,61,240,0.12), transparent 55%),
+      linear-gradient(180deg, var(--bg) 0%, #05060f 100%);
+    transition:opacity .55s ease, visibility .55s ease;
+  }
+  #splash.hide{opacity:0; visibility:hidden;}
+  .splash-kicker{
+    font-size:12px; letter-spacing:6px; text-transform:uppercase;
+    color:var(--neon-3); text-shadow:0 0 10px rgba(255,210,61,0.6); margin-bottom:14px;
+  }
+  .splash-logo{
+    width:min(42vw,260px); height:auto; margin-bottom:6px;
+    filter:drop-shadow(0 0 22px rgba(22,242,200,0.35)) drop-shadow(0 0 50px rgba(255,61,240,0.22));
+    animation:splashFloat 4.5s ease-in-out infinite;
+  }
+  @keyframes splashFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+  .splash-wordmark{
+    font-family:var(--pixel); font-weight:800; font-size:clamp(40px,9vw,82px);
+    letter-spacing:3px; line-height:1; color:#fff; margin:4px 0 2px;
+    text-shadow:0 0 8px var(--neon),0 0 22px rgba(22,242,200,0.7),3px 3px 0 var(--neon-2),6px 6px 0 rgba(255,61,240,0.4);
+  }
+  .splash-wordmark .play{color:var(--neon);}
+  .splash-wordmark .tools{color:var(--neon-2);}
+  .splash-tagline{ font-size:14px; color:var(--ink-dim); letter-spacing:5px; text-transform:uppercase; margin-top:6px; }
+  .splash-cta{
+    margin-top:34px; font-family:var(--pixel); font-weight:700;
+    color:var(--neon-3); letter-spacing:4px; font-size:15px;
+  }
+  .splash-cta .sub{ display:block; font-family:var(--mono); font-weight:400; font-size:11px;
+    letter-spacing:2px; color:var(--ink-dim); margin-top:8px; text-transform:uppercase; }
+  .splash-legal{
+    position:absolute; bottom:16px; left:0; right:0;
+    font-size:10px; letter-spacing:1px; color:var(--ink-dim); opacity:0.55; padding:0 16px;
+  }
+  body.no-crt .splash-logo, body.no-crt .splash-wordmark{filter:none; text-shadow:none;}
+
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr;}
+    nav.rail{position:static;}
+    .dna-layout{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="crt-overlay"></div>
+
+<!-- ===================== SPLASH / BOOT SCREEN ===================== -->
+<div id="splash" role="button" tabindex="0" aria-label="Start PlayTools">
+  <div class="splash-kicker">Playology Entertainment Presents</div>
+  <img class="splash-logo" id="splashLogo" alt="Playology" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCAxNTU4IDE2MDAiIHdpZHRoPSIyOTk2IiBoZWlnaHQ9IjMwNzYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDY0Niw1NjYpIiBkPSJtMCAwaDI3NWwxIDJ2NWwtMSAxaC0yMHYybC01IDN2NjhsMyA1djJoMmw1IDYgMiAxdjJoMnYyaDJsOSAxMXY2N2wyNS0xIDEtNTVoNDdsMSA5MCA4IDEgMSAxIDE2IDMgNCAyIDE2IDMgMSAxIDEwIDIgMTAgMyAxNiAzIDEgMSAxMCAyIDEwIDMgMTUgMyA1IDIgMTUgMyA5IDIgNCAyIDcgMSAxIDEgNyAxIDEgMSAxMCAyIDEwIDMgOCAxIDEgMSA3IDEgNiAyIDE1IDQgOCAxIDkgMyAxMCAyIDEgMSAxNSAzIDcgNyAxIDJ2N2wtNSA3LTMgMi0xNiA0LTEwIDItMSAxLTcgMS0xIDEtMTAgMi05IDMtOSAxLTkgMy0xMCAyLTEgMS0xNyAzLTkgMy0xMCAyLTEgMS0xNiAzLTMgMi0xNiAzLTEgMS0xMCAyLTkgMy05IDEtMSAxLTcgMS0xIDEtMTAgMi0xIDEtNyAxLTEgMS05IDEtOSAzLTEwIDItMSAxLTcgMS0xIDEtMTAgMi0xIDEtMTYgMy0xIDEtOCAxLTQgMi0xNiAzLTEgMS03IDEtMyAyLTggMS0xIDEtNyAxLTEgMS0xNiAzLTQgMi04IDEtMSAxLTcgMS02IDYtMSA3LTEgMS0yIDEwLTMgMTAtMyAxNi0xIDEtMiAxMC0xIDEtMSA3LTEgMS0yIDEwLTMgMTAtMyAxNi0yIDktMiAzLTEgOC0xIDEtMSA3LTEgMS0yIDEwLTMgOS0xIDktMyA5LTQgMTgtMSAxLTIgMTAtMyAxMC0xIDhoLTJ2OGwtMyAxMS0yIDktMSAxLTEgOGgtMnY3bC0yIDUtMiA3LTMgMTctMiAzLTEgOC0xIDEtMSA3LTEgMS0xIDktMyA5LTIgMTAtMSAxLTEgNy0yIDctMiA1LTEgOC0zIDgtNCA1LTMgMmgtOWwtNS00LTMtNC0zLTE1LTEtMS0yLTEwLTEtMS0xLTctMS0xLTEtOS0zLTktMi0xMC0xLTEtMS03LTEtMS0xLTktMy05LTItMTAtMS0xLTEtNy0xLTEtMi0xMC0xLTEtMy0xNi0xLTEtMi0xMC0zLTktMS05LTMtOS0yLTEwLTEtMS0xLTctMS0xLTEtOS0zLTktMi0xMC0zLTktMi0xMC0zLTEwLTEtOC0yLTctMi01LTEtNy0xLTEtMy0xNi0yLTQtMS03LTEtMS0zLTE2LTItNC0zLTE2LTEtMS0xLTctMi00LTEtOC0zLTktMS0yLTQtMi0xNi0zLTQtMi0xNi0zLTktMy0xOC00LTEtMS04LTEtNy0yLTUtMi0xNi0zLTEtMS04LTEtMy0yLTEwLTItNy0yLTEwLTItOS0zLTktMS0xLTEtNy0xLTMtMi0xNi0zLTEtMS05LTEtOS0zLTktMi0xLTEtMTctMy0zLTItMTYtMy0xLTEtOC0xLTQtMi03LTItMTctMy00LTItNy0xLTEtMS03LTEtMS0xLTktMS05LTMtMTAtMi0xLTEtNy0xLTEtMS0xMC0yLTEtMS0xNS0zLTUtNC0zLTV2LTdsNy04IDktMyAxNi0zIDQtMiAxNi0zIDEtMSA3LTEgMS0xIDEwLTIgMS0xIDE3LTMgOS0zIDEwLTIgMS0xIDE2LTMgMy0yIDE3LTMgMS0xIDE4LTQgMS0xIDgtMSAxLTEgMTgtNCAxLTEgOC0xIDEtMSA4LTEgNi0yIDUtMiA4LTEgMS0xIDE2LTMgNC0yIDctMSAxLTEgOC0xIDEtMSAxLTkxaDQ5djU3aDI1di02N2wzLTUgMjEtMjEgMS0ydi03MWwtNS0zLTEzLTEtMS00em0zNCAxNS0zIDN2MzFsMyAzaDMybDItMnYtMzFsLTUtNHptMTcxIDAtMiAydjMzbDIgMmgzMmwyLTJ2LTMxbC00LTR6bS05NCAyNi04IDEtMSAxLTcgMS0xNSA4LTggNC04IDZ2MmgtMnYyaC0ydjJoLTJsLTMgMy0zIDUtNiAxMi0yIDV2MTFoLTJ2NzFsNyA4IDc2IDc2IDggNmgxMGw2LTQgMTItMTMgNTgtNTggOC0xMHYtODZsLTMtMi0zLTgtNy0xMi0xMi0xMi00LTF2LTJoLTJ2LTJsLTE1LTdoLTN2LTJsLTExLTMtMS0xLTgtMXptLTc1IDE2OC0yIDEtOSAxdjJoLTdsLTEgMS0xMCAyLTEgMS0xNyAzLTcgMi01IDItNyAxLTEgMS04IDEtMSAxLTkgMi0xMCAyLTkgMy04IDEtNCAyLTcgMi04IDEtMSAxLTE2IDMtNCAyLTE2IDMtMTIgNC03IDEtMSAxLTggMS0xIDEtOSAyLTExIDMtNyAxLTEgMS0xMCAyLTkgMy04IDEtNyAzdjJoMzI3bC0xLTQtNS02LTgtNy0xMC0xMS04LTctOS0xMGgtMmwtMi00LTctNi01LTZoLTJsLTItNC0zLTJ6bTE5OCAwLTkgMTAtNTQgNTR2M2gzMjdsMS0yLTctMy0xMC0yLTEwLTMtOC0xLTEtMS0xNi0zLTQtMi03LTEtMS0xLTE2LTMtNC0yLTE2LTMtMS0xLTctMS0zLTItMTYtMy0xMC0yLTctMi00LTItOC0xLTEtMS0xNS0zLTQtMi0xNy0zLTEtMS0xOC00LTEtMS04LTEtMS0xLTktMi0xMS0zLTctMi0xMC0yem0tNDU3IDkydjNsNiAyIDEwIDIgMSAxIDcgMSAxIDEgMTYgMyA0IDIgOCAxIDEgMSA4IDEgMSAxIDE4IDQgMSAxIDcgMSAxIDEgMTAgMiAxMCAzIDggMSAxIDEgNyAxIDEgMSAxMCAyIDkgMyA5IDEgOSAzIDEwIDIgMSAxIDggMSAxIDEgOSAyIDExIDMgNyAxIDEgMSA5IDIgMTAgMyAxNiAzIDMgMiA5IDFoNGw4LTcgNC00di0yaDJ2LTJsNC0yIDE1LTE1di0ybDQtMiAyNy0yNyAxLTMtMS0xem0zOTQgMCAxIDQgNSA2IDMgM2gybDIgNCA1IDVoMnYybDYgNSA2IDcgNiA1IDMgNGgybDIgNCAzIDEgMiA0IDUgNSA2IDUgNCA0IDEyLTIgMy0yIDE3LTMgOS0zIDEwLTIgMS0xIDctMSAxLTEgOS0yIDEwLTIgMS0xIDctMSAxLTEgMTAtMiA5LTMgOS0xIDEtMSA3LTEgNC0yIDctMSAxLTEgNy0xIDEtMSAxNi0zIDQtMiA4LTEgMS0xIDctMSAxLTEgOS0yIDExLTMgNy0xIDEtMSA4LTEgNC0yIDE2LTMgMS0xIDctMSAzLTIgOC0xIDctMy0xLTJ6bS00OSAyMS04IDd2MmwtNCAyLTggOS04IDctOSA5LTQgNS01IDUtNyA2LTUgNS02IDcgMSA3IDEgOCAzIDkgMiAxMCAxIDEgMSA3IDEgMSAxIDggMSAxIDQgMTggMSAxIDMgMTcgMiA0IDMgMTUgMSAxIDIgMTAgMyA5IDEgOSAxIDEgMSA3IDEgMSAyIDEwIDMgOSAzIDE2IDIgNCAzIDE2IDEgMSAyIDkgMiAxMCAxIDEgMSA3IDEgMSAyIDEwIDMgMTAgMSA4IDMgN2gydi0zMjh6bTI4IDB2MzI4aDNsMi03IDItMTAgMy05IDMtMTYgMi00IDEtOCAxLTEgMy0xNiA0LTEyIDEtNyAxLTEgMi0xMCAzLTEwIDEtOCAxLTEgMS03IDEtMSAyLTEwIDMtOSAxLTkgMy05IDItMTAgMS0xIDEtNyAxLTEgMi0xMCAyLTkgMS0xdi04aDJsMi0xMCAzLTkgMS05IDEtMSAxLTcgMi02IDItOS03LTgtMjEtMjFoLTJsLTItNC0zMS0zMXoiIGZpbGw9IiNBNkNGRkQiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjQ2LDU2NikiIGQ9Im0wIDBoMjc1bDEgMnY1bC0xIDFoLTIwdjJsLTUgM3Y2OGwzIDV2MmgybDUgNiAyIDF2MmgydjJoMmw5IDExdjY3bDI1LTEgMS01NWg0N2wxIDkwIDggMSAxIDEgMTYgMyA0IDIgMTYgMyAxIDEgMTAgMiAxMCAzIDE2IDMgMSAxIDEwIDIgMTAgMyAxNSAzIDUgMiAxNSAzIDkgMiA0IDIgNyAxIDEgMSA3IDEgMSAxIDEwIDIgMTAgMyA4IDEgMSAxIDcgMSA2IDIgMTUgNCA4IDEgOSAzIDEwIDIgMSAxIDE1IDMgNyA3IDEgMnY3bC01IDctMyAyLTE2IDQtMTAgMi0xIDEtNyAxLTEgMS0xMCAyLTkgMy05IDEtOSAzLTEwIDItMSAxLTE3IDMtOSAzLTEwIDItMSAxLTE2IDMtMyAyLTE2IDMtMSAxLTEwIDItOSAzLTkgMS0xIDEtNyAxLTEgMS0xMCAyLTEgMS03IDEtMSAxLTkgMS05IDMtMTAgMi0xIDEtNyAxLTEgMS0xMCAyLTEgMS0xNiAzLTEgMS04IDEtNCAyLTE2IDMtMSAxLTcgMS0zIDJoLTExdi0zbC0xLTQtMS0zLTEtOXYtNGwyLTIgNy0xIDEtMSA5LTIgMTAtMiAxLTEgNy0xIDEtMSAxMC0yIDktMyA5LTEgMS0xIDctMSA0LTIgNy0xIDEtMSA3LTEgMS0xIDE2LTMgNC0yIDgtMSAxLTEgNy0xIDEtMSA5LTIgMTEtMyA3LTEgMS0xIDgtMSA0LTIgMTYtMyAxLTEgNy0xIDMtMiA4LTEgNi0ydi0xbC0yMjgtMS0xMi0xNi00LTV2LTJoLTJ2LTJsMjQ2LTEtNi0zLTEwLTItMTAtMy04LTEtMS0xLTE2LTMtNC0yLTctMS0xLTEtMTYtMy00LTItMTYtMy0xLTEtNy0xLTMtMi0xNi0zLTEwLTItNy0yLTQtMi04LTEtMS0xLTE1LTMtNC0yLTE3LTMtMS0xLTE4LTQtMS0xLTgtMS0xLTEtOS0yLTExLTMtNy0yLTEwLTJoLTZsLTcgOC0xMSAxMS01LTUtMTAtMTItMS00IDE5LTE5IDctOSAxLTg2LTQtMi0zLTgtNy0xMi0xMS0xMS00LTJ2LTJoLTJ2LTJsLTQtMS0xNC02di0yaC01bC03LTMtOC0xaC00N2wtOCAxLTEgMS03IDEtMTUgOGgtNmwtNi00LTEtMzAtNC0zaC0yOWwtMiAyLTEgOS0xMC01LTEtMXYtOWwtNi0yLTEtMS0xMy0xLTEtNHptMjA1IDE1LTIgMnYzM2wyIDJoMzJsMi0ydi0zMWwtNC00eiIgZmlsbD0iI0ZFOUVGMSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2NjUsNTc4KSIgZD0ibTAgMGgxbDEgOSAxMCA2IDEgMjIgMiAyaDMybDMtMiA4IDQtMSAyLTUgMy01IDRoLTJ2MmgtMnYyaC0ydjJoLTJsLTEgM2gtMmwtMSA0LTQgNi01IDEyLTEgMTFoLTJsMSA3MSA0IDYtMTEgMjktMiAxaC05djJsLTcgMS0xIDEtMTAgMi0xIDEtMTcgMy03IDItNSAyLTcgMS0xIDEtOCAxLTEgMS05IDItMTAgMi05IDMtOCAxLTQgMi03IDItOCAxLTEgMS0xNiAzLTQgMi0xNiAzLTEyIDQtNyAxLTEgMS04IDEtMSAxLTkgMi0xMSAzLTcgMS0xIDEtMTAgMi05IDMtOCAxLTYgMi0xIDJoMjM1bC03IDIxLTIgNC0yMjYgMXYxbDYgMiAxMCAyIDEgMSA3IDEgMSAxIDE2IDMgNCAyIDggMSAxIDEgOCAxIDEgMSAxOCA0IDEgMSA3IDEgMSAxIDEwIDIgMTAgMyA4IDEgMSAxIDcgMSAxIDEgMTAgMiA5IDMgOSAxIDkgMyAxMCAyIDEgMSA4IDEgMSAxIDkgMiAxMSAzIDIgMS0zIDExLTUgMTMtMTAtMi0xLTEtOC0xLTctMi01LTItMTYtMy0xLTEtOC0xLTMtMi0xMC0yLTctMi0xMC0yLTktMy05LTEtMS0xLTctMS0zLTItMTYtMy0xLTEtOS0xLTktMy05LTItMS0xLTE3LTMtMy0yLTE2LTMtMS0xLTgtMS00LTItNy0yLTE3LTMtNC0yLTctMS0xLTEtNy0xLTEtMS05LTEtOS0zLTEwLTItMS0xLTctMS0xLTEtMTAtMi0xLTEtMTUtMy01LTQtMy01di03bDctOCA5LTMgMTYtMyA0LTIgMTYtMyAxLTEgNy0xIDEtMSAxMC0yIDEtMSAxNy0zIDktMyAxMC0yIDEtMSAxNi0zIDMtMiAxNy0zIDEtMSAxOC00IDEtMSA4LTEgMS0xIDE4LTQgMS0xIDgtMSAxLTEgOC0xIDYtMiA1LTIgOC0xIDEtMSAxNi0zIDQtMiA3LTEgMS0xIDgtMSAxLTEgMS05MWg0OXY1N2gyNXYtNjdsMy01IDIxLTIxIDEtMnoiIGZpbGw9IiM5RUVERkUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTA1Niw3OTIpIiBkPSJtMCAwIDEyIDIgOSAyIDEgMSAxMCAyIDEwIDMgMTUgMyA1IDIgMTUgMyA5IDIgNCAyIDcgMSAxIDEgNyAxIDEgMSAxMCAyIDEwIDMgOCAxIDEgMSA3IDEgNiAyIDE1IDQgOCAxIDkgMyAxMCAyIDEgMSAxNSAzIDcgNyAxIDJ2N2wtNSA3LTMgMi0xNiA0LTEwIDItMSAxLTcgMS0xIDEtMTAgMi05IDMtOSAxLTkgMy0xMCAyLTEgMS0xNyAzLTkgMy0xMCAyLTEgMS0xNiAzLTMgMi0xNiAzLTEgMS0xMCAyLTkgMy05IDEtMSAxLTcgMS0xIDEtMTAgMi0xIDEtNyAxLTEgMS05IDEtOSAzLTEwIDItMSAxLTcgMS0xIDEtMTAgMi0xIDEtMTYgMy0xIDEtOCAxLTQgMi0xNiAzLTEgMS03IDEtMyAyaC0xMXYtM2wtMS00LTEtMy0xLTl2LTRsMi0yIDctMSAxLTEgOS0yIDEwLTIgMS0xIDctMSAxLTEgMTAtMiA5LTMgOS0xIDEtMSA3LTEgNC0yIDctMSAxLTEgNy0xIDEtMSAxNi0zIDQtMiA4LTEgMS0xIDctMSAxLTEgOS0yIDExLTMgNy0xIDEtMSA4LTEgNC0yIDE2LTMgMS0xIDctMSAzLTIgOC0xIDYtMnYtMWwtMjI4LTEtMTItMTYtNC01di0yaC0ydi0ybDI0Ni0xLTYtMy0xMC0yLTEwLTMtOC0xLTEtMS0xNi0zLTQtMi03LTEtNi04LTExLTEzLTktMTF6IiBmaWxsPSIjRjc5OUQxIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDY2NSw1NzgpIiBkPSJtMCAwaDFsMSA5IDEwIDYgMSAyMiAyIDJoMzJsMy0yIDggNC0xIDItNSAzLTUgNGgtMnYyaC0ydjJoLTJ2MmgtMmwtMSAzaC0ybC0xIDQtNCA2LTUgMTItMSAxMWgtMmwxIDcxIDQgNi0xMSAyOS0yIDFoLTl2MmwtNyAxLTEgMS0xMCAyLTEgMS0xNyAzLTcgMi01IDItNyAxLTEgMS04IDEtMSAxLTkgMi0xMCAyLTkgM2gtMmwtOS00MS0xIDE1aC0xdi04OWg0OXY1N2gyNXYtNjdsMy01IDIxLTIxIDEtMnoiIGZpbGw9IiM5RkVDRkUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTIxMSw5MjgpIiBkPSJtMCAwaDEwbDcgN3YxNGwtMSAxLTEgOC0xIDEtMiAxMC0zIDktMyAxMy0yIDItMyAxMi0zIDgtMyA3LTYgMTYtMyA1LTQgMTAtOCAxNS02IDExLTQgOC04IDEzLTExIDE2LTIgM2gtMmwtMSA0LTYgOC0xNiAyMGgtMmwtMiA0LTMgNWgtMmwtMiA0LTI3IDI3aC0ydjJoLTJ2MmwtNyA1aC0ydjJsLTExIDktOCA3LTUgMy01IDRoLTN2MmwtMTYgMTEtMjAgMTItNCAxdjJsLTcgMy0xMCA2LTE4IDgtMTMgNi0xNiA2LTEgMWgtNnYybC0xMyA0LTggMy05IDItMTAgMy03IDEtMSAxLTggMS0xIDFoLTE1bC02LTd2LTEwbDctNyA4LTIgMTEtMiAxLTEgNy0xIDEtMSA4LTEgMTAtNCA3LTIgMTItNCA3LTMgMTAtMyA4LTQgOC0zIDItMiA4LTMgNy00aDN2LTJsOC0zIDktNiA5LTUgOS02IDQtMXYtMmw4LTUgOC02IDctNWgybDEtMyAzLTJoM3YtMmw4LTcgMTEtOSAyOS0yOSA4LTEwIDgtOCA0LTcgOS0xMSA0LTYgNS04aDJsMS00IDktMTQgMTAtMTcgMy03IDYtMTEgMi01IDMtNSAzLTEwIDQtOCAzLTEwIDQtOSAzLTEyIDQtOSAxLTggMS0xIDEtNyAxLTEgMS05IDItNCAyLTcgNS01eiIgZmlsbD0iI0ZGQkNENSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgzNDYsOTI4KSIgZD0ibTAgMGgxMGw1IDQgMyA0IDEgNyAxIDEgMSAxMCAzIDkgMiA5IDMgOCAyIDggMyA3IDMgMTEgMyA3IDUgMTEgNiAxNCA3IDE0IDggMTUgNSA3IDYgMTEgOCAxMnYyaDJsNSA4IDggMTAgMyA0djNsMyAxdjJoMnYyaDJsMTEgMTQgMjkgMjkgMTAgOCAzIDJ2Mmw0IDIgMSAzIDQgMSAxMyAxMCA4IDYgMTQgOSAxOCAxMSA2IDQgNCAxdjJsNSAxIDEzIDcgNSAyIDExIDUgMTAgNCA3IDMgMjAgNyAxNCA0IDEgMSAxNiAzIDEgMSAxMSAyIDkgMyA2IDZ2MTBsLTQgNS0zIDJoLTE0bC0xLTEtOC0xLTEtMS0xMC0yLTktMy0xMy0zLTE1LTYtNy0yLTE2LTYtMTItNi00LTF2LTJsLTYtMS0xNi04LTE1LTktMTEtNi03LTR2LTJsLTYtMi0xNS0xMS0yLTF2LTJsLTQtMi04LTYtOS03LTktOC0xMC04di0yaC0ydi0yaC0ybC0zLTN2LTJoLTJ2LTJoLTJ2LTJsLTMtMXYtMmgtMnYtMmgtMnYtMmgtMmwtMy0zdi0yaC0ybC05LTExLTEwLTExLTktMTJ2LTNoLTJ2LTJoLTJsLTYtOS03LTEwLTgtMTItNi0xMS04LTEzLTgtMTctNi0xMnYtNGgtMmwtNC0xMS0zLTctNC0xMi0zLTctMi03LTMtOC0xLTctMy04LTItMTAtMy0xMHYtMTR6IiBmaWxsPSIjMDNDQ0Y3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDcxNCwxMDk1KSIgZD0ibTAgMCA1IDUgMTEgMTQgNCA1IDkgMSA0IDYgMiA4IDMgMTEgMSA3IDEgMSAyIDkgMiAxMCAxIDEgMSA3IDEgMSAyIDEwIDMgMTAgMSA4IDIgNiAyIDF2LTUxbDEtMzMgMi01aDE5bDIgNCAxIDI4djU3aDN2LTZsMS0xIDItMTAgMy05IDMtMTYgMi00IDEtOCAxLTEgMy0xNiAyLTYgNC0xMSAzLTF2LTJsOC00IDUgMSA4IDZ2OGwtMyAxMi0xIDEtMiAxMC0zIDEwLTEgOGgtMnY4bC0zIDExLTIgOS0xIDEtMSA4aC0ydjdsLTIgNS0yIDctMyAxNy0yIDMtMSA4LTEgMS0xIDctMSAxLTEgOS0zIDktMiAxMC0xIDEtMSA3LTIgNy0yIDUtMSA4LTMgOC00IDUtMyAyaC05bC01LTQtMy00LTMtMTUtMS0xLTItMTAtMS0xLTEtNy0xLTEtMS05LTMtOS0yLTEwLTEtMS0xLTctMS0xLTEtOS0zLTktMi0xMC0xLTEtMS03LTEtMS0yLTEwLTEtMS0zLTE2LTEtMS0yLTEwLTMtOS0xLTktMy05LTItMTAtMS0xLTEtNy0xLTEtMS05LTMtOS0yLTEwLTMtOXoiIGZpbGw9IiMwN0FBQkQiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzcwLDYyNykiIGQ9Im0wIDBoMjFsMSAxIDggMSA3IDMgOSAyIDggNSA3IDMgMTIgMTIgNiAxMiAxIDR2NjVsLTYtMS00Mi0xMy0yMC02LTkgMS01OSAxOC00LTF2LTYxbDQtMTAgNS05IDEyLTEyIDEyLTYgMTgtNiA4LTF6IiBmaWxsPSIjRkVDMkVBIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDYyOSw1MDMpIiBkPSJtMCAwaDE4bDEgMSAxIDE1IDMgM2gxN2wzLTMgMS0xNSAxLTFoMjBsMSAxIDEgMTYgMyAyaDE3bDMtM3YtMTNsMi0zaDE5bDIgMSAxIDE2IDMgMmgxN2wzLTF2LTE2bDItMmgxOWwyIDIgMSAxNSAyIDJoMThsMi0yIDEtMTUgMi0yaDE5bDIgMiAxIDE1IDIgMmgxOGwyLTIgMS0xNSAyLTJoMTlsMiAyIDEgMTUgMiAyaDE4bDItMiAxLTE1IDItMmgxMmwyIDJ2MzlsLTIgM2gtMjczbC00LTUtNC0xMC00LTExLTQtOXoiIGZpbGw9IiNGRkQ2MDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTQxLDQ3MikiIGQ9Im0wIDAgNyAxIDYgMyAzIDktNCA5LTUgMy00IDQtNiAzLTMgMy0xNiAxMi02IDQtNyA3LTEwIDgtMyAxdjJoLTJ2MmwtMyAzaC0ydjJoLTJ2MmgtMmwtMSAzaC0ydjJoLTJ2MmgtMmwtMSAzaC0ydjJoLTJ2MmgtMmwtMiA0LTEyIDE0LTQgNC0zIDUtNSA2LTIgNGgtMnYybC0yIDEtNCA3LTcgMTEtMSAyaC0ybC0yIDUtOCAxNC01IDktOCAxNS00IDgtMiA1LTMgNy0xIDRoLTJsLTEgNS0zIDctNSAxNy0yIDMtMyAxMy0yIDYtMyAxMi0xIDEtMSAxMC0xIDEtMSA3LTUgNi0zIDJoLTEwbC03LTd2LTEzbDMtMTEgMS0xIDMtMTYgMS0xIDEtNyA0LTkgMy0xMiA0LTkgNi0xNiA1LTExIDEwLTIxIDEyLTIyIDYtMTAgNy0xMCAxLTNoMmwyLTUgMTAtMTRoMmwxLTQgMi0zaDJsMi00IDMtNWgybDItNCA4LTkgNy04IDMxLTMxIDYtNCA3LTdoM3YtMmgybDEtMyA2LTJ2LTJsNi00aDJsMS0zIDYtMyA0LTQgNi00IDUtM3oiIGZpbGw9IiM4MEZGODciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTAyNSw0NzQpIiBkPSJtMCAwIDcgMSA2IDMgNSA0IDQgMiA0IDQgNSAzIDMgMyAxMCA4IDggNyA3IDYgOCA3IDcgNnYyaDJsNSA1djJoMnYyaDJsNyA4IDggOSA3IDggNCA0IDMgNSA2IDcgNyAxMCA1IDYgMiA2aDJsNCA3IDEgNGgybDggMTQgNiAxMCAxNiAzMiA0IDEwIDEgNmgybDMgMTAgMiAzIDMgMTAgMyA5IDMgOCAxIDcgMyA5IDMgMTEgMiA5djEzbC03IDdoLTEwbC0zLTJ2LTJoLTJsLTItMy0zLTEwLTEtOS0zLTktMi05LTMtOC0zLTEyLTQtOS0zLTEwLTQtOC0yLTV2LTVoLTJsLTUtMTB2LTRoLTJsLTEyLTI0LTUtNy02LTExLTMtMy01LTl2LTJoLTJsLTUtOC00LTQtMy01LTQtNC0zLTUtNC00di0yaC0ybC04LTEwLTktMTAtMjEtMjEtMTEtOHYtMmgtMnYtMmwtNC0yLTYtNC0yLTMtNS0zLTgtNi0zLTMtNi0zLTctNy0zLTkgNC04eiIgZmlsbD0iI0ZFOTYwMiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2NDYsNTY2KSIgZD0ibTAgMGgyNzVsMSAydjVsLTEgMWgtMjB2MmwtNSAzLTEgMTktNS01LTgtMTAtMS0xaC0zMGwtMSAxdjMzbDEgMyAzIDEgNCAxM2gtNGwtOC03LTItMXYtMmgtMnYtMmwtNC0xLTE0LTZ2LTJoLTVsLTctMy04LTFoLTQ3bC04IDEtMSAxLTcgMS0xNSA4aC02bC02LTQtMS0zMC00LTNoLTI5bC0yIDItMSA5LTEwLTUtMS0xdi05bC02LTItMS0xLTEzLTEtMS00eiIgZmlsbD0iI0Y3OTlEMiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg1OTUsOTUzKSIgZD0ibTAgMGg4bDYgNSAyIDN2MTBsLTYgMTAtMSA0aC0ybC0xIDUtOCAxNS04IDE3LTggMTUtOCAxNy02IDExdjJsNy0yIDE5LTEwIDMyLTE2IDE3LTkgOC00IDEzLTYgNy0xIDcgMyAzIDQgMSA3LTMgNy03IDUtMjYgMTMtMTUgOC0xNyA4LTE1IDgtMTcgOC02IDRoLTR2MmwtOCAzLTYgNC03IDMtNiAzLTUgM2gtOGwtNS00LTMtNHYtMTFsNC02IDEtNGgybDEtNSAzLTUgMS00aDJsMS00IDUtMTAgMy03IDktMTcgMTYtMzIgOS0xNyA4LTE3IDYtOXoiIGZpbGw9IiMwMUVFRkUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTY1LDk1MykiIGQ9Im0wIDBoOGw1IDQgNSA4IDIxIDQyIDkgMTcgOCAxNyA2IDEwIDMgNyA4IDE2IDggMTUgMiA0djEyaC0ybC0yIDQtNCAzaC04bC0xNC04LTgtMy02LTQtOS00LTE1LTgtMTctOC0xNC04LTgtMy0xMC02LTctMy0xNy05LTEwLTUtNS01LTItNSAxLTcgNS01IDUtMiA4IDEgNyA0IDcgMyAxNyA5IDI0IDEyIDE1IDggMTcgOCA2IDNoMmwtMS00LTE4LTM2LTEtNWgtMmwtMi01LTUtOS0yLTUtOC0xNi00LTd2LTRoLTJsLTMtNnYtOWw0LTV6IiBmaWxsPSIjRjc5OUQxIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgzOCw4OTUpIiBkPSJtMCAwIDQgMSAzIDQgNyA0IDYgNyA3IDYgNSA1IDYgNyAzIDJ2Mmw2IDEgMS0xIDEwLTIgMS0xIDE3LTMgOS0zIDItMWg3bDEgNCAxIDkgMiA1LTEgMSAyIDItMSAxIDIgMi0xIDEtNyAxLTEgMS0xNiAzLTQgMi04IDEtMSAxLTcgMS02IDYtMSA3LTEgMS0yIDEwLTMgMTAtMyAxNi0xIDEtMiAxMC0xIDEtMSA3LTEgMS0yIDEwLTMgMTAtMyAxNi0yIDktMiAzLTEgOC0xIDEtMSA3LTEgMS0yIDEwLTMgOS0xIDktMyA5LTgtNi0zLTItNCAxLTQgMmgtM3YybC00IDMgMy0xNSAzLTEwIDEtOCAxLTEgMS03IDEtMSAyLTEwIDMtOSAxLTkgMy05IDItMTAgMS0xIDEtNyAxLTEgMi0xMCAyLTkgMS0xIDEtOGgydi04bDMtMTAgMS0xIDEtOSAxLTEgMS03IDItNiAyLTktNy04di0zaC0ybC05LTExLTMtMTEtMi02LTMtMTB2LTd6IiBmaWxsPSIjQTJCNEZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc0MywzNDQpIiBkPSJtMCAwaDg2djc5aC04NnoiIGZpbGw9IiNGRkVBQTciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzgxLDIyOSkiIGQ9Im0wIDBoOGw0IDQgNiAxNSA4IDE1IDQgOCAzIDQgNCA4IDQgNiAzIDZ2MmgybDUgOSA2IDggMyA1djNoLTExMHYtNGw3LTEwIDMtNSAxMC0xNSA0LTggOC0xNSA0LTYgNC04IDQtMTF6IiBmaWxsPSIjRkZENjA0Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgzMiwxMTIxKSIgZD0ibTAgMCA1IDEgOCA2djhsLTMgMTItMSAxLTIgMTAtMyAxMC0xIDhoLTJ2OGwtMyAxMS0yIDktMSAxLTEgOGgtMnY3bC0yIDUtMiA3LTIgMTAtMTQtOC0xMy04LTIwLTEydi01MGwxLTMzIDItNWgxOWwyIDQgMSAyOHY1N2gzdi02bDEtMSAyLTEwIDMtOSAzLTE2IDItNCAxLTggMS0xIDMtMTYgMi02IDQtMTEgMy0xdi0yeiIgZmlsbD0iIzAwRURGRSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg1MzgsNTk4KSIgZD0ibTAgMGgxNXYyaDJsMSAxNiAzIDNoMTZsMi0zaDJ2LTE2bDItMmgxNWw0IDIgMSAxNiAzIDNoMTRsMy0zIDItNCAxLTEyIDItMmgxM2wyIDJ2MzZsLTcgOC00IDYtMTEgMTEtMyAxaC01M2wtNS0zLTIwLTIwLTItM3YtMzZ6IiBmaWxsPSIjRkVGQUU1Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDg5OCw4NDIpIiBkPSJtMCAwaDI0NXYxaC00NWw2IDggNCA0IDcgOCAzIDRoLTIwMmwtMTItMTYtNC01di0yaC0yeiIgZmlsbD0iI0ZGQkFGNSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5MjIsNTk4KSIgZD0ibTAgMGgxM2wyIDIgMSAxNiA1IDNoMTRsMy0zIDEtMTYgMi0yaDE3bDIgMiAxIDE2IDMgM2gxNGw1LTMgMS0xNiAyLTJoMTNsMiAydjM5bC0yMiAyMi0zIDFoLTUzbC01LTMtMTktMTktMi00di0zNXoiIGZpbGw9IiNGRTc2NzkiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzM2LDYzOCkiIGQ9Im0wIDBoM2wxMCAxMyAxNCAxOCAyMiAyOCAxMCAxMyA3IDktMyAxLTE3LTUtOSAxLTU5IDE4LTQtMXYtNjFsNC0xMCA1LTkgMTItMTJ6IiBmaWxsPSIjQTZDRkZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDM0Niw5MjgpIiBkPSJtMCAwaDEwbDUgNCAzIDQgMSA3IDEgMSAxIDEwIDMgOSAyIDkgMyA4IDIgOCAzIDcgMyAxMSAzIDcgNSAxMSA2IDE0IDcgMTQgOCAxNSA1IDcgNSAxMC0xIDctNyAyMWgtM2wtNS01LTktMTQtNi0xMS04LTEzLTgtMTctNi0xMnYtNGgtMmwtNC0xMS0zLTctNC0xMi0zLTctMi03LTMtOC0xLTctMy04LTItMTAtMy0xMHYtMTR6IiBmaWxsPSIjOUZFREZGIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDQyNSw4MTIpIiBkPSJtMCAwaDVsLTYgOC0xMSAxMy05IDExLTEyIDE0LTkgMTEtMTEgMTNoLTRsLTktMS05LTMtMTAtMi0xLTEtNy0xLTEtMS0xMC0yLTEtMS0xNS0zLTUtNC0zLTV2LTdsNy04IDktMyAxNi0zIDQtMiAxNi0zIDEtMSA3LTEgMS0xIDEwLTIgMS0xIDE3LTMgOS0zIDEwLTIgMS0xIDE2LTN6IiBmaWxsPSIjOUNGRjlBIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEwMTMsMTIxNikiIGQ9Im0wIDAgMiAzIDUgMjB2M2wtMTIgN2gtMnYybC03IDMtMTAgNi0xOCA4LTEzIDYtMTYgNi0xIDFoLTZ2MmwtMTMgNC04IDMtOSAyLTEwIDMtNyAxLTEgMS04IDEtMSAxaC0xNWwtNi03di0xMGw3LTcgOC0yIDExLTIgMS0xIDctMSAxLTEgOC0xIDEwLTQgNy0yIDEyLTQgNy0zIDEwLTMgOC00IDgtMyAyLTIgOC0zIDctNGgzdi0ybDgtMyA5LTYgOS01eiIgZmlsbD0iIzQ2QjJFNiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4MTUsNTAzKSIgZD0ibTAgMGgxOWwyIDIgMSAxNSAyIDJoMThsMi0yIDEtMTUgMi0yaDE5bDIgMiAxIDE1IDIgMmgxOGwyLTIgMS0xNSAyLTJoMTJsMiAydjM5bC0yIDNoLTEyNmwyLTQgMTEtMTYgNC03IDEtMTV6IiBmaWxsPSIjRkU3Njc5Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDcwMSw0NDcpIiBkPSJtMCAwaDMwbDIgMiAxIDEzIDQgNGgyNWwyLTEgMi00IDEtMTIgMi0yaDMybDEgMSAxIDEzIDQgNWgyNmwyLTIgMS0xNiAxLTFoMzBsMiAydjI4bC0zIDJoLTE2NGwtMy0ydi0yOXoiIGZpbGw9IiNGRkQ2MDEiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNDgzLDg4NSkiIGQ9Im0wIDAgMTAgMSA0IDIgNyAxIDEgMSA3IDEgMSAxIDEwIDIgMTAgMyA4IDEgMSAxIDcgMSAxIDEgMTAgMiA5IDMgOSAxIDkgMyAxMCAyIDEgMSA4IDEgMSAxIDkgMiAxMSAzIDIgMS0zIDExLTUgMTMtMTAtMi0xLTEtOC0xLTctMi01LTItMTYtMy0xLTEtOC0xLTMtMi0xMC0yLTctMi0xMC0yLTktMy05LTEtMS0xLTctMS0zLTItMTYtMy0xLTEtOS0xLTQtNHoiIGZpbGw9IiM5MEZFRjkiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTU3LDgxOSkiIGQ9Im0wIDBoOGw0IDQgMiA5IDMgMTEgMSAxMCAxIDEgMSA4IDQtMiAxLTcgMS0xIDEtNyAyLTcgMy0xMiA0LTYgMi0xaDhsNiA3IDEgNyAxIDEgMSA3IDEgMSAyIDkgMyAxMHY0aDN2LTEwbDEtMSAyLTEwIDEtMiAxLTkgMi05aDJsMS00IDItMWg3bDMgM3YxM2wtMSAxLTEgOC0xIDEtMSA5LTIgNS0zIDE2LTMgOC01IDUtNyAyLTctMy01LTUtMi02LTItMTAtMy0xMHYtN2wtMiAxLTIgNC0xIDgtMiA1LTMgMTMtMyA1LTcgNC00IDEtNi0zLTUtNS0yLTQtMi05LTEtOS0xLTEtMi05LTQtMjAtMS00IDQtNnoiIGZpbGw9IiMwOUFCQkUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTQ5LDQ5NykiIGQ9Im0wIDBoNDN2NzdoLTQ1di03NnoiIGZpbGw9IiNGRjk1MDEiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTQxLDQ3MikiIGQ9Im0wIDAgNyAxIDYgMyAzIDktNCA5LTUgMy00IDQtNiAzLTMgMy0xNiAxMi02IDQtNyA3LTEwIDgtMyAxdjJoLTJ2MmwtMyAzaC0ydjJoLTJ2MmgtMmwtMSAzaC0ydjJoLTJ2MmgtMmwtMSAzaC0ydjJoLTJ2MmgtMmwtMiA0LTQgMy0xMy0xNS0zLTUgMzYtMzYgNi00IDctN2gzdi0yaDJsMS0zIDYtMnYtMmw2LTRoMmwxLTMgNi0zIDQtNCA2LTQgNS0zeiIgZmlsbD0iI0ZFRkFFNSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMDE4LDkwMCkiIGQ9Im0wIDBoMTFsNTggOHYzbC05IDEtMSAxLTcgMS0xIDEtMTAgMi0xIDEtNyAxLTEgMS05IDEtOSAzLTEwIDItMSAxLTcgMS0xIDEtMTAgMi0xIDEtMTYgMy0xIDEtOCAxLTQgMi0xNiAzLTEgMS03IDEtMyAyaC0xMXYtM2wtMS00LTEtMy0xLTl2LTRsMi0yIDctMSAxLTEgOS0yIDEwLTIgMS0xIDctMSAxLTEgMTAtMiA5LTMgOS0xIDEtMSA3LTEgNC0yIDctMXoiIGZpbGw9IiNGNzk5RDEiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTE4Nyw2NjEpIiBkPSJtMCAwaDdsNCA4IDQgMTAgMSA2aDJsMyAxMCAyIDMgMyAxMCAzIDkgMyA4IDEgNyAzIDkgMyAxMSAyIDl2MTNsLTcgN2gtMTBsLTMtMnYtMmgtMmwtMi0zLTMtMTAtMS05LTMtOS0yLTktMy04LTMtMTItNC05LTMtMTAtNC04LTItNXYtNWgtMmwtNS0xMC0xLTV6IiBmaWxsPSIjRTU2Q0M2Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc3MSwxMDA3KSIgZD0ibTAgMCAxIDQgOCAxIDE1IDQgMSAxdjE0MmgtMWwtMS0yOC0xLTNoLTE5bC0xIDQtMSAzM2gtMXoiIGZpbGw9IiNCNkMzRkQiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjkwLDQxMCkiIGQ9Im0wIDBoMTNsNyA3djEwbC00IDUtNSAzLTcgMi05IDEtOSAzLTggMS0yIDItMTMgMy04IDMtOSA0LTE1IDYtOCAxLTgtNi0yLTR2LTZsNS04IDEyLTUgNi0yIDEwLTUgMTEtNCAxNC0zIDEtMSA3LTEgMS0xIDktMiAxMC0yeiIgZmlsbD0iI0ZGQjkwMCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3NzIsMTM5NSkiIGQ9Im0wIDBoMjJsNyAzIDYgNCAyIDUtMSA1LTIgMy03IDEtNS0yLTUtNWgtMTJsLTMgMyAxIDUgMSAyIDEwIDMgNyAxIDggMyA1IDMgNCA0IDIgNHYxNWgtMmwtMSA1LTcgNi03IDNoLTI1bC05LTQtNi02di03bDUtNCA0LTEgNyAzIDUgMyA5IDEgNy0yIDEtMXYtNWwtNC00LTktMS0xMy00LTgtNi0yLTMtMi02di03bDUtMTBoMnYtMmw1LTN6IiBmaWxsPSIjMTE3NUI3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEzMzAsODIwKSIgZD0ibTAgMGgzNmw2IDUtMSA2LTYgNC0yMyAxdjEwbDIwIDF2Mmw0IDIgMSAxdjZsLTUgNC0yMSAxdjExbDI4IDEgNSA1LTEgNS00IDQtMiAxaC0zNWwtNy0zLTEtMXYtNjJsMy0zeiIgZmlsbD0iI0ZGQkNENSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg0MjIsMTA4NSkiIGQ9Im0wIDAgNCA0IDUgOHYyaDJsNSA4IDggMTAgMyA0djNsMyAxdjJoMnYyaDJsMTEgMTQgMjggMjh2MWwtMTEgMS0xOCAxLTQgMS0xLTNoLTJ2LTJoLTJ2LTJoLTJsLTMtM3YtMmgtMmwtOS0xMS0xMC0xMS05LTEydi0zaC0ydi0yaC0ybC02LTktMS00IDIgMXoiIGZpbGw9IiMwMUVERkUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzYzLDI2NSkiIGQ9Im0wIDAgNCAyIDkgMTEgMTEgMTMgOSAxMSAxMyAxNSAyIDMgMzAgMXYxaC0xMTB2LTRsNy0xMCAzLTUgMTAtMTUgNC04eiIgZmlsbD0iI0ZGRUFBNyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NDUsMTAzMCkiIGQ9Im0wIDAgMTAgMiAxNCA0LTIgMTAtMyAxMS0zIDE2LTIgMy0xIDgtMSAxLTEgNy0xIDEtMiAxMC0zIDktMSA5LTMgOS04LTYtMy0yLTQgMS00IDJoLTN2MmwtNCAzIDMtMTUgMy0xMCAxLTggMS0xIDEtNyAxLTEgMi0xMCAzLTkgMS05IDMtOSAyLTEwIDEtMSAxLTd6IiBmaWxsPSIjQjZDM0ZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDY0Niw1NjYpIiBkPSJtMCAwaDEzNGwtNCA3LTYgOC0xMS00LTE3LTZoLTRsLTIgNS0zIDE2LTEgMTUtMiAxMC00IDJoLTZsLTYtNC0xLTMwLTQtM2gtMjlsLTIgMi0xIDktMTAtNS0xLTF2LTlsLTYtMi0xLTEtMTMtMS0xLTR6IiBmaWxsPSIjRkZENjA0Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDcxNCwxMDk1KSIgZD0ibTAgMCA1IDUgMTEgMTQgNCA1IDkgMSA0IDYgMiA4IDMgMTEgMSA3IDEgMSAyIDkgMiAxMCAxIDEgMSA3IDEgMSAyIDEwIDMgMTAgMSA4IDEgMy01LTItMTUtOS0xMS03LTQtMTYtMS0xLTEtOS0zLTktMi0xMC0xLTEtMS03LTEtMS0xLTktMy05LTItMTAtMy05eiIgZmlsbD0iIzAwRURGRSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMDU2LDc5MikiIGQ9Im0wIDAgMTIgMiA5IDIgMSAxIDEwIDIgMTAgMyAxNSAzIDUgMiAxNSAzIDkgMiA0IDIgNyAxIDEgMSA3IDF2MTVsLTEgMTQtMS0yLTMtMXYtMmwtNy0xLTUtMy01LTItMTEgMS0xMC0zLTgtMS0xLTEtMTYtMy00LTItNy0xLTYtOC0xMS0xMy05LTExeiIgZmlsbD0iI0ZFNzc3QyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3MzcsMTE5NCkiIGQ9Im0wIDAgNCAyIDE5IDExIDggNSAxIDMgNiAxIDIxIDEzIDIwIDEyIDEgMXY4bC0yIDMtMSA4LTEgMS0xIDctMyA1LTIgMi04LTYtOS05LTExLTktMTAtOS04LTctMTItOWgtMnYtMmwtMy0xLTItMTAtMS0xLTMtMTZ6IiBmaWxsPSIjMEU3NEI1Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDk3MCw0MDEpIiBkPSJtMCAwIDMgMiA0IDE4IDMgNyA2IDIwIDUgMTAgMiA2IDUgMTJ2N2wtMSAxaC01NGwtMS00IDQtMTAgNC05IDMtOCAzLTYgMy0xMSAzLTYgMi0xMSAzLTd6IiBmaWxsPSIjRkZCOTAwIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDYyNCwxMjUyKSIgZD0ibTAgMCAyOCAxMCAxNCA0IDEgMSAxNiAzIDEgMSAxMSAyIDkgMyA2IDZ2MTBsLTQgNS0zIDJoLTE0bC0xLTEtOC0xLTEtMS0xMC0yLTktMy0xMy0zLTE1LTYtNy0yLTExLTQgOC0yMmgyeiIgZmlsbD0iIzQ1QjJFNiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg0OTYsODQzKSIgZD0ibTAgMGg4OWwyIDYgMyAxNHY0aC0xMDFsMy0xMnoiIGZpbGw9IiM5MEZFRjkiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTg4LDQ2MikiIGQ9Im0wIDAgMyAxIDEgNyAyIDUgMSA3IDMgNiAzIDExIDMgOSA1IDExIDMgOCA0IDEwdjdoLTU1bDEtOCAzLTUgNC0xMyA1LTEwIDMtMTAgMy03IDItMTEgMy03IDItNXoiIGZpbGw9IiNGRkVBQTciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODY0LDQxMCkiIGQ9Im0wIDBoMTNsMSAxIDEwIDIgOSAzIDEgMSAxNiAzIDcgMiAxMyAzIDcgN3YxMGwtNyA3aC0xNGwtMTEtMy05LTItMTAtNC03LTEtMS0xLTktMS05LTMtNS00LTItM3YtMTB6IiBmaWxsPSIjRkZCOTAwIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDY5NSwxMDI1KSIgZD0ibTAgMCA5IDUgMTcgMTIgNiA0IDIgNiAxIDcgMSAxIDIgMTAgMyA5IDEgOSAxIDEgMSA3IDEgMSAyIDEwIDMgOXY3bC0yLTF2LTJoLTlsLTEwLTEyLTktMTF2LTJoLTJsLTItNC0zLTE2LTItNy0yLTUtMS03LTEtMS0zLTE2LTItNC0xLTd6IiBmaWxsPSIjOUZFREZGIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDExMjAsODc1KSIgZD0ibTAgMGg1bDMgNHYybDMgMSAyIDUgMyAxIDIgNSA0IDJ2MmwtMTYgMy0zIDItMTYgMy0xIDEtMTAgMi0yIDEtMTMtMS01Mi03LTQtMiAxLTEgMTYtMyA0LTIgOC0xIDEtMSA3LTEgMS0xIDktMiAxMS0zIDctMSAxLTEgOC0xIDQtMiAxNi0zeiIgZmlsbD0iI0ZGQkJGNSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5MDEsMTAxOSkiIGQ9Im0wIDAgOCAxIDcgNCA3IDMgMTcgOSAxNiA4IDUgMi0zIDEgMiA1aDFsMSA1IDIgMXY4bDIgOXYzbC0zMC0xNS01LTMtNy0zLTE3LTktMTAtNS01LTUtMi01IDEtNyA1LTV6IiBmaWxsPSIjQjZDMkZDIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDg3NSw2OTUpIiBkPSJtMCAwIDIgMyA4IDI2IDcgMjMgOSAzMS00IDEtMS0xLTEwLTJoLTZsLTcgOC0xMSAxMS01LTUtMTAtMTItMS00IDE5LTE5IDctOSAxLTQ1aDFsMSAxNHoiIGZpbGw9IiNGNzk5RDIiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTAyNSw0NzQpIiBkPSJtMCAwIDcgMSA2IDMgNSA0IDQgMiA0IDQgNSAzIDMgMyAxMCA4IDggNyA3IDYgOCA3IDIgMy0yMSAyaC0xNXYtMmwtNC0yLTYtNC0yLTMtNS0zLTgtNi0zLTMtNi0zLTctNy0zLTkgNC04eiIgZmlsbD0iI0ZGQjkwMCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg0NDUsNTUyKSIgZD0ibTAgMCAzIDEgOSAxMSA2IDgtMTMgMTQtMyA1LTUgNi0yIDRoLTJ2MmwtMiAxLTQgNy03IDExLTEgMmgtMmwtMiA1LTggMTQtMyA1LTEtMiAxLTMgMS0xOSAxLTEydi0xMWwtMS00IDEwLTE0aDJsMS00IDItM2gybDItNCAzLTVoMmwyLTQgOC05eiIgZmlsbD0iIzlDRkY5QSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg1NjUsMTIyNCkiIGQ9Im0wIDAgNCAxIDggNSA0IDF2Mmw1IDEgMTMgNyA1IDIgMTEgNSA3IDMgMiAxdjJoLTJsLTEgNS00IDEzLTIgMy03LTItMTUtNnYtMmwtNi0xLTE2LTgtMTUtOS0xMS02LTctNHYtMmwxMSAyIDE0LTExeiIgZmlsbD0iIzAyQ0NGNiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg1NjYsNzU2KSIgZD0ibTAgMGgxbDkgNDJ2NGwtNyAyLTkgMi0xIDEtOCAxLTEgMS0xNiAzLTQgMi0xNiAzLTEwIDIgMi05IDUtMTcgMi0yIDUtMiA4LTEgMS0xIDE2LTMgNC0yIDctMSAxLTEgOC0xIDItM3oiIGZpbGw9IiM5MEZFRjkiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODYyLDUwMykiIGQ9Im0wIDBoMTlsMiAyIDEgMTUgMiAyaDE4bDItMiAxLTE1IDItMmgxMmwyIDJ2MzlsLTIgM2gtMTRsLTI4LTEzLTIyLTEwIDItNCAxLTE1eiIgZmlsbD0iI0ZGOTQwNSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMTc2LDEwNzkpIiBkPSJtMCAwIDEgMy05IDE0LTcgMTEtNyAxMGgtMmwtMSA0LTYgOC0xNiAyMGgtMmwtMiA0LTMgNWgtMmwtMiA0LTI3IDI3aC0ydjJoLTJ2MmwtNyA1aC0ydjJsLTExIDktOCA3LTUgMy01IDRoLTNsMi00IDktOSA3LTggMTItMTMgOS0xMCAyMi0yNCAxOC0yMCAxMi0xMyA5LTEwIDExLTEyIDE4LTIweiIgZmlsbD0iI0ZFOUZGMSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgzNDYsOTI4KSIgZD0ibTAgMGgxMGwyIDIgMTIgOTAgMyAyNS0yLTEtMi00di00aC0ybC00LTExLTMtNy00LTEyLTMtNy0yLTctMy04LTEtNy0zLTgtMi0xMC0zLTEwdi0xNHoiIGZpbGw9IiMwOEFCQkYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjY1LDU3OCkiIGQ9Im0wIDBoMWwxIDkgMTAgNiAxIDIyIDIgMmgzMmwzLTIgOCA0LTEgMi01IDMtNSA0aC0ydjJoLTJ2MmgtMnYyaC0ybC0xIDNoLTJ2M2wtMzEgNi01IDF6IiBmaWxsPSIjRkVGOUU0Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDg0NSw3NzUpIiBkPSJtMCAwIDUgNSAxMSAxNC0yIDQtMzQgMzQtNSAzLTUtMi02LTEydi04bDMtMyAzLTV6IiBmaWxsPSIjQTJCNEZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDcwMSw0NDcpIiBkPSJtMCAwaDMwbDIgMiAxIDEzIDQgNGgyNWw1LTEgNSA2LTEwIDYtNCAxaC01OGwtMS0xdi0yOXoiIGZpbGw9IiNGRkI5MDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzgxLDExMykiIGQ9Im0wIDBoOWwxIDF2Nmg0MGwtMiA2LTEgMXY3bDMgNnYyaC00MHYxN2wtMSA3aC05bC0xLTF2LTMxeiIgZmlsbD0iI0ZGRUFBNyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3NDYsNjQ5KSIgZD0ibTAgMCA1IDUgMTMgMTYgMTAgMTMgMTEgMTQgMTAgMTMgNyA5LTMgMS0xNy01LTkgMS04IDEtMTQtMzctOS0yNSAxLTR6IiBmaWxsPSIjQTJCNEZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc0MywzNTEpIiBkPSJtMCAwIDMgNCAxNSAzMCAxMSAyMyA3IDE1aC0zNnoiIGZpbGw9IiNGRkQ1MDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMzMzLDgzNSkiIGQ9Im0wIDBoNmwtMSA2IDUgMjEgMiA5IDUgNS0yIDEtOC0xLTEtMS03LTEtMS0xLTEwLTItMS0xLTE1LTMtNS00LTMtNXYtN2w3LTggOS0zIDE2LTN6IiBmaWxsPSIjOUJGRTlBIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgxMyw2MzYpIiBkPSJtMCAwaDZsOCA0IDUgMyAxMSAxMSA2IDEyIDEgNHY0OGwtMSA3LTUtNS0xMC0zMC05LTI4LTUtMTItNy0xMHoiIGZpbGw9IiNGRkJCRjUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODMyLDExMjEpIiBkPSJtMCAwIDUgMSA4IDZ2OGwtMyAxMi0xIDEtMiAxMC0zIDEwLTEgOGgtOGwtMTUtNC0yLTEgMS0xMCAxLTEgMy0xNiAyLTYgNC0xMSAzLTF2LTJ6IiBmaWxsPSIjMDRDQ0Y3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEwMTMsMTIxNikiIGQ9Im0wIDAgMiAzIDUgMjB2M2wtMTIgN2gtMnYybC0xMCAxLTQzIDJoLTEybDEtMiAyMC04IDItMiA4LTMgNy00aDN2LTJsOC0zIDktNiA5LTV6IiBmaWxsPSIjMDFDQkY1Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDU2Miw1NTgpIiBkPSJtMCAwaDU0djIzaC01NHoiIGZpbGw9IiNGRUZBRTUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTk1LDk1MykiIGQ9Im0wIDBoOGw2IDUgMiAzdjEwbC0zIDRoLTJsLTI4IDI4LTggNy0xMyAxMy0xLTMgNS05IDgtMTUgOC0xNyA4LTE1IDQtN3oiIGZpbGw9IiM5MEZFRjkiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODM4LDQ0NykiIGQ9Im0wIDBoMzBsMiAydjI4bC0xIDFoLTQ0bDEtMTEgOC0xIDItMiAxLTE2eiIgZmlsbD0iI0ZGQjkwMCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2ODYsOTg4KSIgZD0ibTAgMCAxMSAyIDE4IDUgMSA4IDEgMSA0IDE4IDEgMSAzIDE3IDIgNi05LTUtMTctMTItNi00LTQtMTYtMy0xMC0xLTh6IiBmaWxsPSIjQjZDM0ZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDg2MCw5NjcpIiBkPSJtMCAwaDFsMiA5IDExIDI5IDEgMSAyLTR2NmwtMSAxLTIgMTAtMSAxLTEgNy0xIDEtMSA4LTctMS0xOC01di02bDItNCAxLTcgMS0xIDEtOGgydi04bDMtMTAgMS0xIDEtOSAxLTEgMS03eiIgZmlsbD0iI0E2Q0ZGRCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3NzEsMTA3NykiIGQ9Im0wIDAgMTEgNyAxNCAxMHY2NWgtMWwtMS0yOC0xLTNoLTE5bC0xIDQtMSAzM2gtMXoiIGZpbGw9IiM5RkVERkYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODI5LDg0MykiIGQ9Im0wIDBoNDF2OGw1IDE0IDEyIDF2MWgtMzFsLTIzLTEtNS0yLTMtMy00LTEzdi00eiIgZmlsbD0iI0EyQjRGRSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4MjEsNTA5KSIgZD0ibTAgMCA1IDUgMTggMjIgOCAxMHYxaC01N2wyLTQgMTEtMTYgNC03IDQtNHoiIGZpbGw9IiNGNzk4RDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODA5LDExNzIpIiBkPSJtMCAwIDExIDIgMTMgM3Y4bC0zIDExLTIgOS0xIDEtMSA4aC0ydjdsLTMgNy01LTUtMTAtMTItNC02LTEtNCAyLTQgMi03IDMtMTZ6IiBmaWxsPSIjMDFDQ0Y3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc0MCw1NzApIiBkPSJtMCAwIDEwIDMgMTggNiAyIDMtMTIgMTctNyA5LTMgMi03IDEtMTAgNS0xLTIgMi0xOCAyLTE3IDQtOHoiIGZpbGw9IiNGRkVBQTciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODA0LDEyOTApIiBkPSJtMCAwaDF2OGwtMSAxLTEgNy0yIDctMiA1LTEgOC0zIDgtNCA1LTMgMmgtOWwtNS00LTMtNC0zLTE1LTEtMiAxMS03IDE2LTEyeiIgZmlsbD0iI0E2Q0ZGRCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5MjUsOTIzKSIgZD0ibTAgMGg3bDEgNCAxIDkgMiA1LTEgMSAyIDItMSAxIDIgMi0xIDEtNyAxLTEgMS0xNiAzLTQgMi04IDFoLTNsLTMtNi0zLTE0di0yaDJ2LTJsMy0yIDE3LTMgOS0zeiIgZmlsbD0iI0E1Q0VGRCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5NDksNDk3KSIgZD0ibTAgMGg0M3YyNGgtMTBsLTM1LTN2LTIweiIgZmlsbD0iI0ZGQjkwMCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg1NDEsNDcyKSIgZD0ibTAgMCA3IDEgNiAzIDMgOS00IDktNSAzLTQgNC02IDMtMyAzLTUgMS0yMC0xMnYtM2w1LTIgMS0zIDYtMyA0LTQgNi00IDUtM3oiIGZpbGw9IiNGRkVBQTciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzc0LDExMjcpIiBkPSJtMCAwaDE5bDIgNCAxIDI4djM4aC0xdi0yOWwtMTAtMi0xMi0yLTEtMXYtMzF6IiBmaWxsPSIjMDBDQ0Y3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDg4MSw4NDIpIiBkPSJtMCAwaDE3djJoMmwxNCAxOSAyIDRoLTI5bC0xMi0xLTQtOC0yLTd2LTdsMS0xeiIgZmlsbD0iI0E1Q0ZGRCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg1MzAsMTIwMCkiIGQ9Im0wIDAgOCA1IDEwIDcgMTggMTEtNSA2LTEyIDktOS0yLTgtMy0xMS04IDEtMmgybDMtMTEgMy05eiIgZmlsbD0iIzlGRURGRiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMzMwLDgyMCkiIGQ9Im0wIDBoMzZsNiA1LTEgNi02IDQtMjMgMS0yIDktNSAxLTUtNC02LTV2LTEzbDMtM3oiIGZpbGw9IiNFODZEQzciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzY5LDU4MikiIGQ9Im0wIDAgNSAxIDEzIDcgMTEgOCAxMCA4IDIgMmgtNTlsNi05eiIgZmlsbD0iI0ZGQkJGNSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NzAsNzQ4KSIgZD0ibTAgMCAxIDItMSA2IDUgMTcgMyAzdjNsLTE2IDE2LTUtNS0xMC0xMi0xLTQgMTktMTl6IiBmaWxsPSIjRkZDMkVBIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEzMjQsODM3KSIgZD0ibTAgMCA5IDZ2Mmg3di01aDFsMSA2IDIwIDF2Mmw0IDIgMSAxdjZsLTUgNGgtMjFsLTItMi0xNSA0eiIgZmlsbD0iI0Y3OTlEMSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NjksNTY2KSIgZD0ibTAgMGg1MmwxIDJ2NWwtMSAxaC0yMHYybC01IDMtMSAxOS01LTUtOC0xMC0xMy0xNXoiIGZpbGw9IiNGRTc2N0EiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODI2LDU2NikiIGQ9Im0wIDBoNDNsOSAxMSAyIDQtMjkgMS0xIDEtMSAxOS0yLTEtNy0yNS0yLTloLTEyeiIgZmlsbD0iI0ZFOUVGMSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NTcsMTI4MikiIGQ9Im0wIDAgNCAzaDEybDExLTEgMjIgMSA3IDFoOWwtMiAyLTYgMi05IDItMTAgMy03IDEtMSAxLTggMS0xIDFoLTE1bC02LTd6IiBmaWxsPSIjQTZEMEZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDYwMSw5MTQpIiBkPSJtMCAwaDVsMSAxIDkgMiAxMSAzIDIgMS0zIDExLTUgMTMtMTAtMi01LTItNS0yM3oiIGZpbGw9IiM5RkVERkUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTA2MSw4MDEpIiBkPSJtMCAwIDggNiAxMSAxMyAxIDNoLTdsLTExLTMtMTAtMy04LTEtMS0xLTctMS0zLTItMTYtMy0xMC0yLTctMi0zLTJoOWw5IDIgNyAyIDEzIDEgMTUtMnoiIGZpbGw9IiNGRUI5RjQiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODA5LDExNzIpIiBkPSJtMCAwIDExIDIgMTMgM3Y4bC0zIDExLTIgNi00LTUtOC0zLTEwLTEtMS0zIDMtMTZ6IiBmaWxsPSIjMDJFQ0ZFIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDU4OCw0NjIpIiBkPSJtMCAwIDMgMSAxIDcgMiA1IDEgNyAzIDYgMyAxMSAzIDkgMiA0djZsLTctNi0xMC0xMy03LTgtMS01IDMtMTIgMy02eiIgZmlsbD0iI0ZGRDcwQSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3ODQsMTgxKSIgZD0ibTAgMCA3IDEgNSA1IDIgNHY2bC00IDYtNSAzaC03bC02LTMtMy02IDEtOSA1LTV6IiBmaWxsPSIjRkZFQUE3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc5MCwzMDApIiBkPSJtMCAwaDJsNyA4IDkgMTB2MmwzMyAxdjFoLTExMHYtNGwzLTMgMyAzIDEwIDFoMzFsNy00IDUtNnoiIGZpbGw9IiNGRkY4RTAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODEyLDgwOCkiIGQ9Im0wIDB2M2wtMiAydjhsNiAxMiA0IDEgNC0yLTYgNy0xIDNoNjR2MWwtNTIgMS03IDEgMiAxMSAzIDYgMiAyIDQgMSAyMyAxdjFoLTM1bC0xOC00OCAyLTR6IiBmaWxsPSIjQjdDM0ZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEwMzAsMTIwNikiIGQ9Im0wIDAgNSA1IDEgMy05IDI0LTUgM2gtMmwtNS0xOC0xLTggNS0zaDJ2LTJ6IiBmaWxsPSIjRTg2REM3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDk1OCwxMDQ3KSIgZD0ibTAgMCA2IDEgMTEgNiA3IDI4djNsLTktMy02LTQtMi0zLTEtOS0yLTEgMi03LTMtMS0yLTJ6IiBmaWxsPSIjRTU2RUM5Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDExODcsNjYxKSIgZD0ibTAgMGg3bDQgOCA0IDEwIDEgNmgybDIgOC02LTN2LTJsLTUtMi00LTN2LTJsLTQtMS0xNi0xM3YtM3oiIGZpbGw9IiNGRDc1N0MiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzU3LDEyNzMpIiBkPSJtMCAwIDQgNSAxMCAxMSAzIDN2M2w1IDEgNyA3LTQgNC0xMyA5aC0ybC0yLTktMS0xLTEtNy0xLTEtMS05LTMtOXoiIGZpbGw9IiM0NkIyRTYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTI1LDkyMykiIGQ9Im0wIDBoN2wxIDQgMSA5IDIgNS0xIDEgMiAyLTEgMSAyIDItMSAxLTcgMS0xIDEtMTAgMmgtNWw0LTE0IDItMTIgMy0yeiIgZmlsbD0iI0I1QzBGQyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMzQzLDg3NSkiIGQ9Im0wIDBoMjZsNSA1LTEgNS00IDQtMiAxaC0xM2wtOS0xLTItOHoiIGZpbGw9IiNGRjlFRjIiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODIxLDUwOSkiIGQ9Im0wIDAgNSA1IDE4IDIyIDggMTB2MWgtMjFsLTEtNi01LTE2LTQtMTN6IiBmaWxsPSIjRkU5REVGIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEwMTMsMTIxNikiIGQ9Im0wIDAgMiAzIDUgMjB2M2wtNiAzdi0ybC01LTItMTMtOXYtMmwtNC0xIDQtMyAxMi03eiIgZmlsbD0iIzQ1QjJFNiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5NjksNjg3KSIgZD0ibTAgMGgyNXYzMGwtNS01LTEzLTE1LTctOXoiIGZpbGw9IiNGRjc2NzkiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODk5LDg0MykiIGQ9Im0wIDBoMTBsMiAzIDEtMiA4LTEgMyA5IDQgMTN2MmgtMTFsLTEyLTE2LTUtN3oiIGZpbGw9IiNGNTk4RDIiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjkwLDQxMCkiIGQ9Im0wIDBoMTNsNCA1LTE3IDUtMTIgM2gtMjdsLTQtMiAxNC0zIDEtMSA3LTEgMS0xIDktMiAxMC0yeiIgZmlsbD0iI0ZGRDUwMyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NzAsNzQ4KSIgZD0ibTAgMCAxIDItMSA2IDUgMTcgMyAzdjNsLTcgNy00LTEtNC04LTMtOXYtOGw1LTV6IiBmaWxsPSIjRkZCQkY1Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgwOCw0NjcpIiBkPSJtMCAwaDE4bC0xIDExaDQydjFoLTE2NHYtMWwxMTAtMXYtM2wtMy01eiIgZmlsbD0iI0ZGRUFBNyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgzNDEsODMzKSIgZD0ibTAgMGg1bDUgMzd2OGwtNC01LTMtMi02LTI3LTEtNCAyLTZ6IiBmaWxsPSIjODBGRjg3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDMwMSw4NDYpIiBkPSJtMCAwIDQgMiA5IDEwIDcgOCAzIDUtMTEtMi05LTMtNS01LTItM3YtN3oiIGZpbGw9IiMwQUFDQkYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTA0MSwxMTk2KSIgZD0ibTAgMGgybC0xIDUtNSAxM2gybDQgN3YybDIgMS01IDUtMTEgOGgtMmwzLTEwIDUtMTMtMi01LTMtMi0yLTEgMy0zIDUtM3oiIGZpbGw9IiNGNzlBRDEiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTM0LDkyMSkiIGQ9Im0wIDBoOGw1IDE5djVsLTEgMWgtMTF2LTNsLTEtNC0xLTMtMS05di00eiIgZmlsbD0iI0UzNzFDQSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2NjMsMTAxOSkiIGQ9Im0wIDAgOSAyIDQgNSAxIDctMyA3aC00bC03LTgtNi04LTItMnoiIGZpbGw9IiM5RkVERkYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODk4LDg0MikiIGQ9Im0wIDBoMjQ1djFsLTIzMSAxLTEgNC0yLTUtMTEgMXoiIGZpbGw9IiNGRUJGRTciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTY2LDUyOSkiIGQ9Im0wIDAgMTAgNSAxNSA5djFoLTMwbDEtOHoiIGZpbGw9IiNGRUZBRTUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODk2LDg0MykiIGQ9Im0wIDAgNCAxIDE0IDE5IDIgNGgtOGwtNy0xLTItMi01LTIweiIgZmlsbD0iIzQ2QjJFNiIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2NzQsNTAzKSIgZD0ibTAgMGgyMGwxIDF2MTJsLTEgMmgtNWwtMTEtNy00LTR6IiBmaWxsPSIjRkZCOTAwIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDg3Myw2ODEpIiBkPSJtMCAwIDIgNCAyNSA4MyAzIDExLTMtMS0xMC0zNS01LTE2LTktMjl2MjJsLTItMS0xLTE4eiIgZmlsbD0iI0ZGQjFGNCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5MTksNjAxKSIgZD0ibTAgMGgxbDEgMjggMTEgMTMgOSAxMSA3IDgtMyAxLTUtMy0xOS0xOS0yLTR6IiBmaWxsPSIjRkVBMkVBIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDcxNyw2NTcpIiBkPSJtMCAwIDcgMi0zIDEwLTkgMjVoLTFsLTEtMjIgNC0xMHoiIGZpbGw9IiM5RkVERkYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTA5LDUwMykiIGQ9Im0wIDBoMTJsMiAydjM5aC0xbC0xLTI4LTExLTEtMy0xdi05eiIgZmlsbD0iI0ZGQzAxNSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4MTUsNTAzKSIgZD0ibTAgMGgxOWwyIDJ2OGwtNS0xLTYtM2gtMmwtNSA1LTQgNmgtMXYtMTV6IiBmaWxsPSIjRkY5OTJBIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDk5NiwxMjUxKSIgZD0ibTAgMGg2bC00IDQtMjAgMTBoLTN2LTEyeiIgZmlsbD0iI0E2RDBGRCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NjIsNTAzKSIgZD0ibTAgMGgxOWwyIDJ2OGwtMjMtMnYtNnoiIGZpbGw9IiNGRkJBMDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzQ3LDM2MikiIGQ9Im0wIDAgMyA0IDYgMTIgMyAzIDEzIDI3LTEgNC03LTgtMTAtMjEtNy0xOHoiIGZpbGw9IiNGRkJFMDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjE3LDEyNTApIiBkPSJtMCAwIDUgMSAyIDF2MmgtMmwtMSA1LTQgMTMtMiAzLTctMiAxLTUgNy0xN3oiIGZpbGw9IiMwQUFBQkYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTAxMywxMjE2KSIgZD0ibTAgMCAyIDMgNSAyMHYzbC0zIDEtMTItMTktMS0zIDUtM3oiIGZpbGw9IiNCNEMzRkQiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTM4LDQzMykiIGQ9Im0wIDBoM3Y5bC03IDdoLTE0bC0yLTF2LTJsNy0zIDctNSAyLTJ6IiBmaWxsPSIjRkZCRDAyIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEzNDMsODc1KSIgZD0ibTAgMGgxOGwtNiA4LTYgNmgtNGwtMi04eiIgZmlsbD0iI0Y3OTlEMSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3NTcsNTk5KSIgZD0ibTAgMCA5IDQgMiAxIDMzIDEgMiAyLTUyIDF6IiBmaWxsPSIjRkVDM0U5Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgwMSwzNDQpIiBkPSJtMCAwaDI4djEwbC0xMC0zLTE4LTZ6IiBmaWxsPSIjRkZGQUU1Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgyOCw4ODIpIiBkPSJtMCAwIDYgNCAxIDNoMnYybDQgMiA2IDgtNC0yLTItMy0zLTF2OWwxIDQtMiAxLTktMjR6IiBmaWxsPSIjQjdDM0ZEIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDczNCw2NDApIiBkPSJtMCAwIDMgMSAxIDQtOSAzLTUgMTEtMiAxdi0ybC00LTEgMS00IDEyLTEyeiIgZmlsbD0iIzA3RDJGOCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NDIsNjU1KSIgZD0ibTAgMCAzIDMgNCA4IDEgOS0xIDUtNC0zLTQtMTV2LTZ6IiBmaWxsPSIjRjg5RUQ2Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDg0OCw3ODApIiBkPSJtMCAwIDMgMSAxMCAxMy0yIDQtNCAyLTMtMy00LTE0eiIgZmlsbD0iI0E3Q0NGRCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NTIsNTIzKSIgZD0ibTAgMCA3IDEgMjggMTMgMjAgOXYxaC01bC0xNC03LTI1LTExLTExLTV6IiBmaWxsPSIjRkRCM0Q0Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc5MSw0NDcpIiBkPSJtMCAwaDExbDEgMSAxIDE1LTItMS0xLTMtNS0zLTQtNXoiIGZpbGw9IiNGRkVBQTciLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTM0OCw4NDgpIiBkPSJtMCAwaDE0bDEgMy0xNSA1LTUtMS0xLTMgMy0xeiIgZmlsbD0iI0U4NkNDNyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5NDcsNTY1KSIgZD0ibTAgMCA1IDEgNSAzIDEwIDR2MWgtMjB6IiBmaWxsPSIjRkU4MjhDIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDczNCwxMTIwKSIgZD0ibTAgMGg5bDQgNiAyIDgtMSA0LTktMTF6IiBmaWxsPSIjMDlDRUY3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgyNCwxMTE0KSIgZD0ibTAgMCA1IDIgNSA1LTcgNGgtM3YybC00IDMgMy0xNXoiIGZpbGw9IiM5RkVERkYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODE1LDUwMykiIGQ9Im0wIDAgNSAxIDEgNi03IDEwaC0xdi0xNXoiIGZpbGw9IiNGRkQzMDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjA0LDQ1MikiIGQ9Im0wIDAgMTUgM3YybDYgMS00IDItOCAxLTgtNnoiIGZpbGw9IiNGRkQ0MDAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjIwLDY1NikiIGQ9Im0wIDAgMyAxLTQgNC0zIDFoLTE5bDQtMnoiIGZpbGw9IiM5RkVCRkUiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTM4LDQzMSkiIGQ9Im0wIDAgMyAxLTMgMmgtMmwtMSAzLTkgNi00IDMtNiAxIDQtNCAxMi04eiIgZmlsbD0iI0ZGOTIyMSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5OTgsODAzKSIgZD0ibTAgMGg5bDkgMiA5IDMtMSAyLTE2LTMtNy0yeiIgZmlsbD0iI0ZGQkNGNCIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2NDYsNTY2KSIgZD0ibTAgMGgxNnYxaC0xM2wxIDUgNiAxdjFoLTEwbC0xLTR6IiBmaWxsPSIjRkZFQUE3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc5OSw1NjcpIiBkPSJtMCAwaDIxdjFsLTcgMS0zIDMtMi0zLTIgMy0zLTEtMS0yLTMgMnoiIGZpbGw9IiNGRjlFRjIiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODczLDY4NykiIGQ9Im0wIDAgMiAyIDEgNnYyNWwtMi0xLTEtMTh6IiBmaWxsPSIjRkU5REYxIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDY5Nyw2NDApIiBkPSJtMCAwIDMgMS01IDctOC0zdi0yeiIgZmlsbD0iIzA2Q0RGNyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5MjIsNDQ1KSIgZD0ibTAgMGgxMGwxIDIgMiAxLTEgMWgtMTRsLTItMXYtMnoiIGZpbGw9IiNGRkQzMDYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTA2LDg1NSkiIGQ9Im0wIDAgMyAxIDcgOS0xIDItNy0yeiIgZmlsbD0iIzEwNzVCNyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMzY5LDg3OCkiIGQ9Im0wIDAgNSAyLTEgNS0yIDNoLTJsLTEtOXoiIGZpbGw9IiNFMjZDQzYiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzM0LDY0MCkiIGQ9Im0wIDAgMyAxIDEgNC04IDItMS0yIDItNHoiIGZpbGw9IiM1MUI2RTkiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODI1LDUwOSkiIGQ9Im0wIDAgNiAyIDUgMi0xIDQtMTEtNnoiIGZpbGw9IiNGMkI5REIiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODE1LDUwMykiIGQ9Im0wIDAgNSAxIDEgNS04LTEgMS00eiIgZmlsbD0iI0ZGRUFBNyIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMTY4LDY2NSkiIGQ9Im0wIDAgNCAxIDEyIDEwaC0zbC0xMi05eiIgZmlsbD0iIzBFNzNCNSIvPgo8cGF0aCB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMjA0LDc3MikiIGQ9Im0wIDAgMyAydjJsNSAyIDEgMWg5bC0xIDJoLTEwbC0zLTJ2LTJoLTJ6IiBmaWxsPSIjRjc5OUQxIi8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgwOSw1MjYpIiBkPSJtMCAwIDIgMS00IDctNSA0IDEtNHoiIGZpbGw9IiNFRTc4QzAiLz4KPHBhdGggdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTE2LDkyNikiIGQ9Im0wIDBoNWwtMSA1LTIgMy0yLTR6IiBmaWxsPSIjNDRCMkU2Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDExNzUsNjY3KSIgZD0ibTAgMGg1bDIgNHYzbC00LTJ6IiBmaWxsPSIjRTg2Q0M3Ii8+CjxwYXRoIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgzMiw1MDMpIiBkPSJtMCAwIDQgMnY0bC03LTF6IiBmaWxsPSIjRkZCQzAwIi8+Cjwvc3ZnPgo=">
+  <div class="splash-wordmark"><span class="play">PLAY</span><span class="tools">TOOLS</span></div>
+  <div class="splash-tagline">The Digital Arcade</div>
+  <div class="splash-cta blink">▶ INSERT COIN TO START ◀
+    <span class="sub">Press any key · click · or tap to continue</span>
+  </div>
+  <div class="splash-legal" id="splashLegal"></div>
+</div>
+
+<div class="frame">
+  <!-- ===================== MARQUEE ===================== -->
+  <header class="marquee">
+    <div class="brand-kicker">Playology Entertainment Presents</div>
+    <div class="logo" id="logoHome"><span class="play">PLAY</span><span class="tools">TOOLS</span></div>
+    <div class="subtitle">The Digital Arcade</div>
+  </header>
+
+  <!-- ===================== STATUS STRIP ===================== -->
+  <div class="controls">
+    <div class="score-strip" id="scoreStrip">
+      GAMER DNA <span class="sep">·</span> CLASS <b id="ssClass">UNRANKED</b>
+      <span class="sep">·</span> SCORE <b id="ssScore">0000000</b>
+      <span class="sep">·</span> RANK <b id="ssRank">NEWBIE</b>
+    </div>
+    <div class="controls-actions">
+      <button class="btn" id="dnaBtn">◈ Gamer DNA</button>
+      <button class="btn ghost" id="crtToggle">Reduce CRT FX</button>
+    </div>
+  </div>
+
+  <!-- ===================== APP LAYOUT ===================== -->
+  <div class="layout">
+    <nav class="rail" id="rail"><!-- built by JS --></nav>
+    <main class="screen" id="screen"><!-- views mount here --></main>
+  </div>
+
+  <footer>
+    <div>◈ ◈ ◈</div>
+    <p><span class="pl">PLAYOLOGY ENTERTAINMENT</span> · PlayTools · The Digital Arcade</p>
+    <p class="muted">Self-contained · No accounts · Your Gamer DNA lives only in this browser.</p>
+  </footer>
+</div>
+
+<div id="toast-stack"></div>
+<div id="modal-root"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   PLAYTOOLS APPLICATION
+   Organized as small namespaced modules inside one IIFE.
+     Store        - GamerDNA state + localStorage persistence
+     Attr         - attribute engine (deltas, score, rank, class)
+     Ach          - achievement engine
+     ShareCard    - canvas share-card renderer + modal
+     Router       - hash routing + lazy view mount/unmount
+     Views        - home, dna hub, reflex lab cabinets
+     UI           - shell wiring (status strip, rail, CRT, theme)
+   ============================================================================ */
+(function(){
+
+/* ============================================================================
+   STORE — GamerDNA global state
+   ============================================================================ */
+const Store = (function(){
+  const KEY = 'playtools.gamerdna.v1';
+  const PREF_KEY = 'playtools.prefs.v1';
+
+  const ATTRS = ['reflex','precision','speed','focus','consistency','control','strategy'];
+
+  function defaultDNA(){
+    return {
+      version: 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      profile: {
+        gamerTag: '', url: '', dob: '',
+        city: '', state: '', country: '',
+        accent: '#16f2c8', car: '', character: '',
+        contacts: { discord:'', email:'', phone:'' },
+        socials: { twitch:'', youtube:'', x:'', tiktok:'', instagram:'' }
+      },
+      attributes: { reflex:0, precision:0, speed:0, focus:0, consistency:0, control:0, strategy:0 },
+      toolsCompleted: 0,
+      runs: 0,                 // total scored runs (any tool)
+      arcadePoints: 0,         // points accumulated across arcade cabinets
+      bests: {},               // toolId -> best metric object
+      counters: {},            // misc counters used by achievements (e.g. nat20s, platformSetups)
+      achievements: [],        // unlocked achievement ids
+      calibration: null        // measured system latency t_link (ms)
+    };
+  }
+
+  let dna = load();
+  let prefs = loadPrefs();
+  const listeners = [];
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(!raw) return defaultDNA();
+      const parsed = JSON.parse(raw);
+      return Object.assign(defaultDNA(), parsed, {
+        profile: Object.assign(defaultDNA().profile, parsed.profile||{}),
+        attributes: Object.assign(defaultDNA().attributes, parsed.attributes||{}),
+        bests: parsed.bests||{}, counters: parsed.counters||{}, achievements: parsed.achievements||[]
+      });
+    }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
+  }
+  function loadPrefs(){
+    try{ return Object.assign({reduceCrt:false}, JSON.parse(localStorage.getItem(PREF_KEY)||'{}')); }
+    catch(e){ return {reduceCrt:false}; }
+  }
+  function save(){
+    dna.updatedAt = Date.now();
+    try{ localStorage.setItem(KEY, JSON.stringify(dna)); }catch(e){ console.warn('save failed', e); }
+    emit();
+  }
+  function savePrefs(){ try{ localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); }catch(e){} }
+
+  function emit(){ listeners.forEach(fn=>{ try{ fn(dna); }catch(e){ console.error(e); } }); }
+  function subscribe(fn){ listeners.push(fn); return ()=>{ const i=listeners.indexOf(fn); if(i>=0) listeners.splice(i,1); }; }
+
+  return {
+    ATTRS,
+    get(){ return dna; },
+    getPrefs(){ return prefs; },
+    setPref(k,v){ prefs[k]=v; savePrefs(); },
+    save, subscribe,
+    reset(){ dna = defaultDNA(); save(); },
+    update(mut){ mut(dna); save(); }
+  };
+})();
+
+/* ============================================================================
+   ATTR — attribute engine: deltas, gamer score, rank, class (DD §3.1.3-3.1.4)
+   ============================================================================ */
+const Attr = (function(){
+  // Rank tiers — name + min gamer-score threshold + neon badge color
+  const RANKS = [
+    { name:'Newbie',      min:0,     color:'#9aa3d4' },
+    { name:'Rookie',      min:1000,  color:'#37e35b' },
+    { name:'Pro',         min:3000,  color:'#16f2c8' },
+    { name:'Veteran',     min:6000,  color:'#7c5cff' },
+    { name:'Elite',       min:10000, color:'#ff3df0' },
+    { name:'Master',      min:16000, color:'#ffd23d' },
+    { name:'Legend',      min:24000, color:'#ff9f1c' },
+    { name:'Arcade God',  min:35000, color:'#ff4d6d' }
+  ];
+
+  // Apply a weighted, performance-scaled delta vector to the 7 attributes.
+  //   base: { reflex:12, focus:4, ... }  — max delta for a perfect run
+  //   quality: 0..1 performance score for this run
+  //   A_new = min(100, A_old + base * quality)            (DD §3.1.3)
+  function applyVector(base, quality){
+    quality = Math.max(0, Math.min(1, quality==null ? 1 : quality));
+    Store.update(d=>{
+      Object.keys(base).forEach(k=>{
+        if(d.attributes[k]==null) return;
+        d.attributes[k] = Math.max(0, Math.min(100, d.attributes[k] + base[k]*quality));
+      });
+    });
+  }
+
+  function gamerScore(d){
+    d = d || Store.get();
+    const a = d.attributes;
+    const sum = Store.ATTRS.reduce((s,k)=>s+(a[k]||0),0);   // 0..700
+    const attrAvg = sum/Store.ATTRS.length;                  // 0..100
+    return Math.round(attrAvg*120 + d.toolsCompleted*120 + d.achievements.length*250 + d.arcadePoints);
+  }
+
+  function rankFor(score){
+    let r = RANKS[0];
+    for(const t of RANKS){ if(score>=t.min) r=t; }
+    return r;
+  }
+  function nextRank(score){ return RANKS.find(t=>t.min>score) || null; }
+
+  // Dynamic class allocation (DD §3.1.3). Evaluated top-down; first match wins.
+  function classFor(d){
+    d = d || Store.get();
+    const a = d.attributes;
+    if(d.runs < 2) return 'Unranked';
+    const rules = [
+      [a.reflex>=90 && a.precision>=85 && a.focus>=75, 'Arena Duelist'],
+      [a.precision>=95 && a.control>=90,               'Sharpshooter'],
+      [a.speed>=92 && a.consistency>=85,               'Speedrunner'],
+      [a.reflex>=85 && a.focus>=80,                    'Reaction Master'],
+      [a.precision>=80 && a.control>=70,               'Precision Hunter'],
+      [a.strategy>=75 && a.consistency>=70,            'Tactical Commander'],
+      [a.control>=80,                                  'Controller Wizard'],
+      [a.consistency>=80,                              'Retro Veteran']
+    ];
+    for(const [cond,name] of rules){ if(cond) return name; }
+    // Fallback: name by dominant attribute
+    const dom = Store.ATTRS.reduce((m,k)=> (a[k]>a[m]?k:m), 'reflex');
+    const map = { reflex:'Reaction Rookie', precision:'Steady Hand', speed:'Quickdraw',
+                  focus:'Zen Player', consistency:'Metronome', control:'Smooth Operator', strategy:'Field Tactician' };
+    return map[dom] || 'Arcade Champion';
+  }
+
+  return { RANKS, applyVector, gamerScore, rankFor, nextRank, classFor };
+})();
+
+/* ============================================================================
+   ACH — achievement engine (DD §5.2)
+   ============================================================================ */
+const Ach = (function(){
+  // Each definition: id, name, icon, desc, test(dna, ctx) -> bool
+  const DEFS = [
+    { id:'first_victory', name:'First Victory', icon:'🏆', desc:'Complete your first scored tool.',
+      test:(d)=> d.toolsCompleted>=1 },
+    { id:'reaction_master', name:'Reaction Master', icon:'⚡', desc:'Land an S-grade reaction time.',
+      test:(d,c)=> c && c.tool==='reaction' && c.grade==='S' },
+    { id:'precision_hunter', name:'Precision Hunter', icon:'🎯', desc:'Hit ≥98% accuracy on Precision Click.',
+      test:(d,c)=> c && c.tool==='precision' && c.accuracy>=98 },
+    { id:'speed_demon', name:'Speed Demon', icon:'🔥', desc:'Reach ≥12 CPS on the click test.',
+      test:(d,c)=> c && c.tool==='cps' && c.cps>=12 },
+    { id:'arcade_champion', name:'Arcade Champion', icon:'👑', desc:'Earn a 10,000 Gamer Score.',
+      test:(d)=> Attr.gamerScore(d)>=10000 },
+    { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
+      test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
+  ];
+
+  // Evaluate all defs; unlock newly-satisfied ones; toast + return list of new unlocks.
+  function evaluate(ctx){
+    const d = Store.get();
+    const newly = [];
+    // two passes so completionist can react to others unlocked this tick
+    for(let pass=0; pass<2; pass++){
+      DEFS.forEach(def=>{
+        if(d.achievements.includes(def.id)) return;
+        let ok=false; try{ ok = def.test(d, ctx); }catch(e){}
+        if(ok){ d.achievements.push(def.id); newly.push(def); }
+      });
+    }
+    if(newly.length){ Store.save(); newly.forEach(def=> UI.toast('Achievement Unlocked', def.icon+' '+def.name)); }
+    return newly;
+  }
+  function byId(id){ return DEFS.find(d=>d.id===id); }
+  return { DEFS, evaluate, byId };
+})();
+
+/* ============================================================================
+   SHARECARD — canvas renderer + modal (DD §5.1)
+   ============================================================================ */
+const ShareCard = (function(){
+  const W=440, H=560;
+
+  // data: { lab, tool, glyph, metric:[{k,v}], grade, designation, badge }
+  function draw(canvas, data){
+    const ctx = canvas.getContext('2d');
+    const accent = Store.get().profile.accent || '#16f2c8';
+    const tag = Store.get().profile.gamerTag || 'PLAYER ONE';
+    canvas.width=W; canvas.height=H;
+
+    // background
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#0c1024'); g.addColorStop(1,'#05070f');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // grid
+    ctx.strokeStyle='rgba(124,92,255,0.12)'; ctx.lineWidth=1;
+    for(let x=0;x<W;x+=28){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<H;y+=28){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    // border
+    ctx.strokeStyle=accent; ctx.lineWidth=3; ctx.strokeRect(8,8,W-16,H-16);
+
+    function center(text,y,font,color,glow){
+      ctx.font=font; ctx.fillStyle=color; ctx.textAlign='center';
+      if(glow){ ctx.shadowColor=color; ctx.shadowBlur=glow; } else ctx.shadowBlur=0;
+      ctx.fillText(text, W/2, y); ctx.shadowBlur=0;
+    }
+
+    center('PLAYTOOLS', 48, '700 13px monospace', '#ffd23d', 8);
+    center((data.lab||'ARCADE')+' · '+(data.tool||''), 70, '11px monospace', '#9aa3d4');
+
+    // glyph
+    center(data.glyph||'🕹️', 160, '90px sans-serif', '#fff', 0);
+
+    // grade badge
+    if(data.grade){
+      ctx.fillStyle=accent; ctx.shadowColor=accent; ctx.shadowBlur=18;
+      ctx.font='800 64px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('GRADE '+data.grade, W/2, 250); ctx.shadowBlur=0;
+    }
+
+    // metrics
+    let y = data.grade ? 300 : 270;
+    ctx.textAlign='left';
+    (data.metric||[]).forEach(m=>{
+      ctx.font='12px monospace'; ctx.fillStyle='#9aa3d4';
+      ctx.fillText(String(m.k).toUpperCase(), 50, y);
+      ctx.font='700 20px monospace'; ctx.fillStyle=accent; ctx.textAlign='right';
+      ctx.fillText(String(m.v), W-50, y);
+      ctx.textAlign='left'; y+=38;
+    });
+
+    // designation
+    if(data.designation){
+      y+=6;
+      ctx.font='12px monospace'; ctx.fillStyle='#9aa3d4'; ctx.textAlign='center';
+      ctx.fillText('DESIGNATION', W/2, y); y+=24;
+      ctx.font='700 18px sans-serif'; ctx.fillStyle='#ff3df0'; ctx.shadowColor='#ff3df0'; ctx.shadowBlur=10;
+      ctx.fillText(data.designation, W/2, y); ctx.shadowBlur=0; y+=10;
+    }
+
+    // badge strip
+    if(data.badge){
+      ctx.fillStyle='rgba(255,210,61,0.12)'; ctx.fillRect(30, H-128, W-60, 36);
+      ctx.strokeStyle='#ffd23d'; ctx.lineWidth=1; ctx.strokeRect(30, H-128, W-60, 36);
+      ctx.font='13px monospace'; ctx.fillStyle='#ffd23d'; ctx.textAlign='center';
+      ctx.fillText('★ '+data.badge, W/2, H-104);
+    }
+
+    // footer — player + url
+    center('@'+tag, H-64, '700 15px sans-serif', accent, 6);
+    center('playology · playtools', H-40, '11px monospace', '#9aa3d4');
+  }
+
+  // open a modal showing the rendered card with share/download actions
+  function open(data){
+    const root = document.getElementById('modal-root');
+    root.innerHTML='';
+    const backdrop = el('div',{class:'modal-backdrop'});
+    const modal = el('div',{class:'modal'});
+    const close = el('button',{class:'modal-close', html:'✕'});
+    const h3 = el('h3',{html:'▶ SHARE CARD'});
+    const canvas = document.createElement('canvas');
+    const actions = el('div',{class:'modal-actions'});
+    const dl = el('button',{class:'btn primary', html:'⬇ Download PNG'});
+    const sh = el('button',{class:'btn', html:'↗ Share'});
+    const cl = el('button',{class:'btn ghost', html:'Close'});
+
+    actions.append(dl, sh, cl);
+    modal.append(close, h3, canvas, actions);
+    backdrop.append(modal); root.append(backdrop);
+    draw(canvas, data);
+
+    function dismiss(){ root.innerHTML=''; }
+    close.onclick = dismiss; cl.onclick = dismiss;
+    backdrop.onclick = e=>{ if(e.target===backdrop) dismiss(); };
+
+    const fname = 'playtools_'+(data.tool||'card').toLowerCase().replace(/\s+/g,'-')+'.png';
+    dl.onclick = ()=>{
+      const a=document.createElement('a'); a.download=fname; a.href=canvas.toDataURL('image/png'); a.click();
+    };
+    const shareText = buildText(data);
+    sh.onclick = async ()=>{
+      try{
+        const blob = await new Promise(r=> canvas.toBlob(r,'image/png'));
+        const file = new File([blob], fname, {type:'image/png'});
+        if(navigator.canShare && navigator.canShare({files:[file]})){
+          await navigator.share({ files:[file], title:'PlayTools', text:shareText });
+        } else if(navigator.share){
+          await navigator.share({ title:'PlayTools', text:shareText });
+        } else {
+          await navigator.clipboard.writeText(shareText);
+          UI.toast('Copied','Share text copied to clipboard');
+        }
+      }catch(e){ /* user cancelled */ }
+    };
+  }
+
+  function buildText(data){
+    const tag = Store.get().profile.gamerTag || 'I';
+    const m = (data.metric&&data.metric[0]) ? (data.metric[0].k+' '+data.metric[0].v) : '';
+    return `${tag} just scored ${data.grade?('Grade '+data.grade+' '):''}${m} on PlayTools ${data.tool||''} — beat me! 🕹️ #PlayTools`;
+  }
+
+  return { draw, open };
+})();
+
+/* ============================================================================
+   small DOM helper
+   ============================================================================ */
+function el(tag, opts){
+  const n = document.createElement(tag); opts = opts||{};
+  Object.keys(opts).forEach(k=>{
+    if(k==='class') n.className=opts[k];
+    else if(k==='html') n.innerHTML=opts[k];
+    else if(k==='text') n.textContent=opts[k];
+    else if(k==='style') n.setAttribute('style',opts[k]);
+    else if(k.startsWith('on') && typeof opts[k]==='function') n.addEventListener(k.slice(2), opts[k]);
+    else n.setAttribute(k, opts[k]);
+  });
+  return n;
+}
+
+/* ============================================================================
+   CABINET REGISTRY — declares labs + cabinets (drives rail + home + router)
+   ============================================================================ */
+const CABINETS = [
+  { id:'dna',        lab:'Gamer DNA', name:'Gamer DNA Hub', icon:'🧬', tag:'mvp', route:'#/dna',
+    desc:'Your profile, 7 attributes, class & rank.' },
+
+  { id:'calibration',lab:'Reflex Lab', name:'Latency Calibration', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
+    desc:'3-click baseline to factor out system latency.', dna:'Calibrates t_link' },
+  { id:'reaction',   lab:'Reflex Lab', name:'Reaction Time', icon:'⚡', tag:'mvp', route:'#/reflex/reaction',
+    desc:'Millisecond visual-stimulus reaction test.', dna:'Reflex +12 · Focus +4' },
+  { id:'cps',        lab:'Reflex Lab', name:'CPS Test', icon:'🖱️', tag:'mvp', route:'#/reflex/cps',
+    desc:'Clicks-per-second velocity & consistency.', dna:'Speed +15 · Consistency +5' },
+  { id:'precision',  lab:'Reflex Lab', name:'Precision Click', icon:'🎯', tag:'mvp', route:'#/reflex/precision',
+    desc:'Spatial target acquisition & accuracy.', dna:'Precision +16 · Control +6' },
+
+  // Foundation pass: remaining labs are visible but locked (coming soon).
+  { id:'mouse_lab',  lab:'Mouse & Hardware', name:'Polling / Accuracy / Chatter', icon:'🖲️', tag:'soon', locked:true,
+    desc:'Mouse diagnostics suite.' },
+  { id:'setup_lab',  lab:'Setup Lab', name:'eDPI · Sensitivity', icon:'🛠️', tag:'soon', locked:true,
+    desc:'Sensitivity calculators & converters.' },
+  { id:'fun_lab',    lab:'Fun Lab', name:'DNA Report · Archetype Quiz', icon:'🎭', tag:'soon', locked:true,
+    desc:'Identity profiling & roasts.' },
+  { id:'dice_lab',   lab:'Tabletop / RPG', name:'Dice Roller', icon:'🎲', tag:'soon', locked:true,
+    desc:'Full polyhedral dice + modifiers.' },
+  { id:'arcade_lab', lab:'Retro Arcade', name:'Pixel Dodge · Memory Match', icon:'👾', tag:'soon', locked:true,
+    desc:'Short-session classic mini-games.' }
+];
+
+/* ============================================================================
+   ROUTER — hash routing + lazy view mount/unmount (DD §2.2)
+   ============================================================================ */
+const Router = (function(){
+  const screen = document.getElementById('screen');
+  let current = null;   // { teardown }
+  const routes = {};    // path -> mount(container) -> teardownFn|undefined
+
+  function add(path, mount){ routes[path]=mount; }
+
+  function resolve(){
+    const hash = location.hash || '#/';
+    // exact match, else prefix fallback to home
+    const mount = routes[hash] || routes['#/'];
+    if(current && current.teardown){ try{ current.teardown(); }catch(e){ console.error(e); } }
+    screen.innerHTML='';
+    window.scrollTo({top:0, behavior:'instant' in window ? 'instant':'auto'});
+    let teardown=null;
+    try{ teardown = mount(screen); }catch(e){ console.error('view error', e); screen.innerHTML='<div class="panel"><h1 class="title">Glitch in the Matrix</h1><p class="muted">This cabinet failed to load.</p></div>'; }
+    current = { teardown: typeof teardown==='function' ? teardown : null };
+    UI.highlightRail(hash);
+  }
+
+  function start(){ window.addEventListener('hashchange', resolve); resolve(); }
+  function go(hash){ if(location.hash===hash) resolve(); else location.hash=hash; }
+  return { add, start, go };
+})();
+
+/* ============================================================================
+   VIEWS
+   ============================================================================ */
+const Views = {};
+
+/* ---- HOME / LOBBY ---- */
+Views.home = function(c){
+  const panel = el('div',{class:'panel'});
+  panel.append(
+    el('div',{class:'view-head', html:'<span class="lab-tag">Insert Coin</span>'}),
+    el('h1',{class:'title', html:'Welcome to the Arcade'}),
+    el('p',{class:'view-desc', html:'Pick a cabinet. Every scored run feeds your <strong>Gamer DNA</strong> — attributes, class, rank, and a shareable hi-score card. No login, no server; your profile lives only in this browser.'})
+  );
+  // group by lab
+  const labs = [];
+  CABINETS.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
+  labs.forEach(lab=>{
+    panel.append(el('h2',{class:'sub', text:lab}));
+    const grid = el('div',{class:'cab-grid'});
+    CABINETS.filter(x=>x.lab===lab).forEach(cab=> grid.append(cabCard(cab)));
+    panel.append(grid);
+  });
+  c.append(panel);
+};
+
+function cabCard(cab){
+  const card = el('a',{class:'cab'+(cab.locked?' locked':''), href: cab.locked?'javascript:void 0':cab.route});
+  const tagHtml = cab.tag ? `<span class="tag ${cab.tag}">${cab.tag==='soon'?'soon':cab.tag}</span>` : '';
+  card.innerHTML = `<div class="cab-icon">${cab.icon}</div>
+    <div class="cab-name">${cab.name} ${tagHtml}</div>
+    <div class="cab-desc">${cab.desc||''}</div>
+    ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}`;
+  if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
+  return card;
+}
+
+/* ---- GAMER DNA HUB ---- */
+Views.dna = function(c){
+  const d = Store.get();
+  const panel = el('div',{class:'panel'});
+  panel.append(
+    el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
+    el('h1',{class:'title', html:'🧬 Gamer DNA'}),
+    el('p',{class:'view-desc', html:'Your anonymous local profile. Edit your identity, watch your seven attribute vectors grow, and track your class & rank as you play.'})
+  );
+
+  // ---- headline stats ----
+  const score = Attr.gamerScore(d);
+  const rank = Attr.rankFor(score);
+  const next = Attr.nextRank(score);
+  const klass = Attr.classFor(d);
+
+  const stats = el('div',{class:'stat-cards'});
+  stats.innerHTML = `
+    <div class="stat-card"><div class="k">Gamer Score</div><div class="v gold">${score.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="k">Rank</div><div class="v">${rank.name}</div></div>
+    <div class="stat-card"><div class="k">Class</div><div class="v">${klass}</div></div>
+    <div class="stat-card"><div class="k">Tools Done</div><div class="v">${d.toolsCompleted}</div></div>
+    <div class="stat-card"><div class="k">Achievements</div><div class="v">${d.achievements.length}/${Ach.DEFS.length}</div></div>`;
+  panel.append(stats);
+  if(next){
+    const need = next.min - score;
+    panel.append(el('p',{class:'muted', html:`Next rank: <strong>${next.name}</strong> in <strong>${need.toLocaleString()}</strong> points.`}));
+  }
+
+  // ---- radar + bars ----
+  panel.append(el('h2',{class:'sub', text:'Attribute Vectors'}));
+  const dl = el('div',{class:'dna-layout'});
+  const radarWrap = el('div',{class:'radar-wrap'});
+  const radar = document.createElement('canvas'); radar.width=300; radar.height=300;
+  radarWrap.append(radar, el('div',{class:'muted', style:'font-size:11px', html:'7-axis Gamer DNA'}));
+  const bars = el('div',{class:'attr-bars'});
+  Store.ATTRS.forEach(k=>{
+    const v = Math.round(d.attributes[k]);
+    const row = el('div',{class:'attr-row'});
+    row.innerHTML = `<span class="lbl">${k}</span><span class="track"><span class="fill" style="width:${v}%"></span></span><span class="val">${v}</span>`;
+    bars.append(row);
+  });
+  dl.append(radarWrap, bars);
+  panel.append(dl);
+  drawRadar(radar, d.attributes);
+
+  // ---- profile editor ----
+  panel.append(el('h2',{class:'sub', text:'Identity'}));
+  const form = el('div',{class:'form-grid'});
+  const p = d.profile;
+  const fields = [
+    ['gamerTag','Gamer Tag','text',p.gamerTag,'Your handle'],
+    ['url','Personal URL','url',p.url,'https://…'],
+    ['dob','Date of Birth','date',p.dob,'Age cohort only'],
+    ['city','City','text',p.city,''],
+    ['state','State / Province','text',p.state,''],
+    ['country','Country','text',p.country,''],
+    ['car','Favorite Car / Class','text',p.car,''],
+    ['character','Favorite Character','text',p.character,''],
+    ['discord','Discord','text',p.contacts.discord,''],
+    ['email','Email','email',p.contacts.email,''],
+    ['twitch','Twitch','text',p.socials.twitch,''],
+    ['youtube','YouTube','text',p.socials.youtube,''],
+    ['x','X','text',p.socials.x,''],
+    ['instagram','Instagram','text',p.socials.instagram,'']
+  ];
+  fields.forEach(([id,label,type,val,hint])=>{
+    const f = el('div',{class:'field'});
+    f.innerHTML = `<label for="f_${id}">${label}</label><input id="f_${id}" type="${type}" value="${(val||'').replace(/"/g,'&quot;')}" placeholder="${hint}">${hint?`<span class="hint">${hint}</span>`:''}`;
+    form.append(f);
+  });
+  // accent color
+  const accF = el('div',{class:'field'});
+  accF.innerHTML = `<label for="f_accent">Persona Color</label><input id="f_accent" type="color" value="${p.accent||'#16f2c8'}"><span class="hint">Drives the neon UI accent</span>`;
+  form.append(accF);
+  panel.append(form);
+
+  const actions = el('div',{class:'controls-row'});
+  const saveBtn = el('button',{class:'btn primary', html:'💾 Save Profile'});
+  const dummyBtn = el('button',{class:'btn ghost', html:'⚙ Manual Stat Entry'});
+  const resetBtn = el('button',{class:'btn danger ghost', html:'⟲ Reset Gamer DNA'});
+  actions.append(saveBtn, dummyBtn, resetBtn);
+  panel.append(actions);
+
+  // live accent preview
+  accF.querySelector('#f_accent').addEventListener('input', e=> UI.applyAccent(e.target.value));
+
+  saveBtn.onclick = ()=>{
+    const g = id=> (document.getElementById('f_'+id)||{}).value || '';
+    // light validation for url/email
+    const urlVal = g('url');
+    const emailVal = g('email');
+    if(urlVal && !/^https?:\/\/.+/i.test(urlVal)){ UI.toast('Check URL','URL should start with http:// or https://'); }
+    if(emailVal && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailVal)){ UI.toast('Check Email','That email looks off.'); }
+    Store.update(dd=>{
+      dd.profile.gamerTag=g('gamerTag'); dd.profile.url=urlVal; dd.profile.dob=g('dob');
+      dd.profile.city=g('city'); dd.profile.state=g('state'); dd.profile.country=g('country');
+      dd.profile.car=g('car'); dd.profile.character=g('character'); dd.profile.accent=g('accent')||'#16f2c8';
+      dd.profile.contacts.discord=g('discord'); dd.profile.contacts.email=emailVal;
+      dd.profile.socials.twitch=g('twitch'); dd.profile.socials.youtube=g('youtube');
+      dd.profile.socials.x=g('x'); dd.profile.socials.instagram=g('instagram');
+    });
+    UI.applyAccent(Store.get().profile.accent);
+    UI.toast('Saved','Gamer DNA profile updated.');
+  };
+  dummyBtn.onclick = ()=> UI.toast('Coming Soon','Manual KPI entry & platform parser arrive in a later build.');
+  resetBtn.onclick = ()=>{
+    if(confirm('Reset your entire Gamer DNA profile? This clears attributes, achievements and identity. Cannot be undone.')){
+      Store.reset(); UI.applyAccent(Store.get().profile.accent); Router.go('#/dna'); UI.toast('Reset','Fresh profile created.');
+    }
+  };
+
+  // ---- achievements ----
+  panel.append(el('h2',{class:'sub', text:'Achievements'}));
+  const ag = el('div',{class:'ach-grid'});
+  Ach.DEFS.forEach(def=>{
+    const unlocked = d.achievements.includes(def.id);
+    const a = el('div',{class:'ach '+(unlocked?'unlocked':'locked')});
+    a.innerHTML = `<div class="a-icon">${unlocked?def.icon:'🔒'}</div><div><div class="a-name">${def.name}</div><div class="a-desc">${def.desc}</div></div>`;
+    ag.append(a);
+  });
+  panel.append(ag);
+
+  c.append(panel);
+};
+
+// 7-axis radar chart
+function drawRadar(canvas, attrs){
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height, cx=W/2, cy=H/2, R=Math.min(W,H)/2-34;
+  const keys = Store.ATTRS, N=keys.length;
+  const accent = Store.get().profile.accent || '#16f2c8';
+  ctx.clearRect(0,0,W,H);
+  function pt(i, r){ const ang=-Math.PI/2 + i*2*Math.PI/N; return [cx+Math.cos(ang)*r, cy+Math.sin(ang)*r]; }
+  // rings
+  ctx.strokeStyle='rgba(124,92,255,0.25)'; ctx.lineWidth=1;
+  for(let ring=1; ring<=4; ring++){
+    ctx.beginPath();
+    for(let i=0;i<=N;i++){ const [x,y]=pt(i%N, R*ring/4); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.stroke();
+  }
+  // spokes + labels
+  ctx.fillStyle='#9aa3d4'; ctx.font='9px monospace'; ctx.textAlign='center';
+  for(let i=0;i<N;i++){
+    const [x,y]=pt(i,R); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
+    const [lx,ly]=pt(i,R+16); ctx.fillText(keys[i].slice(0,4).toUpperCase(), lx, ly+3);
+  }
+  // data polygon
+  ctx.beginPath();
+  for(let i=0;i<=N;i++){ const k=keys[i%N]; const r=R*Math.max(0,Math.min(100,attrs[k]))/100; const [x,y]=pt(i%N,r); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+  ctx.closePath();
+  ctx.fillStyle=hexA(accent,0.25); ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.shadowColor=accent; ctx.shadowBlur=10;
+  ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+  // vertices
+  ctx.fillStyle=accent;
+  for(let i=0;i<N;i++){ const k=keys[i]; const r=R*Math.max(0,Math.min(100,attrs[k]))/100; const [x,y]=pt(i,r); ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fill(); }
+}
+function hexA(hex,a){
+  const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)||['','16','f2','c8'];
+  return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
+}
+
+/* ============================================================================
+   REFLEX LAB CABINETS
+   ============================================================================ */
+
+/* ---- shared scaffold for a tool view ---- */
+function toolShell(c, cab){
+  const panel = el('div',{class:'panel'});
+  panel.append(
+    el('div',{class:'view-head', html:`<span class="lab-tag">${cab.lab}</span>`}),
+    el('h1',{class:'title', html:`${cab.icon} ${cab.name}`}),
+    el('p',{class:'view-desc', html:cab.desc + (cab.dna?` <span class="muted">· DNA: ${cab.dna}</span>`:'')})
+  );
+  c.append(panel);
+  return panel;
+}
+function getCab(id){ return CABINETS.find(x=>x.id===id); }
+
+/* ---- 4.1.1 Latency Calibration ---- */
+Views.calibration = function(c){
+  const cab = getCab('calibration');
+  const panel = toolShell(c, cab);
+  const samples = [];
+  const TARGET = 3;
+  const stage = el('div',{class:'stage ready'});
+  const info = el('p',{class:'muted'});
+  const result = el('div',{});
+  panel.append(stage, info, result);
+
+  function render(){
+    if(samples.length<TARGET){
+      stage.className='stage ready';
+      stage.innerHTML = `<div class="big">CLICK NOW</div><div class="small">Click the panel as fast as you can, ${TARGET} times in a row. We measure your system + input latency baseline (t_link) to subtract from scored runs.</div>`;
+      info.innerHTML = `Samples: <strong>${samples.length}/${TARGET}</strong>`;
+    } else {
+      const avg = samples.reduce((a,b)=>a+b,0)/samples.length;
+      const tlink = Math.round(avg);
+      Store.update(d=> d.calibration = tlink);
+      stage.className='stage go';
+      stage.innerHTML = `<div class="big">CALIBRATED</div><div class="small">Baseline latency locked in.</div>`;
+      info.innerHTML='';
+      result.innerHTML='';
+      const r = el('div',{class:'results'});
+      r.innerHTML = `<div class="result-tile"><div class="k">System Latency (t_link)</div><div class="v">${tlink} ms</div></div>
+        <div class="result-tile"><div class="k">Samples</div><div class="v">${samples.map(s=>Math.round(s)).join(' · ')}</div></div>`;
+      result.append(r);
+      const again = el('button',{class:'btn', html:'↻ Recalibrate'});
+      const next = el('button',{class:'btn primary', html:'→ Reaction Time'});
+      const row = el('div',{class:'controls-row'}); row.append(again,next); result.append(row);
+      again.onclick = ()=>{ samples.length=0; lastT=0; render(); };
+      next.onclick = ()=> Router.go('#/reflex/reaction');
+    }
+  }
+  let lastT = 0;
+  function onClick(){
+    if(samples.length>=TARGET) return;
+    const now = performance.now();
+    if(lastT){ samples.push(now-lastT); }
+    lastT = now;
+    if(samples.length>=TARGET){ render(); } else { render(); }
+  }
+  stage.addEventListener('pointerdown', onClick);
+  // first click only starts the clock; subsequent intervals are samples
+  render();
+  info.insertAdjacentHTML('afterend','<p class="muted" style="font-size:11px">Tip: the first click starts the timer; the next clicks are measured. A lower baseline means snappier hardware.</p>');
+  return ()=>{};
+};
+
+/* ---- 4.1.2 Reaction Time ---- */
+Views.reaction = function(c){
+  const cab = getCab('reaction');
+  const panel = toolShell(c, cab);
+  const tlink = Store.get().calibration || 0;
+  panel.append(el('p',{class:'muted', style:'font-size:12px',
+    html: tlink ? `Calibrated baseline t_link = <strong>${tlink}ms</strong> (subtracted from your raw time).`
+                : `<a href="#/reflex/calibration">Calibrate latency first</a> for the most accurate score (optional).`}));
+
+  const stage = el('div',{class:'stage'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  // state: idle -> waiting (amber) -> go (green, t0) -> captured
+  let state='idle', t0=0, timer=null;
+  function setIdle(){
+    state='idle'; clearTimeout(timer);
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">CLICK TO START</div><div class="small">When the screen turns <span style="color:var(--neon-5)">NEON GREEN</span>, click as fast as you can. Clicking early is a FALSE START.</div>`;
+  }
+  function setWaiting(){
+    state='waiting';
+    stage.className='stage wait';
+    stage.innerHTML = `<div class="big">WAIT FOR NEON GREEN…</div><div class="small">Steady…</div>`;
+    const delay = 2000 + Math.random()*4500; // 2000–6500ms
+    timer = setTimeout(setGo, delay);
+  }
+  function setGo(){
+    state='go'; t0=performance.now();
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">CLICK!</div>`;
+  }
+  function foul(){
+    state='idle'; clearTimeout(timer);
+    stage.className='stage foul';
+    stage.innerHTML = `<div class="big">FALSE START · FOUL</div><div class="small">Too soon! Click to try again.</div>`;
+  }
+  function capture(){
+    const raw = performance.now()-t0;
+    const dt = Math.max(1, Math.round(raw - tlink));
+    state='done';
+    finish(dt);
+  }
+  function onDown(){
+    if(state==='idle' || state==='done'){ setWaiting(); }
+    else if(state==='waiting'){ foul(); }
+    else if(state==='go'){ capture(); }
+  }
+  stage.addEventListener('pointerdown', onDown);
+
+  function grade(ms){ return ms<180?'S':ms<220?'A':ms<260?'B':ms<320?'C':'F'; }
+  // percentile beaten via Gaussian benchmark (mean 273ms, sd 60ms); faster = better
+  function percentile(ms){
+    const z=(ms-273)/60; const cdf=0.5*(1+erf(z/Math.SQRT2));
+    return Math.max(1, Math.min(99, Math.round((1-cdf)*100)));
+  }
+
+  function finish(dt){
+    const g = grade(dt), pct=percentile(dt);
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${dt} ms</div><div class="small">Click to go again</div>`;
+    // DNA: quality scales between 320ms (0) and 150ms (1)
+    const quality = clamp01((320-dt)/(320-150));
+    recordRun('reaction', {best:'min', value:dt});
+    Attr.applyVector({reflex:12, focus:4}, quality);
+    Ach.evaluate({tool:'reaction', grade:g, dt});
+
+    result.innerHTML='';
+    const r = el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Reaction</div><div class="v">${dt} ms</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Faster than</div><div class="v">${pct}%</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.reaction.value} ms</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'REFLEX LAB', tool:'Reaction Time', glyph:'⚡',
+      grade:g, metric:[{k:'Reaction', v:dt+' ms'}, {k:'Faster than', v:pct+'%'}],
+      designation: g==='S'?'Reaction Master': g==='A'?'Sharp Reflexes':'Quick Hands',
+      badge: g==='S'?'Lightning Reflexes':null
+    }));
+    state='done';
+  }
+  setIdle();
+  return ()=>{ clearTimeout(timer); };
+};
+
+/* ---- 4.1.3 CPS Test ---- */
+Views.cps = function(c){
+  const cab = getCab('cps');
+  const panel = toolShell(c, cab);
+  let duration=5; // seconds
+  const seg = el('div',{class:'seg'});
+  [1,5,10,20].forEach(s=>{
+    const b=el('button',{html:s+'s'}); if(s===duration) b.className='on';
+    b.onclick=()=>{ if(running) return; duration=s; [...seg.children].forEach(x=>x.className=''); b.className='on'; reset(); };
+    seg.append(b);
+  });
+  const row = el('div',{class:'controls-row'}); row.append(el('span',{class:'muted', style:'align-self:center', html:'Duration:'}), seg);
+  panel.append(row);
+
+  const stage = el('div',{class:'stage ready'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  let running=false, clicks=[], startT=0, timer=null;
+  function reset(){
+    running=false; clicks=[]; clearTimeout(timer);
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">CLICK TO START</div><div class="small">First click starts a ${duration}s timer. Click as fast as you can until time runs out.</div>`;
+    result.innerHTML='';
+  }
+  function onDown(){
+    if(!running){
+      running=true; startT=performance.now(); clicks=[startT];
+      stage.className='stage go'; tick();
+      timer=setTimeout(end, duration*1000);
+    } else {
+      clicks.push(performance.now());
+    }
+  }
+  function tick(){
+    if(!running) return;
+    const left = Math.max(0, duration - (performance.now()-startT)/1000);
+    stage.innerHTML = `<div class="big">${clicks.length-1}</div><div class="small">${left.toFixed(1)}s left — keep clicking!</div>`;
+    if(running) requestAnimationFrame(tick);
+  }
+  function end(){
+    running=false;
+    const total = clicks.length-1; // first click was the starter
+    const cps = total/duration;
+    // consistency = inverse coefficient of variation of inter-click deltas
+    const deltas=[]; for(let i=1;i<clicks.length;i++) deltas.push(clicks[i]-clicks[i-1]);
+    let consistency=0;
+    if(deltas.length>1){
+      const mean=deltas.reduce((a,b)=>a+b,0)/deltas.length;
+      const variance=deltas.reduce((a,b)=>a+(b-mean)*(b-mean),0)/deltas.length;
+      const cv=Math.sqrt(variance)/mean;
+      consistency=Math.max(0, Math.min(100, Math.round((1-cv)*100)));
+    }
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${cps.toFixed(2)} CPS</div><div class="small">Click below to try again</div>`;
+
+    const quality = clamp01(cps/14); // 14 CPS ≈ perfect
+    recordRun('cps', {best:'max', value:+cps.toFixed(2)});
+    Attr.applyVector({speed:15, consistency:5}, quality);
+    Ach.evaluate({tool:'cps', cps});
+
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Total Clicks</div><div class="v">${total}</div></div>
+      <div class="result-tile"><div class="k">CPS</div><div class="v">${cps.toFixed(2)}</div></div>
+      <div class="result-tile"><div class="k">Consistency</div><div class="v">${consistency}%</div></div>
+      <div class="result-tile"><div class="k">Best CPS</div><div class="v">${Store.get().bests.cps.value}</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'REFLEX LAB', tool:'CPS Test', glyph:'🖱️',
+      metric:[{k:'CPS', v:cps.toFixed(2)},{k:'Clicks', v:total},{k:'Consistency', v:consistency+'%'}],
+      designation: cps>=12?'Speed Demon': cps>=8?'Rapid Fire':'Click Cadet',
+      badge: cps>=12?'Speed Demon':null
+    }));
+  }
+  stage.addEventListener('pointerdown', onDown);
+  reset();
+  return ()=>{ clearTimeout(timer); running=false; };
+};
+
+/* ---- 4.1.4 Precision Click ---- */
+Views.precision = function(c){
+  const cab = getCab('precision');
+  const panel = toolShell(c, cab);
+  const SPAWNS=30, LIFE=1200, RADIUS=12; // 24px diameter
+  const W=800, H=500;
+  const canvas = el('canvas',{class:'game'}); canvas.width=W; canvas.height=H;
+  const wrap = el('div',{style:'overflow-x:auto'}); wrap.append(canvas);
+  const info = el('p',{class:'muted'});
+  const result = el('div',{});
+  const startBtn = el('button',{class:'btn primary', html:'▶ Start (30 targets)'});
+  const startRow = el('div',{class:'controls-row'}); startRow.append(startBtn);
+  panel.append(startRow, info, wrap, result);
+
+  const ctx = canvas.getContext('2d');
+  let running=false, spawnIdx=0, hits=0, misses=0, target=null, spawnTime=0, raf=null;
+  let distErrors=[], acqTimes=[];
+
+  function bg(){
+    ctx.fillStyle='#04060e'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(124,92,255,0.10)';
+    for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  }
+  function spawn(){
+    if(spawnIdx>=SPAWNS){ return end(); }
+    spawnIdx++;
+    const m=RADIUS+10;
+    target={ x:m+Math.random()*(W-2*m), y:m+Math.random()*(H-2*m) };
+    spawnTime=performance.now();
+  }
+  function loop(){
+    if(!running) return;
+    bg();
+    if(target){
+      const age=performance.now()-spawnTime;
+      if(age>LIFE){ misses++; spawn(); }
+      else {
+        const accent=Store.get().profile.accent||'#16f2c8';
+        const pulse=1-age/LIFE;
+        ctx.beginPath(); ctx.arc(target.x,target.y,RADIUS+6*pulse,0,7);
+        ctx.fillStyle=hexA(accent,0.18); ctx.fill();
+        ctx.beginPath(); ctx.arc(target.x,target.y,RADIUS,0,7);
+        ctx.fillStyle=accent; ctx.shadowColor=accent; ctx.shadowBlur=14; ctx.fill(); ctx.shadowBlur=0;
+        ctx.beginPath(); ctx.arc(target.x,target.y,3,0,7); ctx.fillStyle='#04060e'; ctx.fill();
+      }
+    }
+    ctx.fillStyle='#9aa3d4'; ctx.font='13px monospace'; ctx.textAlign='left';
+    ctx.fillText(`Target ${Math.min(spawnIdx,SPAWNS)}/${SPAWNS}   Hits ${hits}   Miss ${misses}`, 12, 22);
+    raf=requestAnimationFrame(loop);
+  }
+  function onClick(e){
+    if(!running || !target) return;
+    const rect=canvas.getBoundingClientRect();
+    const x=(e.clientX-rect.left)*(W/rect.width), y=(e.clientY-rect.top)*(H/rect.height);
+    const dist=Math.hypot(x-target.x, y-target.y);
+    if(dist<=RADIUS){
+      hits++; distErrors.push(dist); acqTimes.push(performance.now()-spawnTime); spawn();
+    } else { misses++; }
+  }
+  function start(){
+    running=true; spawnIdx=0; hits=0; misses=0; distErrors=[]; acqTimes=[];
+    startBtn.disabled=true; info.textContent='Click the neon targets before they vanish!';
+    result.innerHTML=''; spawn(); loop();
+  }
+  function end(){
+    running=false; cancelAnimationFrame(raf); startBtn.disabled=false; target=null; bg();
+    ctx.fillStyle='#16f2c8'; ctx.font='700 26px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('RUN COMPLETE', W/2, H/2);
+    const total=hits+misses;
+    const accuracy = total? Math.round(hits/total*100) : 0;
+    const avgDist = distErrors.length? distErrors.reduce((a,b)=>a+b,0)/distErrors.length : RADIUS;
+    const avgAcq  = acqTimes.length? acqTimes.reduce((a,b)=>a+b,0)/acqTimes.length : LIFE;
+    // precision rating: closeness to center + acquisition speed
+    const centerScore = clamp01(1-avgDist/RADIUS);          // 1 = bullseye
+    const speedScore  = clamp01(1-avgAcq/LIFE);             // 1 = instant
+    const rating = Math.round((centerScore*0.6+speedScore*0.4)*100);
+
+    const quality = clamp01(accuracy/100 * 0.7 + rating/100*0.3);
+    recordRun('precision', {best:'max', value:accuracy});
+    Attr.applyVector({precision:16, control:6}, quality);
+    Ach.evaluate({tool:'precision', accuracy});
+
+    info.textContent='';
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Hits</div><div class="v">${hits}</div></div>
+      <div class="result-tile"><div class="k">Misses</div><div class="v">${misses}</div></div>
+      <div class="result-tile"><div class="k">Accuracy</div><div class="v">${accuracy}%</div></div>
+      <div class="result-tile"><div class="k">Precision Rating</div><div class="v">${rating}</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'REFLEX LAB', tool:'Precision Click', glyph:'🎯',
+      metric:[{k:'Accuracy', v:accuracy+'%'},{k:'Hits', v:hits+'/'+total},{k:'Rating', v:rating}],
+      designation: accuracy>=98?'Precision Hunter': accuracy>=85?'Marksman':'Spray & Pray',
+      badge: accuracy>=98?'Precision Hunter':null
+    }));
+  }
+  canvas.addEventListener('pointerdown', onClick);
+  startBtn.onclick = start;
+  bg(); ctx.fillStyle='#9aa3d4'; ctx.font='15px monospace'; ctx.textAlign='center';
+  ctx.fillText('Press START — 30 targets, 1.2s each. Accuracy & speed feed Precision + Control.', W/2, H/2);
+  return ()=>{ running=false; cancelAnimationFrame(raf); };
+};
+
+/* ============================================================================
+   shared helpers for tool views
+   ============================================================================ */
+function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+function erf(x){ // Abramowitz-Stegun approximation
+  const s=x<0?-1:1; x=Math.abs(x);
+  const t=1/(1+0.3275911*x);
+  const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return s*y;
+}
+// record a run: bump tools/runs counters, track personal best
+function recordRun(toolId, best){
+  Store.update(d=>{
+    d.runs++; d.toolsCompleted++;
+    const cur=d.bests[toolId];
+    if(!cur){ d.bests[toolId]={value:best.value, mode:best.best}; }
+    else if(best.best==='min' && best.value<cur.value){ cur.value=best.value; }
+    else if(best.best==='max' && best.value>cur.value){ cur.value=best.value; }
+  });
+  Ach.evaluate({tool:toolId});
+}
+// a row with a "Share Result" button that opens the share card
+function shareRow(cardData){
+  const row=el('div',{class:'controls-row'});
+  const share=el('button',{class:'btn primary', html:'📸 Share Result'});
+  const dna=el('button',{class:'btn ghost', html:'🧬 View Gamer DNA'});
+  share.onclick=()=> ShareCard.open(cardData);
+  dna.onclick=()=> Router.go('#/dna');
+  row.append(share, dna);
+  return row;
+}
+
+/* ============================================================================
+   UI — shell wiring: rail, status strip, CRT toggle, accent theme, toasts
+   ============================================================================ */
+const UI = (function(){
+  const rail = document.getElementById('rail');
+
+  function buildRail(){
+    rail.innerHTML='';
+    rail.append(el('a',{href:'#/', html:'🏠 Arcade Lobby'}));
+    const labs=[];
+    CABINETS.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
+    labs.forEach(lab=>{
+      rail.append(el('h3',{text:lab}));
+      CABINETS.filter(x=>x.lab===lab).forEach(cab=>{
+        const a=el('a',{ href: cab.locked?'javascript:void 0':cab.route,
+          class: cab.locked?'locked':'', 'data-route':cab.route||'' });
+        a.innerHTML = `<span>${cab.icon} ${cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':'<span class="mini-tag mvp">mvp</span>'}`;
+        if(cab.locked) a.addEventListener('click', e=>{ e.preventDefault(); toast('Locked','Coming in a later build.'); });
+        rail.append(a);
+      });
+    });
+  }
+  function highlightRail(hash){
+    rail.querySelectorAll('a').forEach(a=> a.classList.toggle('active', a.getAttribute('data-route')===hash));
+  }
+
+  function refreshStrip(){
+    const d=Store.get(), score=Attr.gamerScore(d), rank=Attr.rankFor(score);
+    document.getElementById('ssClass').textContent=Attr.classFor(d).toUpperCase();
+    document.getElementById('ssScore').textContent=String(score).padStart(7,'0');
+    const rk=document.getElementById('ssRank'); rk.textContent=rank.name.toUpperCase(); rk.style.color=rank.color;
+  }
+
+  function applyAccent(hex){
+    if(!/^#[0-9a-f]{6}$/i.test(hex||'')) return;
+    document.documentElement.style.setProperty('--neon', hex);
+  }
+
+  function applyCrt(){
+    const reduce=Store.getPrefs().reduceCrt;
+    document.body.classList.toggle('no-crt', reduce);
+    document.getElementById('crtToggle').textContent = reduce?'Enable CRT FX':'Reduce CRT FX';
+  }
+
+  function toast(title, body){
+    const stack=document.getElementById('toast-stack');
+    const t=el('div',{class:'toast'});
+    t.innerHTML=`<div class="t-title">${title}</div><div class="t-body">${body}</div>`;
+    stack.append(t);
+    setTimeout(()=>{ t.remove(); }, 5200);
+  }
+
+  function init(){
+    buildRail();
+    applyAccent(Store.get().profile.accent);
+    applyCrt();
+    refreshStrip();
+    Store.subscribe(refreshStrip);
+
+    document.getElementById('crtToggle').onclick=()=>{ Store.setPref('reduceCrt', !Store.getPrefs().reduceCrt); applyCrt(); };
+    document.getElementById('dnaBtn').onclick=()=> Router.go('#/dna');
+    document.getElementById('logoHome').onclick=()=> Router.go('#/');
+  }
+
+  return { init, buildRail, highlightRail, refreshStrip, applyAccent, toast };
+})();
+
+/* expose UI for modules that reference it before definition (toast in Ach/ShareCard) */
+window.UI = UI; window.Router = Router;
+
+/* ============================================================================
+   SPLASH — boot screen shown once on startup; advance via key/click/tap
+   ============================================================================ */
+const APP_VERSION = '1.0.0';
+(function initSplash(){
+  const splash = document.getElementById('splash');
+  if(!splash) return;
+  const legal = document.getElementById('splashLegal');
+  if(legal) legal.innerHTML = '© '+new Date().getFullYear()+' Playology Entertainment · All rights reserved · '
+    + 'PlayTools v'+APP_VERSION+' · No accounts · Your data stays in this browser.';
+  // Hide the logo gracefully if the asset failed to inline.
+  const logo = document.getElementById('splashLogo');
+  if(logo){ logo.addEventListener('error', ()=>{ logo.style.display='none'; }); if(!logo.getAttribute('src')) logo.style.display='none'; }
+
+  let dismissed = false;
+  function dismiss(){
+    if(dismissed) return; dismissed = true;
+    splash.classList.add('hide');
+    window.removeEventListener('keydown', onKey, true);
+    setTimeout(()=>{ splash.remove(); }, 600);
+  }
+  function onKey(e){ if(e.key==='Tab') return; dismiss(); }
+  splash.addEventListener('pointerdown', dismiss);
+  window.addEventListener('keydown', onKey, true);
+  splash.focus();
+})();
+
+/* ============================================================================
+   BOOT
+   ============================================================================ */
+Router.add('#/', Views.home);
+Router.add('#/dna', Views.dna);
+Router.add('#/reflex/calibration', Views.calibration);
+Router.add('#/reflex/reaction', Views.reaction);
+Router.add('#/reflex/cps', Views.cps);
+Router.add('#/reflex/precision', Views.precision);
+
+UI.init();
+Router.start();
+
+})();
+</script>
+</body>
+</html>
