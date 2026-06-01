@@ -94,6 +94,34 @@
   .logo-sign{
     display:inline-block; vertical-align:middle; width:min(72vw,380px); height:auto;
     filter:drop-shadow(0 0 18px rgba(22,242,200,0.4)) drop-shadow(0 0 40px rgba(255,61,240,0.25));
+    /* Mostly steady, with the occasional flicker + glitch of a real neon tube.
+       The two animations have different (co-prime-ish) periods so the bursts drift
+       out of sync and never repeat at a predictable beat. */
+    animation:neonFlicker 11s linear infinite, neonGlitch 8.5s linear infinite;
+  }
+  /* Brief, irregular dips in brightness/glow — the tube stuttering before catching. */
+  @keyframes neonFlicker{
+    0%,17%,17.6%,18.2%,53%,53.4%,77%,77.5%,78.1%,100%{
+      opacity:1;
+      filter:drop-shadow(0 0 18px rgba(22,242,200,0.45)) drop-shadow(0 0 40px rgba(255,61,240,0.3));
+    }
+    17.3%,77.3%{
+      opacity:.35;
+      filter:drop-shadow(0 0 4px rgba(22,242,200,0.15)) drop-shadow(0 0 8px rgba(255,61,240,0.1));
+    }
+    17.9%{ opacity:.7; }
+    53.2%{
+      opacity:.2;
+      filter:drop-shadow(0 0 2px rgba(22,242,200,0.1)) drop-shadow(0 0 4px rgba(255,61,240,0.08));
+    }
+    77.8%{ opacity:.55; }
+  }
+  /* A rare horizontal tear/skew, like a bad ballast kicking the sign sideways. */
+  @keyframes neonGlitch{
+    0%,40.5%,41.4%,100%{ transform:translateX(0) skewX(0deg); }
+    40.7%{ transform:translateX(-3px) skewX(-5deg); }
+    41%{ transform:translateX(4px) skewX(4deg); }
+    41.2%{ transform:translateX(-2px) skewX(2deg); }
   }
   .subtitle{ font-size:12px; color:var(--ink-dim); letter-spacing:3px; text-transform:uppercase; }
 
@@ -412,6 +440,9 @@
     font-size:10px; letter-spacing:1px; color:var(--ink-dim); opacity:0.55; padding:0 16px;
   }
   body.no-crt .splash-logo, body.no-crt .splash-wordmark, body.no-crt .splash-sign, body.no-crt .logo-sign{filter:none; text-shadow:none;}
+  /* Honor the CRT toggle and reduced-motion users: hold the sign steady. */
+  body.no-crt .logo-sign{ animation:none; }
+  @media (prefers-reduced-motion:reduce){ .logo-sign{ animation:none; } }
 
   @media(max-width:900px){
     .layout{grid-template-columns:1fr;}
