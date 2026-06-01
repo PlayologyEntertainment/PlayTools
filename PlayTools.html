@@ -10,11 +10,13 @@
   Playology Entertainment · Single standalone HTML application
   ============================================================
   This is the APPLICATION (not the design document).
-  Build footprint: Foundation (DD §10 build order, steps 1-4)
+  Build footprint: Foundation + MVP labs (DD §10 build order, steps 1-5a)
     1. SPA shell + hash routing + GamerDNA state + status strip + CRT theme
     2. Gamer DNA hub (profile editor, attribute radar, rank/class display)
     3. Reflex Lab MVP cabinets (Calibration -> Reaction -> CPS -> Precision)
     4. Share Card + Achievement engines (shared services)
+    5a. Mouse & Hardware MVP (Polling Rate, Mouse Accuracy)
+    5b. Setup Lab MVP (eDPI Calculator, Sensitivity Converter)
   Zero external dependencies. All logic client-side. Persists to localStorage.
   ============================================================
 -->
@@ -470,7 +472,8 @@ const Store = (function(){
       bests: {},               // toolId -> best metric object
       counters: {},            // misc counters used by achievements (e.g. nat20s, platformSetups)
       achievements: [],        // unlocked achievement ids
-      calibration: null        // measured system latency t_link (ms)
+      calibration: null,       // measured system latency t_link (ms)
+      sensitivity: null        // Setup Lab sensitivity profile {dpi,inGame,edpi,cohort}
     };
   }
 
@@ -602,6 +605,10 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='cps' && c.cps>=12 },
     { id:'arcade_champion', name:'Arcade Champion', icon:'👑', desc:'Earn a 10,000 Gamer Score.',
       test:(d)=> Attr.gamerScore(d)>=10000 },
+    { id:'tracking_expert', name:'Tracking Expert', icon:'〰️', desc:'Keep avg error under 4px on Mouse Accuracy.',
+      test:(d,c)=> c && c.tool==='mouse_accuracy' && c.avgError<4 },
+    { id:'setup_specialist', name:'Setup Specialist', icon:'🛠️', desc:'Use every Setup Lab calculator.',
+      test:(d)=> !!(d.counters && d.counters.setupEdpi && d.counters.setupSens) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -786,11 +793,19 @@ const CABINETS = [
   { id:'precision',  lab:'Reflex Lab', name:'Precision Click', icon:'🎯', tag:'mvp', route:'#/reflex/precision',
     desc:'Spatial target acquisition & accuracy.', dna:'Precision +16 · Control +6' },
 
+  // Mouse & Hardware Lab (DD §4.2) — decoupled raw-input diagnostics.
+  { id:'mouse_polling', lab:'Mouse & Hardware', name:'Polling Rate', icon:'🖲️', tag:'mvp', route:'#/mouse/polling',
+    desc:'Estimate your mouse report rate (Hz) & stability.', dna:'Control +6 · Consistency +4' },
+  { id:'mouse_accuracy', lab:'Mouse & Hardware', name:'Mouse Accuracy', icon:'〰️', tag:'mvp', route:'#/mouse/accuracy',
+    desc:'Trace a moving node to score tracking control.', dna:'Precision +8 · Control +12' },
+
+  // Setup Lab (DD §4.3) — gaming calculators & sensitivity math.
+  { id:'edpi',     lab:'Setup Lab', name:'eDPI Calculator', icon:'🛠️', tag:'mvp', route:'#/setup/edpi',
+    desc:'Compute true effective DPI & your sensitivity cohort.', dna:'Updates Sensitivity Profile' },
+  { id:'senscvt',  lab:'Setup Lab', name:'Sensitivity Converter', icon:'🔁', tag:'mvp', route:'#/setup/sens',
+    desc:'Convert sens between game engines (same cm/360°).', dna:'Pure utility · no DNA' },
+
   // Foundation pass: remaining labs are visible but locked (coming soon).
-  { id:'mouse_lab',  lab:'Mouse & Hardware', name:'Polling / Accuracy / Chatter', icon:'🖲️', tag:'soon', locked:true,
-    desc:'Mouse diagnostics suite.' },
-  { id:'setup_lab',  lab:'Setup Lab', name:'eDPI · Sensitivity', icon:'🛠️', tag:'soon', locked:true,
-    desc:'Sensitivity calculators & converters.' },
   { id:'fun_lab',    lab:'Fun Lab', name:'DNA Report · Archetype Quiz', icon:'🎭', tag:'soon', locked:true,
     desc:'Identity profiling & roasts.' },
   { id:'dice_lab',   lab:'Tabletop / RPG', name:'Dice Roller', icon:'🎲', tag:'soon', locked:true,
@@ -1364,6 +1379,309 @@ Views.precision = function(c){
 };
 
 /* ============================================================================
+   MOUSE & HARDWARE LAB CABINETS (DD §4.2)
+   Decoupled input tracking (§4.2.1): the logging layer reads raw pointer-event
+   timestamps from the OS input stream inside async handlers, not animation
+   frames, so high-frequency hardware metrics aren't clamped to the render loop.
+   ============================================================================ */
+
+/* ---- 4.2.2 Mouse Polling Rate ---- */
+Views.polling = function(c){
+  const cab = getCab('mouse_polling');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'muted', style:'font-size:12px',
+    html:'Move your cursor in fast, continuous circles inside the box. The 3-second capture starts on your first movement and timestamps every raw input event.'}));
+
+  const stage = el('div',{class:'stage ready'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  let armed=false, capturing=false, stamps=[], startT=0, timer=null, raf=null;
+
+  function setReady(){
+    armed=true; capturing=false; stamps=[]; clearTimeout(timer); cancelAnimationFrame(raf);
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">MOVE TO START</div><div class="small">Move the cursor here in rapid circles — the 3s capture begins on your first movement.</div>`;
+  }
+  function begin(){
+    capturing=true; armed=false; stamps=[]; startT=performance.now();
+    stage.className='stage go';
+    timer=setTimeout(end, 3000);
+    raf=requestAnimationFrame(tick);
+  }
+  function onMove(e){
+    if(!capturing){ if(armed){ begin(); } else { return; } }
+    // e.timeStamp is a high-res ms reading tied to the input event itself
+    stamps.push((e.timeStamp>0) ? e.timeStamp : performance.now());
+  }
+  function tick(){
+    if(!capturing) return;
+    const left = Math.max(0, 3 - (performance.now()-startT)/1000);
+    stage.innerHTML = `<div class="big">${stamps.length} events</div><div class="small">Keep moving — ${left.toFixed(1)}s left</div>`;
+    raf=requestAnimationFrame(tick);
+  }
+  function grade(hz){ return hz>=900?'S':hz>=450?'A':hz>=220?'B':hz>=110?'C':'F'; }
+  function end(){
+    capturing=false; cancelAnimationFrame(raf);
+    const gaps=[]; for(let i=1;i<stamps.length;i++){ const g=stamps[i]-stamps[i-1]; if(g>0 && g<100) gaps.push(g); }
+    if(gaps.length<12){
+      stage.className='stage foul';
+      stage.innerHTML = `<div class="big">NOT ENOUGH DATA</div><div class="small">Move faster and keep moving the whole time. Click to retry.</div>`;
+      return;
+    }
+    const mean=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    const hz=Math.round(1000/mean);
+    const variance=gaps.reduce((a,b)=>a+(b-mean)*(b-mean),0)/gaps.length;
+    const cv=Math.sqrt(variance)/mean;
+    const consistency=Math.max(0, Math.min(100, Math.round((1-cv)*100)));
+    const steps=[125,250,500,1000,2000,4000,8000];
+    const rated=steps.reduce((p,s)=> Math.abs(s-hz)<Math.abs(p-hz)?s:p, steps[0]);
+    const g=grade(hz);
+
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${hz} Hz</div><div class="small">≈ ${rated}Hz class — click to run again</div>`;
+
+    const quality = clamp01(hz/1000) * clamp01(0.2 + consistency/100);
+    recordRun('mouse_polling', {best:'max', value:hz});
+    Attr.applyVector({control:6, consistency:4}, quality);
+    Ach.evaluate({tool:'mouse_polling', hz, consistency});
+
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Avg Polling</div><div class="v">${hz} Hz</div></div>
+      <div class="result-tile"><div class="k">Rated Class</div><div class="v">${rated} Hz</div></div>
+      <div class="result-tile"><div class="k">Consistency</div><div class="v">${consistency}%</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>`;
+    result.append(r);
+    result.append(el('p',{class:'muted', style:'font-size:11px',
+      html:'Note: some browsers/OSes coalesce pointer events to the display refresh, so this is an estimate of effective in-browser report rate, not a driver-level reading.'}));
+    result.append(shareRow({
+      lab:'MOUSE LAB', tool:'Polling Rate', glyph:'🖲️',
+      grade:g, metric:[{k:'Polling', v:hz+' Hz'},{k:'Consistency', v:consistency+'%'}],
+      designation: hz>=900?'1000Hz Overclocker': hz>=450?'High-Rate Tracker':'Standard Rig',
+      badge: hz>=900?'1K Polling':null
+    }));
+  }
+  stage.addEventListener('pointermove', onMove);
+  stage.addEventListener('pointerdown', ()=>{ if(!capturing) setReady(); });
+  setReady();
+  return ()=>{ clearTimeout(timer); cancelAnimationFrame(raf); capturing=false; };
+};
+
+/* ---- 4.2.3 Mouse Accuracy ---- */
+Views.mouseAccuracy = function(c){
+  const cab = getCab('mouse_accuracy');
+  const panel = toolShell(c, cab);
+  const W=760, H=420, DURATION=12000;
+  const canvas = el('canvas',{class:'game'}); canvas.width=W; canvas.height=H;
+  const wrap = el('div',{style:'overflow-x:auto'}); wrap.append(canvas);
+  const info = el('p',{class:'muted'});
+  const result = el('div',{});
+  const startBtn = el('button',{class:'btn primary', html:'▶ Start Tracking'});
+  const startRow = el('div',{class:'controls-row'}); startRow.append(startBtn);
+  panel.append(startRow, info, wrap, result);
+
+  const ctx = canvas.getContext('2d');
+  const cx=W/2, cy=H/2, A=Math.min(W,H)*0.42;
+  let running=false, raf=null, startT=0;
+  const mouse={x:cx, y:cy, has:false};
+  let errors=[], leads=[];
+
+  // Gerono lemniscate — a smooth, continuous figure-8 loop within bounds.
+  function nodeAt(t){ const s=Math.sin(t), den=1+s*s; return { x:cx+A*Math.cos(t)/den, y:cy+A*s*Math.cos(t)/den }; }
+  function bg(){ ctx.fillStyle='#04060e'; ctx.fillRect(0,0,W,H); }
+  function drawPath(){
+    ctx.beginPath();
+    for(let i=0;i<=240;i++){ const p=nodeAt(i/240*Math.PI*2); i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y); }
+    ctx.closePath(); ctx.strokeStyle='rgba(124,92,255,0.35)'; ctx.lineWidth=2; ctx.stroke();
+  }
+  function onMove(e){
+    const rect=canvas.getBoundingClientRect();
+    mouse.x=(e.clientX-rect.left)*(W/rect.width);
+    mouse.y=(e.clientY-rect.top)*(H/rect.height);
+    mouse.has=true;
+  }
+  function loop(now){
+    if(!running) return;
+    const elapsed=now-startT;
+    bg(); drawPath();
+    const t=(elapsed/DURATION)*Math.PI*2*2; // two full loops over the run
+    const node=nodeAt(t), node2=nodeAt(t+0.01);
+    const vx=node2.x-node.x, vy=node2.y-node.y, vlen=Math.hypot(vx,vy)||1;
+
+    const accent=Store.get().profile.accent||'#16f2c8';
+    ctx.beginPath(); ctx.arc(node.x,node.y,14,0,7); ctx.fillStyle=hexA(accent,0.18); ctx.fill();
+    ctx.beginPath(); ctx.arc(node.x,node.y,7,0,7); ctx.fillStyle=accent; ctx.shadowColor=accent; ctx.shadowBlur=14; ctx.fill(); ctx.shadowBlur=0;
+
+    if(mouse.has){
+      const dx=mouse.x-node.x, dy=mouse.y-node.y, err=Math.hypot(dx,dy);
+      errors.push(err);
+      leads.push((dx*vx+dy*vy)/vlen); // + ahead (overshoot), - behind (lag)
+      ctx.beginPath(); ctx.moveTo(mouse.x,mouse.y); ctx.lineTo(node.x,node.y);
+      ctx.strokeStyle= err<20?'rgba(55,227,91,0.6)':'rgba(255,77,109,0.6)'; ctx.lineWidth=1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(mouse.x,mouse.y,4,0,7); ctx.fillStyle='#fff'; ctx.fill();
+    }
+    ctx.fillStyle='#9aa3d4'; ctx.font='13px monospace'; ctx.textAlign='left';
+    ctx.fillText(`Time ${(Math.max(0,DURATION-elapsed)/1000).toFixed(1)}s   Stay on the node`, 12, 22);
+
+    if(elapsed>=DURATION) return end();
+    raf=requestAnimationFrame(loop);
+  }
+  function start(){
+    running=true; errors=[]; leads=[]; mouse.has=false; startBtn.disabled=true;
+    info.textContent='Keep your cursor on the glowing node as it moves.';
+    result.innerHTML=''; startT=performance.now(); raf=requestAnimationFrame(loop);
+  }
+  function end(){
+    running=false; cancelAnimationFrame(raf); startBtn.disabled=false;
+    bg(); drawPath();
+    ctx.fillStyle='#16f2c8'; ctx.font='700 26px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('RUN COMPLETE', W/2, H/2);
+    if(errors.length<5){ info.textContent='No tracking captured — keep the cursor inside the box.'; return; }
+    const avgErr=errors.reduce((a,b)=>a+b,0)/errors.length;
+    const variance=errors.reduce((a,b)=>a+(b-avgErr)*(b-avgErr),0)/errors.length;
+    const stdErr=Math.sqrt(variance);
+    const avgLead=leads.reduce((a,b)=>a+b,0)/leads.length;
+    const accuracy=Math.max(0, Math.min(100, Math.round(100-avgErr*2.2)));
+    const control=Math.max(0, Math.min(100, Math.round(100-stdErr*2.5)));
+    const vector=(avgLead>=0?'Lead ':'Lag ')+Math.abs(Math.round(avgLead))+'px';
+
+    const quality=clamp01(accuracy/100);
+    recordRun('mouse_accuracy', {best:'max', value:accuracy});
+    Attr.applyVector({precision:8, control:12}, quality);
+    Ach.evaluate({tool:'mouse_accuracy', accuracy, avgError:avgErr});
+
+    info.textContent='';
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Accuracy</div><div class="v">${accuracy}%</div></div>
+      <div class="result-tile"><div class="k">Avg Error</div><div class="v">${avgErr.toFixed(1)}px</div></div>
+      <div class="result-tile"><div class="k">Control Index</div><div class="v">${control}</div></div>
+      <div class="result-tile"><div class="k">Tracking</div><div class="v">${vector}</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'MOUSE LAB', tool:'Mouse Accuracy', glyph:'〰️',
+      metric:[{k:'Accuracy', v:accuracy+'%'},{k:'Avg Error', v:avgErr.toFixed(1)+'px'},{k:'Control', v:control}],
+      designation: avgErr<4?'Tracking Expert': accuracy>=80?'Smooth Operator':'Shaky Hands',
+      badge: avgErr<4?'Tracking Expert':null
+    }));
+  }
+  canvas.addEventListener('pointermove', onMove);
+  startBtn.onclick=start;
+  bg(); drawPath();
+  ctx.fillStyle='#9aa3d4'; ctx.font='15px monospace'; ctx.textAlign='center';
+  ctx.fillText('Press START — follow the moving node for 12s. Feeds Precision + Control.', W/2, H-24);
+  return ()=>{ running=false; cancelAnimationFrame(raf); };
+};
+
+/* ============================================================================
+   SETUP LAB CABINETS (DD §4.3)
+   ============================================================================ */
+
+/* ---- 4.3.1 eDPI Calculator ---- */
+Views.edpi = function(c){
+  const cab = getCab('edpi');
+  const panel = toolShell(c, cab);
+  const sv = Store.get().sensitivity || {};
+  const form = el('div',{class:'form-grid'});
+  form.innerHTML = `
+    <div class="field"><label for="e_dpi">Mouse DPI</label><input id="e_dpi" type="number" min="100" step="50" value="${sv.dpi||800}" placeholder="e.g. 800"><span class="hint">Hardware sensor DPI</span></div>
+    <div class="field"><label for="e_sens">In-Game Sensitivity</label><input id="e_sens" type="number" min="0.01" step="0.01" value="${sv.inGame||1}" placeholder="e.g. 1.25"><span class="hint">Multiplier in your game</span></div>`;
+  panel.append(form);
+
+  const out = el('div',{class:'results'});
+  const actions = el('div',{class:'controls-row'});
+  const calc = el('button',{class:'btn primary', html:'＝ Calculate eDPI'});
+  actions.append(calc);
+  const shareHolder = el('div',{});
+  panel.append(out, actions, shareHolder);
+
+  function cohort(edpi){
+    if(edpi<800) return 'Low-Sens Anchor';
+    if(edpi<=1600) return 'Mid-Sens Skirmisher';
+    return 'High-Sens Twitch Raider';
+  }
+  function render(){
+    const dpi=parseFloat(document.getElementById('e_dpi').value)||0;
+    const sens=parseFloat(document.getElementById('e_sens').value)||0;
+    const edpi=Math.round(dpi*sens*100)/100;
+    const ch=cohort(edpi);
+    out.innerHTML = `<div class="result-tile"><div class="k">eDPI</div><div class="v">${edpi.toLocaleString()}</div></div>
+      <div class="result-tile"><div class="k">DPI × Sens</div><div class="v">${dpi} × ${sens}</div></div>
+      <div class="result-tile"><div class="k">Cohort</div><div class="v" style="font-size:15px">${ch}</div></div>`;
+    return {dpi,sens,edpi,ch};
+  }
+  ['e_dpi','e_sens'].forEach(id=> document.getElementById(id).addEventListener('input', render));
+  calc.onclick=()=>{
+    const {dpi,sens,edpi,ch}=render();
+    if(!dpi||!sens){ UI.toast('Check inputs','Enter a DPI and in-game sensitivity.'); return; }
+    Store.update(d=>{ d.sensitivity={dpi,inGame:sens,edpi,cohort:ch}; d.counters.setupEdpi=true; });
+    Ach.evaluate({tool:'edpi'});
+    UI.toast('Sensitivity Profile','eDPI saved to your Gamer DNA.');
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'SETUP LAB', tool:'eDPI', glyph:'🛠️',
+      metric:[{k:'eDPI', v:String(edpi)},{k:'DPI', v:String(dpi)},{k:'In-Game', v:String(sens)}],
+      designation: ch, badge:null
+    }));
+  };
+  render();
+  return ()=>{};
+};
+
+/* ---- 4.3.2 Sensitivity Converter (pure utility · no DNA · no share card) ---- */
+Views.sensConverter = function(c){
+  const cab = getCab('senscvt');
+  const panel = toolShell(c, cab);
+  // yaw constant = degrees of rotation per mouse count at in-game sens 1.0
+  // (DPI-independent). target = source * sourceYaw / targetYaw  ->  same cm/360°.
+  const ENGINES = [
+    ['CS2 / CS:GO', 0.022],
+    ['Valorant', 0.07],
+    ['Apex Legends', 0.022],
+    ['Team Fortress 2', 0.022],
+    ['Quake Live / Champions', 0.022],
+    ['Overwatch 2', 0.0066],
+    ['Call of Duty (MW / Warzone)', 0.0066]
+  ];
+  const opts = ENGINES.map((e,i)=>`<option value="${i}">${e[0]}</option>`).join('');
+  const form = el('div',{class:'form-grid'});
+  form.innerHTML = `
+    <div class="field"><label for="c_src">Source Game</label><select id="c_src">${opts}</select></div>
+    <div class="field"><label for="c_tgt">Target Game</label><select id="c_tgt">${opts}</select></div>
+    <div class="field"><label for="c_val">Source Sensitivity</label><input id="c_val" type="number" min="0.001" step="0.01" value="1.0"></div>
+    <div class="field"><label for="c_dpi">Mouse DPI (optional)</label><input id="c_dpi" type="number" min="100" step="50" placeholder="for cm/360°"></div>`;
+  panel.append(form);
+
+  const out = el('div',{class:'results'});
+  panel.append(out);
+
+  function compute(mark){
+    const si=+document.getElementById('c_src').value;
+    const ti=+document.getElementById('c_tgt').value;
+    const val=parseFloat(document.getElementById('c_val').value)||0;
+    const dpi=parseFloat(document.getElementById('c_dpi').value)||0;
+    const sY=ENGINES[si][1], tY=ENGINES[ti][1];
+    const target=val*sY/tY;
+    let cm360='';
+    if(dpi>0 && val>0){
+      const counts=360/(sY*val);          // mouse counts per 360° in source game
+      cm360=(counts/dpi*2.54).toFixed(2)+' cm';
+    }
+    out.innerHTML = `<div class="result-tile"><div class="k">${ENGINES[ti][0]} Sens</div><div class="v">${target.toFixed(4)}</div></div>
+      <div class="result-tile"><div class="k">From</div><div class="v" style="font-size:13px">${val} · ${ENGINES[si][0]}</div></div>
+      ${cm360?`<div class="result-tile"><div class="k">cm / 360°</div><div class="v">${cm360}</div></div>`:''}`;
+    if(mark){ Store.update(d=>{ d.counters.setupSens=true; }); Ach.evaluate({tool:'senscvt'}); }
+  }
+  document.getElementById('c_tgt').value='1'; // default target to a different engine
+  ['c_src','c_tgt','c_val','c_dpi'].forEach(id=> document.getElementById(id).addEventListener('input', ()=>compute(true)));
+  panel.append(el('p',{class:'muted', style:'font-size:11px',
+    html:'Pure utility — preserves your physical cm/360° muscle memory across engines. No Gamer DNA change and no share card, per spec.'}));
+  compute(false);
+  return ()=>{};
+};
+
+/* ============================================================================
    shared helpers for tool views
    ============================================================================ */
 function clamp01(x){ return Math.max(0, Math.min(1, x)); }
@@ -1501,6 +1819,10 @@ Router.add('#/reflex/calibration', Views.calibration);
 Router.add('#/reflex/reaction', Views.reaction);
 Router.add('#/reflex/cps', Views.cps);
 Router.add('#/reflex/precision', Views.precision);
+Router.add('#/mouse/polling', Views.polling);
+Router.add('#/mouse/accuracy', Views.mouseAccuracy);
+Router.add('#/setup/edpi', Views.edpi);
+Router.add('#/setup/sens', Views.sensConverter);
 
 UI.init();
 Router.start();
