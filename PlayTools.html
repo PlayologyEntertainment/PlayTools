@@ -350,6 +350,44 @@
   .dice-log .row .t{font-family:var(--pixel); color:var(--neon-3);}
   .dice-log .empty{color:var(--ink-dim); font-size:12px;}
 
+  /* ---- Gamer Quiz (Fun Lab) ---- */
+  .quiz-progress{height:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:6px 0 18px;}
+  .quiz-progress .bar{height:100%; background:linear-gradient(90deg,var(--neon-4),var(--neon)); width:0; transition:width .4s ease;}
+  .quiz-step{font-family:var(--pixel); font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--neon-3);}
+  .quiz-q{font-size:19px; color:#fff; margin:12px 0 16px; line-height:1.45;}
+  .quiz-opts{display:flex; flex-direction:column; gap:10px;}
+  .quiz-opt{
+    text-align:left; font-family:var(--mono); font-size:14px; color:var(--ink); line-height:1.45;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:14px 16px; cursor:pointer; transition:border-color .15s, box-shadow .15s, transform .05s;
+  }
+  .quiz-opt:hover{border-color:var(--neon); box-shadow:0 0 14px rgba(22,242,200,0.18);}
+  .quiz-opt:active{transform:translateY(1px);}
+  .quiz-opt .pick{color:var(--neon-3); font-weight:700; margin-right:10px;}
+  .quiz-nav{display:flex; justify-content:flex-start; margin-top:16px;}
+
+  .arch-hero{text-align:center; padding:14px 12px 4px;}
+  .arch-glyph{font-size:72px; line-height:1; filter:drop-shadow(0 0 18px var(--neon));}
+  .arch-name{font-family:var(--pixel); font-size:30px; color:#fff; margin:10px 0 4px; text-shadow:0 0 12px var(--neon);}
+  .arch-sub{color:var(--neon-3); font-size:11px; letter-spacing:2px; text-transform:uppercase;}
+  .arch-blurb{color:var(--ink); max-width:600px; margin:14px auto; line-height:1.6; text-align:center;}
+  .arch-second{color:var(--ink-dim); text-align:center; font-size:13px; margin:4px 0;}
+  .arch-second b{color:var(--neon-2);}
+  .arch-bars{margin:12px 0 4px;}
+
+  /* ---- Gamer DNA Report (Fun Lab) ---- */
+  .swot{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:14px 0;}
+  @media(max-width:560px){ .swot{grid-template-columns:1fr;} }
+  .swot .box{background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:14px;}
+  .swot .box h4{font-family:var(--pixel); font-size:12px; letter-spacing:1px; margin:0 0 10px; text-transform:uppercase;}
+  .swot .box.str h4{color:var(--neon-5);}
+  .swot .box.weak h4{color:var(--danger);}
+  .swot .box ul{list-style:none; padding:0; margin:0; font-size:13px;}
+  .swot .box li{display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px dashed rgba(124,92,255,0.18); text-transform:capitalize;}
+  .swot .box li:last-child{border-bottom:none;}
+  .swot .box li .vv{font-family:var(--pixel); color:var(--neon);}
+  .report-empty{background:var(--panel-2); border:1px dashed var(--line); border-radius:8px; padding:22px; text-align:center; color:var(--ink-dim); line-height:1.6;}
+
   /* ============================================================
      SHARE CARD MODAL
      ============================================================ */
@@ -539,6 +577,7 @@ const Store = (function(){
         gamerTag: '', url: '', dob: '',
         city: '', state: '', country: '',
         accent: '#16f2c8', car: '', character: '',
+        archetype: null,   // resolved Gamer Quiz personality tag {key,name,at}
         contacts: { discord:'', email:'', phone:'' },
         socials: { twitch:'', youtube:'', x:'', tiktok:'', instagram:'' }
       },
@@ -690,6 +729,8 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='dice' && c.nat20) || (d.counters && d.counters.nat20s>=1) },
     { id:'high_roller', name:'High Roller', icon:'🔮', desc:'Land a single roll totalling 50 or more.',
       test:(d,c)=> c && c.tool==='dice' && c.total>=50 },
+    { id:'self_aware', name:'Self-Aware', icon:'🎭', desc:'Complete the Gamer Quiz and reveal your archetype.',
+      test:(d,c)=> (c && c.tool==='quiz') || !!(d.profile && d.profile.archetype) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -886,9 +927,13 @@ const CABINETS = [
   { id:'senscvt',  lab:'Setup Lab', name:'Sensitivity Converter', icon:'🔁', tag:'mvp', route:'#/setup/sens',
     desc:'Convert sens between game engines (same cm/360°).', dna:'Pure utility · no DNA' },
 
+  // Fun Lab (DD §4.4) — identity profiling.
+  { id:'gamer_quiz', lab:'Fun Lab', name:'Gamer Quiz', icon:'🎭', tag:'mvp', route:'#/fun/quiz',
+    desc:'10-question archetype quiz — discover your player type.', dna:'Sets your Archetype tag' },
+  { id:'dna_report', lab:'Fun Lab', name:'Gamer DNA Report', railName:'DNA Report', icon:'📊', tag:'mvp', route:'#/fun/report',
+    desc:'Your class, strengths, weaknesses & tier — as a share card.', dna:'Reads your profile' },
+
   // Foundation pass: remaining labs are visible but locked (coming soon).
-  { id:'fun_lab',    lab:'Fun Lab', name:'DNA Report · Archetype Quiz', icon:'🎭', tag:'soon', locked:true,
-    desc:'Identity profiling & roasts.' },
   { id:'dice_lab',   lab:'Tabletop / RPG', name:'Dice Roller', icon:'🎲', tag:'mvp', route:'#/dice/roller',
     desc:'Polyhedral dice, modifiers, advantage & notation.', dna:'Strategy +6 · fortune favors' },
   { id:'arcade_lab', lab:'Retro Arcade', name:'Pixel Dodge · Memory Match', icon:'👾', tag:'soon', locked:true,
@@ -2092,6 +2137,270 @@ function shareRow(cardData){
 }
 
 /* ============================================================================
+   FUN LAB — Gamer Quiz (archetype assessment) + Gamer DNA Report (DD §4.4)
+   ============================================================================ */
+
+// Motivation-based archetypes the quiz can resolve to (DD §4.4.2).
+const ARCHETYPES = {
+  duelist:   { name:'Arena Duelist',      glyph:'⚔️',
+    blurb:'Born in the glow of a fighting-game cabinet, you measure yourself against living opponents. Skill is a conversation and you always want the last word — glory is earned one rival at a time.' },
+  goblin:    { name:'Loot Goblin',        glyph:'💰',
+    blurb:'Every chest, drop and shiny ticket is coming home with you. You play for the haul, and a fully-sorted inventory is its own kind of victory. More is more, and you intend to have it all.' },
+  commander: { name:'Tactical Commander', glyph:'🎖️',
+    blurb:'You see the board three moves before anyone else. Where others mash buttons you read patterns, call plays and turn chaos into a clean plan. The win was decided before the match even started.' },
+  speedster: { name:'Speedrunner',        glyph:'⏱️',
+    blurb:'Good enough is never fast enough. You dismantle a game into routes, frames and shortcuts, then rebuild it as a record. The clock is your only real opponent — and you are gaining on it.' },
+  seeker:    { name:'Lore Seeker',        glyph:'🗺️',
+    blurb:'The edge of the map is just an invitation. You chase secrets, hidden endings and the stories tucked behind locked doors. The magic was never the ending — it was everything no one else bothered to find.' },
+  comrade:   { name:'Co-op Comrade',      glyph:'🤝',
+    blurb:'Games are better with someone in the second slot. You carry, revive and hype, and the run everyone remembers is the one you got through together. The real high score was the friends you fragged alongside.' }
+};
+const ARCH_ORDER = ['duelist','goblin','commander','speedster','seeker','comrade'];
+
+// 10 situational questions; each option weights exactly one archetype. Each
+// archetype appears as a pickable option in 6–7 of the 10 questions so any
+// consistent player can reach their type as the dominant result (DD §4.4.2).
+const QUIZ = [
+  { q:'The arcade doors hiss open and every cabinet is glowing. Where do your tokens go first?',
+    opts:[ ['The 1v1 fighter, where the local champ is already waiting.','duelist'],
+           ['The dense strategy cab with the dog-eared instruction card.','commander'],
+           ["The ticket-redemption row — that prize wall won't loot itself.",'goblin'],
+           ['Whatever I can clear fastest to stamp my initials at the top.','speedster'] ] },
+  { q:'A brand-new co-op cabinet appears overnight. Your move?',
+    opts:[ ['Grab a total stranger and carry the team to the credits.','comrade'],
+           ['Take charge — call the plan and assign everyone a job.','commander'],
+           ['Map every room and find the secret the devs hid.','seeker'],
+           ['Find the fastest clear route and optimize the run.','speedster'] ] },
+  { q:'You finally topple the final boss. The FIRST thing you do?',
+    opts:[ ['Count my score and scoop up every bonus ticket.','goblin'],
+           ['Challenge the next person who steps up to the cabinet.','duelist'],
+           ["Hunt for a secret post-credits room nobody's found.",'seeker'],
+           ['Wave my friend over so we can beat it together too.','comrade'] ] },
+  { q:'Your squad forms up for a raid. Your natural role?',
+    opts:[ ['Shot-caller, drawing the plan on the whiteboard.','commander'],
+           ['Front-line fragger — just point me at the enemy.','duelist'],
+           ['Morale and medic, keeping everyone alive and hyped.','comrade'],
+           ['Quartermaster, making sure we leave with all the loot.','goblin'] ] },
+  { q:'A loot box drops mid-session. The rush you feel is mostly about…',
+    opts:[ ['Adding it to my complete, perfectly-sorted collection.','goblin'],
+           ["Opening more, faster — it's all about the tempo.",'speedster'],
+           ['Whether it gives me a tactical edge next match.','commander'],
+           ['The mystery — what unknown thing might be inside?','seeker'] ] },
+  { q:"Pick the stat you'd actually brag about.",
+    opts:[ ['My win/loss record against real opponents.','duelist'],
+           ['A world-record clear time.','speedster'],
+           ["How many friends I've helped finally beat their wall.",'comrade'],
+           ["Every hidden ending and secret I've personally found.",'seeker'] ] },
+  { q:'An open world unlocks in front of you. You immediately…',
+    opts:[ ['Plan the most efficient route through every objective.','commander'],
+           ['Vacuum up every chest, herb and hidden coin.','goblin'],
+           ['Invite a friend so we can explore it side by side.','comrade'],
+           ['Test the shortcut I already know will save minutes.','speedster'] ] },
+  { q:'Your favorite kind of victory screen is…',
+    opts:[ ["A hidden 'true ending' most players never see.",'seeker'],
+           ["'PLAYER 1 WINS' over a beaten rival.",'duelist'],
+           ['A vault overflowing with unlocked rewards.','goblin'],
+           ["'FLAWLESS' — objective complete, zero losses.",'commander'] ] },
+  { q:"It's late, but one more session. What pulls you back in?",
+    opts:[ ['The rematch I owe the rival who beat me.','duelist'],
+           ['Helping a friend finally clear the part they are stuck on.','comrade'],
+           ["A new shortcut I'm itching to test in my run.",'speedster'],
+           ["A build I've been theory-crafting all day.",'commander'] ] },
+  { q:'Twenty years from now, the legend they tell about you is…',
+    opts:[ ["'Beat it before the rest of us finished the tutorial.'",'speedster'],
+           ["'Never lost a duel they actually cared about.'",'duelist'],
+           ["'Owned literally everything worth owning.'",'goblin'],
+           ["'Knew every secret the game was hiding.'",'seeker'] ] }
+];
+
+// Resolve the dominant archetype: highest total, ties broken by ARCH_ORDER.
+function resolveArchetype(scores){
+  let best=ARCH_ORDER[0], bestV=-1;
+  ARCH_ORDER.forEach(k=>{ const v=scores[k]||0; if(v>bestV){ bestV=v; best=k; } });
+  let second=null, secV=-1;
+  ARCH_ORDER.forEach(k=>{ if(k===best) return; const v=scores[k]||0; if(v>secV){ secV=v; second=k; } });
+  const total = ARCH_ORDER.reduce((s,k)=>s+(scores[k]||0),0) || 1;
+  return { key:best, second:(secV>0?second:null), pct:Math.round(bestV/total*100) };
+}
+
+// Map a 0..100 attribute average to a retro letter grade.
+function gradeFor(avg){
+  if(avg>=90) return 'S'; if(avg>=80) return 'A'; if(avg>=65) return 'B';
+  if(avg>=50) return 'C'; if(avg>=30) return 'D'; return 'E';
+}
+
+/* ---- 4.4.2 Gamer Quiz ---- */
+Views.gamerQuiz = function(c){
+  const cab = getCab('gamer_quiz');
+  const panel = toolShell(c, cab);
+  const stage = el('div',{});
+  panel.append(stage);
+
+  let idx = 0;
+  const answers = [];          // per-question chosen archetype key (for Back)
+  const scores = {};
+
+  function intro(){
+    stage.innerHTML='';
+    stage.append(el('p',{class:'view-desc', html:'Ten arcade-flavored scenarios. There are no wrong answers — pick what feels like <em>you</em>, and we\'ll resolve your dominant Gamer Archetype and pin it to your DNA.'}));
+    const prev = Store.get().profile.archetype;
+    if(prev){ stage.append(el('p',{class:'muted', html:`Last result: <strong>${prev.name}</strong>. Take it again to update your tag.`})); }
+    const start = el('button',{class:'btn primary', html:'▶ Begin Assessment'});
+    start.onclick = ()=>{ idx=0; answers.length=0; ARCH_ORDER.forEach(k=> scores[k]=0); question(); };
+    const row = el('div',{class:'controls-row'}); row.append(start);
+    stage.append(row);
+  }
+
+  function question(){
+    stage.innerHTML='';
+    const q = QUIZ[idx];
+    const prog = el('div',{class:'quiz-progress'});
+    prog.append(el('div',{class:'bar', style:`width:${(idx/QUIZ.length)*100}%`}));
+    stage.append(
+      el('div',{class:'quiz-step', text:`Question ${idx+1} of ${QUIZ.length}`}),
+      prog,
+      el('p',{class:'quiz-q', text:q.q})
+    );
+    const opts = el('div',{class:'quiz-opts'});
+    q.opts.forEach(([text,key],i)=>{
+      const b = el('button',{class:'quiz-opt'});
+      b.innerHTML = `<span class="pick">${String.fromCharCode(65+i)}</span>${text}`;
+      b.onclick = ()=>{
+        answers[idx] = key; scores[key] = (scores[key]||0)+1;
+        idx++; (idx<QUIZ.length ? question() : finish());
+      };
+      opts.append(b);
+    });
+    stage.append(opts);
+    if(idx>0){
+      const nav = el('div',{class:'quiz-nav'});
+      const back = el('button',{class:'btn ghost', html:'‹ Back'});
+      back.onclick = ()=>{ idx--; const prevKey=answers[idx]; if(prevKey){ scores[prevKey]=Math.max(0,(scores[prevKey]||0)-1); answers[idx]=null; } question(); };
+      nav.append(back);
+      stage.append(nav);
+    }
+  }
+
+  function finish(){
+    const res = resolveArchetype(scores);
+    const arch = ARCHETYPES[res.key];
+    // Commit: pin the archetype tag; count as a completed tool only on the
+    // first-ever completion so retakes can't farm Gamer Score (mirrors dice).
+    Store.update(d=>{
+      d.profile.archetype = { key:res.key, name:arch.name, at:Date.now() };
+      d.runs++;
+      if(!d.counters.quizTaken){ d.toolsCompleted++; }
+      d.counters.quizTaken = (d.counters.quizTaken||0)+1;
+    });
+    Ach.evaluate({tool:'quiz', archetype:res.key});
+    result(res, arch);
+  }
+
+  function result(res, arch){
+    stage.innerHTML='';
+    const hero = el('div',{class:'arch-hero'});
+    hero.innerHTML = `<div class="arch-glyph">${arch.glyph}</div>
+      <div class="arch-name">${arch.name}</div>
+      <div class="arch-sub">Your Gamer Archetype · ${res.pct}% match</div>`;
+    stage.append(hero, el('p',{class:'arch-blurb', text:arch.blurb}));
+    if(res.second){
+      const s = ARCHETYPES[res.second];
+      stage.append(el('div',{class:'arch-second', html:`with a streak of <b>${s.name}</b> ${s.glyph}`}));
+    }
+
+    // trait breakdown bars (sorted high → low)
+    stage.append(el('h2',{class:'sub', text:'Trait Breakdown'}));
+    const bars = el('div',{class:'attr-bars arch-bars'});
+    const max = Math.max(1, ...ARCH_ORDER.map(k=> scores[k]||0));
+    ARCH_ORDER.slice().sort((x,y)=>(scores[y]||0)-(scores[x]||0)).forEach(k=>{
+      const v = scores[k]||0, pct = Math.round(v/max*100);
+      const row = el('div',{class:'attr-row'});
+      row.innerHTML = `<span class="lbl">${ARCHETYPES[k].name}</span><span class="track"><span class="fill" style="width:${pct}%"></span></span><span class="val">${v}</span>`;
+      bars.append(row);
+    });
+    stage.append(bars);
+
+    const cardData = { lab:'Fun Lab', tool:'Gamer Quiz', glyph:arch.glyph,
+      metric:[ {k:'Archetype', v:arch.name}, {k:'Match', v:res.pct+'%'},
+               {k:'Runner-up', v: res.second?ARCHETYPES[res.second].name:'—'} ],
+      designation:arch.name, badge:'Archetype Decoded' };
+    const row = shareRow(cardData);
+    const retake = el('button',{class:'btn ghost', html:'↻ Retake'});
+    retake.onclick = intro;
+    row.append(retake);
+    stage.append(row);
+  }
+
+  intro();
+};
+
+/* ---- 4.4.1 Gamer DNA Report ---- */
+Views.dnaReport = function(c){
+  const cab = getCab('dna_report');
+  const panel = toolShell(c, cab);
+  const d = Store.get();
+
+  if(d.toolsCompleted<1 && d.runs<1){
+    panel.append(el('div',{class:'report-empty', html:'No scored runs yet. Play a few Reflex, Mouse or Setup Lab tools — then come back for your full Gamer DNA Report Card.'}));
+    const row = el('div',{class:'controls-row'});
+    const go = el('button',{class:'btn primary', html:'▶ Go to the Lobby'});
+    go.onclick = ()=> Router.go('#/');
+    row.append(go); panel.append(row);
+    return;
+  }
+
+  const a = d.attributes;
+  const score = Attr.gamerScore(d), rank = Attr.rankFor(score), klass = Attr.classFor(d);
+  const avg = Store.ATTRS.reduce((s,k)=> s+(a[k]||0), 0) / Store.ATTRS.length;
+  const grade = gradeFor(avg);
+
+  // headline tier cards
+  const stats = el('div',{class:'stat-cards'});
+  stats.innerHTML = `
+    <div class="stat-card"><div class="k">Overall Grade</div><div class="v gold">${grade}</div></div>
+    <div class="stat-card"><div class="k">Combat Class</div><div class="v">${klass}</div></div>
+    <div class="stat-card"><div class="k">Rank</div><div class="v">${rank.name}</div></div>
+    <div class="stat-card"><div class="k">Gamer Score</div><div class="v">${score.toLocaleString()}</div></div>`;
+  panel.append(stats);
+
+  // archetype tag (set by the Gamer Quiz)
+  if(d.profile.archetype){
+    panel.append(el('p',{class:'muted', html:`Player Archetype: <strong>${d.profile.archetype.name}</strong> — set via the <a href="#/fun/quiz">Gamer Quiz</a>.`}));
+  } else {
+    panel.append(el('p',{class:'muted', html:`No archetype yet — take the <a href="#/fun/quiz">Gamer Quiz</a> to add a personality tag to your report.`}));
+  }
+
+  // strengths / weaknesses — top & bottom two attribute vectors
+  const ranked = Store.ATTRS.slice().sort((x,y)=>(a[y]||0)-(a[x]||0));
+  const strengths = ranked.slice(0,2);
+  const weaknesses = ranked.slice(-2).reverse();
+  const li = k=> `<li><span>${k}</span><span class="vv">${Math.round(a[k]||0)}</span></li>`;
+  const swot = el('div',{class:'swot'});
+  swot.innerHTML = `<div class="box str"><h4>▲ Mechanical Strengths</h4><ul>${strengths.map(li).join('')}</ul></div>
+                    <div class="box weak"><h4>▼ Operational Weaknesses</h4><ul>${weaknesses.map(li).join('')}</ul></div>`;
+  panel.append(swot);
+
+  // full attribute vectors
+  panel.append(el('h2',{class:'sub', text:'Attribute Vectors'}));
+  const bars = el('div',{class:'attr-bars'});
+  Store.ATTRS.forEach(k=>{
+    const v = Math.round(a[k]||0);
+    const row = el('div',{class:'attr-row'});
+    row.innerHTML = `<span class="lbl">${k}</span><span class="track"><span class="fill" style="width:${v}%"></span></span><span class="val">${v}</span>`;
+    bars.append(row);
+  });
+  panel.append(bars);
+
+  // share card
+  const top = strengths[0];
+  const cardData = { lab:'Fun Lab', tool:'DNA Report', glyph:'📊', grade:grade,
+    metric:[ {k:'Gamer Score', v:score.toLocaleString()}, {k:'Rank', v:rank.name},
+             {k:'Top Vector', v:`${top} ${Math.round(a[top]||0)}`} ],
+    designation:klass, badge: d.profile.archetype ? d.profile.archetype.name : 'Gamer DNA' };
+  panel.append(shareRow(cardData));
+};
+
+/* ============================================================================
    UI — shell wiring: rail, status strip, CRT toggle, accent theme, toasts
    ============================================================================ */
 const UI = (function(){
@@ -2204,6 +2513,8 @@ Router.add('#/mouse/accuracy', Views.mouseAccuracy);
 Router.add('#/setup/edpi', Views.edpi);
 Router.add('#/setup/sens', Views.sensConverter);
 Router.add('#/dice/roller', Views.diceRoller);
+Router.add('#/fun/quiz', Views.gamerQuiz);
+Router.add('#/fun/report', Views.dnaReport);
 
 UI.init();
 Router.start();
