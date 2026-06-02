@@ -1428,19 +1428,20 @@ HOW TO ACCEPT:
     const gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to='
       + '&su=' + encodeURIComponent(subject)
       + '&body=' + encodeURIComponent(body);
-    // Opened from a click handler, so this counts as a user gesture and isn't popup-blocked.
-    const win = window.open(gmailUrl, '_blank', 'noopener,noreferrer');
-    const fallback = subject + '\n\n' + body;
-    const copy = navigator.clipboard && navigator.clipboard.writeText
-      ? navigator.clipboard.writeText(fallback) : Promise.reject();
-    if(win){
-      UI.toast('Gmail Opened','Compose window opened with your challenge — add a recipient and attach your DNA file.');
-    } else {
-      // Popup blocked: fall back to clipboard + a manual link so the message isn't lost.
-      copy.then(
-        ()=> UI.toast('Popup Blocked','Allow popups to open Gmail. Your message was copied to the clipboard.'),
-        ()=> UI.toast('Popup Blocked','Allow popups for this site to open Gmail compose.')
+    // Open via a real anchor click (not window.open): browsers treat this as a
+    // user-initiated navigation, so it opens a normal new tab and isn't popup-blocked.
+    // (window.open with a features string gets blocked, and noopener makes it return null.)
+    const a = document.createElement('a');
+    a.href = gmailUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    // Drop the message on the clipboard too, so it's never lost if the tab is blocked.
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(subject + '\n\n' + body).then(
+        ()=> UI.toast('Opening Gmail','Compose opened in a new tab — message also copied to your clipboard.'),
+        ()=> UI.toast('Opening Gmail','Compose opening in a new tab — add a recipient and attach your DNA file.')
       );
+    } else {
+      UI.toast('Opening Gmail','Compose opening in a new tab — add a recipient and attach your DNA file.');
     }
   }
 
