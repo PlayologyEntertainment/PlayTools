@@ -2405,15 +2405,16 @@ Views.doubleClick = function(c){
   const result = el('div',{});
   panel.append(stage, result);
 
-  let gaps=[], prev=0, done=false;
+  let gaps=[], prev=0, done=false, ended=false;
   function setReady(){
-    gaps=[]; prev=0; done=false;
+    gaps=[]; prev=0; done=false; ended=false;
     stage.className='stage ready';
     stage.innerHTML = `<div class="big">DOUBLE-CLICK HERE</div><div class="small">Tap twice, fast — 0/${NEED} pairs.</div>`;
     result.innerHTML='';
   }
   function grade(ms){ return ms<60?'S':ms<90?'A':ms<120?'B':ms<180?'C':'F'; }
   function onDown(){
+    if(ended) return;   // run just ended — wait for the confirm gate before re-arming
     if(done){ setReady(); return; }
     const now=performance.now();
     if(prev && now-prev<=WINDOW){
@@ -2426,6 +2427,7 @@ Views.doubleClick = function(c){
     }
   }
   function end(){
+    ended=true;
     const best=Math.round(Math.min.apply(null, gaps));
     const avg=Math.round(gaps.reduce((a,b)=>a+b,0)/gaps.length);
     const g=grade(avg);
@@ -2449,6 +2451,12 @@ Views.doubleClick = function(c){
       designation: avg<60?'Double Tap Demon': avg<120?'Snappy Fingers':'Steady Tapper',
       badge: best<60?'Double Tap':null
     }));
+    confirmRerun({
+      title:'Run the double-click test again?',
+      body:`That run logged a <strong>${best} ms</strong> best gap. Start another set of ${NEED} pairs when you\'re ready.`,
+      onConfirm: setReady,
+      onDismiss: ()=>{ ended=false; }   // keep results up; a fresh click re-arms the next set
+    });
   }
   stage.addEventListener('pointerdown', onDown);
   setReady();
