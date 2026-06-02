@@ -71,8 +71,6 @@
     content:""; position:absolute; inset:0;
     background:radial-gradient(120% 120% at 50% 50%, transparent 60%, rgba(0,0,0,0.45) 100%);
   }
-  body.no-crt .crt-overlay{display:none;}
-  body.no-crt .logo, body.no-crt .screen{ text-shadow:none; }
 
   /* ============================================================
      LAYOUT FRAME
@@ -194,7 +192,6 @@
     background-size:34px 34px; opacity:0.5;
   }
   .panel > *{position:relative;}
-  body.no-crt .panel::before{display:none;}
 
   .view-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px;}
   h1.title{font-family:var(--pixel); font-weight:800; font-size:24px; color:#fff; margin:0; letter-spacing:1px;}
@@ -606,10 +603,15 @@
     position:absolute; bottom:16px; left:0; right:0;
     font-size:10px; letter-spacing:1px; color:var(--ink-dim); opacity:0.55; padding:0 16px;
   }
-  body.no-crt .splash-logo, body.no-crt .splash-wordmark, body.no-crt .splash-sign, body.no-crt .logo-sign{filter:none; text-shadow:none;}
-  /* Honor the CRT toggle and reduced-motion users: hold the sign steady. */
-  body.no-crt .logo-sign, body.no-crt .splash-sign{ animation:none; }
-  @media (prefers-reduced-motion:reduce){ .logo-sign, .splash-sign{ animation:none; } }
+  /* Respect the OS "reduce motion" setting: hold the neon sign steady and stop
+     every looping / flashing animation (flicker, pulses, pops, float, blink,
+     toast slide). No in-app toggle — this defers entirely to the system signal. */
+  @media (prefers-reduced-motion:reduce){
+    .logo-sign, .splash-sign, .splash-logo,
+    .die.rolling, .die.crit,
+    .mem-card.matched .mem-face.front,
+    .gen-out, .blink, .toast{ animation:none; }
+  }
 
   @media(max-width:900px){
     .layout{grid-template-columns:1fr;}
@@ -738,8 +740,8 @@ const Store = (function(){
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
   }
   function loadPrefs(){
-    try{ return Object.assign({reduceCrt:false}, JSON.parse(localStorage.getItem(PREF_KEY)||'{}')); }
-    catch(e){ return {reduceCrt:false}; }
+    try{ return JSON.parse(localStorage.getItem(PREF_KEY)||'{}') || {}; }
+    catch(e){ return {}; }
   }
   function save(){
     dna.updatedAt = Date.now();
@@ -3753,7 +3755,7 @@ Views.diceRoller = function(c){
     const chips = res.rolls.map(r=>{
       const ch=el('div',{class:'die d'+res.sides+(r.kept?'':' dropped')}); ch.textContent='?'; tray.append(ch); return ch;
     });
-    const reduce = Store.getPrefs().reduceCrt;
+    const reduce = prefersReducedMotion();
     if(reduce){ settle(res, chips, label); return; }
     blip(220,0.05);
     let ticks=0; const MAX=10;
@@ -4288,6 +4290,10 @@ Views.pixelDodge = function(c){
 /* ============================================================================
    shared helpers for tool views
    ============================================================================ */
+// Defer to the OS "reduce motion" accessibility setting (no in-app toggle).
+function prefersReducedMotion(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
 function clamp01(x){ return Math.max(0, Math.min(1, x)); }
 function erf(x){ // Abramowitz-Stegun approximation
   const s=x<0?-1:1; x=Math.abs(x);
