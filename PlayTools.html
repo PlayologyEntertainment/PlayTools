@@ -177,6 +177,7 @@
   .mini-tag{font-size:9px; letter-spacing:1px; padding:1px 5px; border-radius:3px; text-transform:uppercase;}
   .mini-tag.soon{background:#2a3160; color:var(--ink-dim);}
   .mini-tag.mvp{background:var(--neon-5); color:#04120a;}
+  .mini-tag.p2{background:var(--neon-3); color:#1a1400;}
 
   main.screen{ min-height:480px; position:relative; }
 
@@ -844,6 +845,14 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='dodge' && c.time>=60) || !!(d.counters && d.counters.dodgeMinute>=1) },
     { id:'untouchable', name:'Untouchable', icon:'🛸', desc:'Score 5,000 or more in a single Pixel Dodge run.',
       test:(d,c)=> c && c.tool==='dodge' && c.score>=5000 },
+    { id:'gunslinger', name:'Gunslinger', icon:'🔫', desc:'Average under 400ms per hit on Flick Trainer.',
+      test:(d,c)=> c && c.tool==='flick' && c.accuracy>=90 && c.avgTime<400 },
+    { id:'lock_on', name:'Lock-On', icon:'🛰️', desc:'Stay on target ≥85% of a Tracking Trainer run.',
+      test:(d,c)=> c && c.tool==='tracking' && c.onTarget>=85 },
+    { id:'double_tap', name:'Double Tap', icon:'👆', desc:'Register a double-click under 60ms.',
+      test:(d,c)=> c && c.tool==='doubleclick' && c.best<60 },
+    { id:'space_cadet', name:'Space Cadet', icon:'⌨️', desc:'Reach ≥9 taps per second on Spacebar Speed.',
+      test:(d,c)=> c && c.tool==='spacebar' && c.tps>=9 },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -1029,6 +1038,16 @@ const CABINETS = [
     desc:'Clicks-per-second velocity & consistency.', dna:'Speed +15 · Consistency +5' },
   { id:'precision',  lab:'Reflex Lab', name:'Precision Click', icon:'🎯', tag:'mvp', route:'#/reflex/precision',
     desc:'Spatial target acquisition & accuracy.', dna:'Precision +16 · Control +6' },
+
+  // Reflex Lab Expansion Pack (DD §5.1) — deeper mechanical skill drills.
+  { id:'flick',       lab:'Reflex Lab', name:'Flick Trainer', icon:'🔫', tag:'p2', route:'#/reflex/flick',
+    desc:'Snap onto targets that fade in a blink — pure flick speed.', dna:'Reflex +11 · Precision +6' },
+  { id:'tracking',    lab:'Reflex Lab', name:'Tracking Trainer', railName:'Tracking', icon:'🛰️', tag:'p2', route:'#/reflex/tracking',
+    desc:'Glue your cursor to a node that keeps changing direction.', dna:'Control +11 · Focus +6' },
+  { id:'doubleclick', lab:'Reflex Lab', name:'Double Click Test', railName:'Double Click', icon:'👆', tag:'p2', route:'#/reflex/doubleclick',
+    desc:'Time the gap between the two clicks of a rapid double-tap.', dna:'Speed +8 · Reflex +6' },
+  { id:'spacebar',    lab:'Reflex Lab', name:'Spacebar Speed', railName:'Spacebar', icon:'⌨️', tag:'p2', route:'#/reflex/spacebar',
+    desc:'10-second keyboard tap test — raw taps per second.', dna:'Speed +13 · Consistency +5' },
 
   // Mouse & Hardware Lab (DD §4.2) — decoupled raw-input diagnostics.
   { id:'mouse_polling', lab:'Mouse & Hardware', name:'Polling Rate', icon:'🖲️', tag:'mvp', route:'#/mouse/polling',
@@ -2027,6 +2046,358 @@ Views.precision = function(c){
   bg(); ctx.fillStyle='#9aa3d4'; ctx.font='15px monospace'; ctx.textAlign='center';
   ctx.fillText('Press START — 30 targets, 1.2s each. Accuracy & speed feed Precision + Control.', W/2, H/2);
   return ()=>{ running=false; cancelAnimationFrame(raf); };
+};
+
+/* ============================================================================
+   REFLEX LAB EXPANSION PACK (DD §5.1)
+   Flick Trainer · Tracking Trainer · Double Click Test · Spacebar Speed
+   ============================================================================ */
+
+/* ---- 5.1 Flick Trainer — snap aim onto fast-fading targets ---- */
+Views.flick = function(c){
+  const cab = getCab('flick');
+  const panel = toolShell(c, cab);
+  const SPAWNS=25, LIFE=700, RADIUS=18;
+  const W=800, H=500;
+  const canvas = el('canvas',{class:'game'}); canvas.width=W; canvas.height=H;
+  const wrap = el('div',{style:'overflow-x:auto'}); wrap.append(canvas);
+  const info = el('p',{class:'muted'});
+  const result = el('div',{});
+  const startBtn = el('button',{class:'btn primary', html:'▶ Start (25 flicks)'});
+  const startRow = el('div',{class:'controls-row'}); startRow.append(startBtn);
+  panel.append(startRow, info, wrap, result);
+
+  const ctx = canvas.getContext('2d');
+  let running=false, spawnIdx=0, hits=0, misses=0, target=null, spawnTime=0, raf=null;
+  let hitTimes=[], score=0, last={x:W/2, y:H/2};
+
+  function bg(){
+    ctx.fillStyle='#04060e'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(124,92,255,0.10)';
+    for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  }
+  function spawn(){
+    if(spawnIdx>=SPAWNS){ return end(); }
+    spawnIdx++;
+    const m=RADIUS+14;
+    // force a genuine flick: keep each new target well away from the last one
+    let nx,ny,tries=0;
+    do{ nx=m+Math.random()*(W-2*m); ny=m+Math.random()*(H-2*m); tries++; }
+    while(tries<24 && Math.hypot(nx-last.x, ny-last.y) < 230);
+    target={x:nx, y:ny}; last={x:nx, y:ny}; spawnTime=performance.now();
+  }
+  function loop(){
+    if(!running) return;
+    bg();
+    if(target){
+      const age=performance.now()-spawnTime;
+      if(age>LIFE){ misses++; spawn(); }
+      else {
+        const accent=Store.get().profile.accent||'#16f2c8';
+        const r=RADIUS*(1-0.5*age/LIFE);   // shrinks as it ages — snap before it's gone
+        ctx.beginPath(); ctx.arc(target.x,target.y,r+6,0,7); ctx.fillStyle=hexA('#ff3df0',0.16); ctx.fill();
+        ctx.beginPath(); ctx.arc(target.x,target.y,r,0,7);
+        ctx.fillStyle=accent; ctx.shadowColor=accent; ctx.shadowBlur=16; ctx.fill(); ctx.shadowBlur=0;
+        ctx.beginPath(); ctx.arc(target.x,target.y,3,0,7); ctx.fillStyle='#04060e'; ctx.fill();
+      }
+    }
+    ctx.fillStyle='#9aa3d4'; ctx.font='13px monospace'; ctx.textAlign='left';
+    ctx.fillText(`Flick ${Math.min(spawnIdx,SPAWNS)}/${SPAWNS}   Hits ${hits}   Score ${score}`, 12, 22);
+    raf=requestAnimationFrame(loop);
+  }
+  function onClick(e){
+    if(!running || !target) return;
+    const rect=canvas.getBoundingClientRect();
+    const x=(e.clientX-rect.left)*(W/rect.width), y=(e.clientY-rect.top)*(H/rect.height);
+    if(Math.hypot(x-target.x, y-target.y)<=RADIUS){
+      const t=performance.now()-spawnTime; hits++; hitTimes.push(t);
+      score += Math.max(5, Math.round((LIFE-t)/LIFE*100));   // faster snap = more points
+      spawn();
+    } else { misses++; }
+  }
+  function start(){
+    running=true; spawnIdx=0; hits=0; misses=0; hitTimes=[]; score=0; last={x:W/2, y:H/2};
+    startBtn.disabled=true; info.textContent='Snap onto each target before it fades!';
+    result.innerHTML=''; spawn(); loop();
+  }
+  function end(){
+    running=false; cancelAnimationFrame(raf); startBtn.disabled=false; target=null; bg();
+    ctx.fillStyle='#16f2c8'; ctx.font='700 26px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('RUN COMPLETE', W/2, H/2);
+    const accuracy = Math.round(hits/SPAWNS*100);
+    const avgTime = hitTimes.length? Math.round(hitTimes.reduce((a,b)=>a+b,0)/hitTimes.length) : LIFE;
+    const speedScore = clamp01(1-avgTime/LIFE);
+    const quality = clamp01(accuracy/100*0.5 + speedScore*0.5);
+    recordRun('flick', {best:'max', value:score});
+    Attr.applyVector({reflex:11, precision:6}, quality);
+    Ach.evaluate({tool:'flick', avgTime, accuracy, score});
+
+    info.textContent='';
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Flick Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Hits</div><div class="v">${hits}/${SPAWNS}</div></div>
+      <div class="result-tile"><div class="k">Avg Flick</div><div class="v">${avgTime} ms</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.flick.value}</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'REFLEX LAB', tool:'Flick Trainer', glyph:'🔫',
+      metric:[{k:'Flick Score', v:score},{k:'Hits', v:hits+'/'+SPAWNS},{k:'Avg Flick', v:avgTime+'ms'}],
+      designation: (avgTime<400&&accuracy>=90)?'Gunslinger': accuracy>=75?'Quick Draw':'Loose Aim',
+      badge: (avgTime<400&&accuracy>=90)?'Lightning Flick':null
+    }));
+  }
+  canvas.addEventListener('pointerdown', onClick);
+  startBtn.onclick = start;
+  bg(); ctx.fillStyle='#9aa3d4'; ctx.font='15px monospace'; ctx.textAlign='center';
+  ctx.fillText('Press START — 25 targets, each fades in 0.7s. Snap fast for a higher Flick Score.', W/2, H/2);
+  return ()=>{ running=false; cancelAnimationFrame(raf); };
+};
+
+/* ---- 5.1 Tracking Trainer — hold a cursor on a node that keeps turning ---- */
+Views.tracking = function(c){
+  const cab = getCab('tracking');
+  const panel = toolShell(c, cab);
+  const W=760, H=420, DURATION=14000, TOL=28, NODE=9;
+  const canvas = el('canvas',{class:'game'}); canvas.width=W; canvas.height=H;
+  const wrap = el('div',{style:'overflow-x:auto'}); wrap.append(canvas);
+  const info = el('p',{class:'muted'});
+  const result = el('div',{});
+  const startBtn = el('button',{class:'btn primary', html:'▶ Start Tracking'});
+  const startRow = el('div',{class:'controls-row'}); startRow.append(startBtn);
+  panel.append(startRow, info, wrap, result);
+
+  const ctx = canvas.getContext('2d');
+  let running=false, raf=null, startT=0, lastTurn=0;
+  const node={x:W/2, y:H/2, vx:0, vy:0, speed:0.28};
+  const mouse={x:W/2, y:H/2, has:false};
+  let frames=0, onFrames=0, errors=[];
+
+  function retarget(){
+    const ang=Math.random()*Math.PI*2;
+    node.vx=Math.cos(ang)*node.speed; node.vy=Math.sin(ang)*node.speed;
+  }
+  function bg(){ ctx.fillStyle='#04060e'; ctx.fillRect(0,0,W,H); }
+  function onMove(e){
+    const rect=canvas.getBoundingClientRect();
+    mouse.x=(e.clientX-rect.left)*(W/rect.width);
+    mouse.y=(e.clientY-rect.top)*(H/rect.height);
+    mouse.has=true;
+  }
+  function loop(now){
+    if(!running) return;
+    const elapsed=now-startT, dt=16;
+    // sharp, continuous direction changes (DD §5.1 — measures follow consistency)
+    if(now-lastTurn > 500+Math.random()*500){ retarget(); lastTurn=now; }
+    node.x+=node.vx*dt; node.y+=node.vy*dt;
+    const m=NODE+4;
+    if(node.x<m){node.x=m;node.vx=Math.abs(node.vx);} if(node.x>W-m){node.x=W-m;node.vx=-Math.abs(node.vx);}
+    if(node.y<m){node.y=m;node.vy=Math.abs(node.vy);} if(node.y>H-m){node.y=H-m;node.vy=-Math.abs(node.vy);}
+
+    bg();
+    const accent=Store.get().profile.accent||'#16f2c8';
+    let on=false;
+    if(mouse.has){
+      const err=Math.hypot(mouse.x-node.x, mouse.y-node.y);
+      errors.push(err); frames++; on=err<=TOL; if(on) onFrames++;
+    }
+    ctx.beginPath(); ctx.arc(node.x,node.y,TOL,0,7);
+    ctx.strokeStyle= on?'rgba(55,227,91,0.75)':'rgba(124,92,255,0.5)'; ctx.lineWidth=2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(node.x,node.y,NODE,0,7);
+    ctx.fillStyle=accent; ctx.shadowColor=accent; ctx.shadowBlur=14; ctx.fill(); ctx.shadowBlur=0;
+    if(mouse.has){ ctx.beginPath(); ctx.arc(mouse.x,mouse.y,4,0,7); ctx.fillStyle='#fff'; ctx.fill(); }
+
+    ctx.fillStyle='#9aa3d4'; ctx.font='13px monospace'; ctx.textAlign='left';
+    const pct=frames? Math.round(onFrames/frames*100):0;
+    ctx.fillText(`Time ${(Math.max(0,DURATION-elapsed)/1000).toFixed(1)}s   On-Target ${pct}%`, 12, 22);
+
+    if(elapsed>=DURATION) return end();
+    raf=requestAnimationFrame(loop);
+  }
+  function start(){
+    running=true; frames=0; onFrames=0; errors=[]; mouse.has=false;
+    node.x=W/2; node.y=H/2; retarget(); lastTurn=performance.now();
+    startBtn.disabled=true; info.textContent='Keep your cursor inside the ring as the node darts around.';
+    result.innerHTML=''; startT=performance.now(); raf=requestAnimationFrame(loop);
+  }
+  function end(){
+    running=false; cancelAnimationFrame(raf); startBtn.disabled=false; bg();
+    ctx.fillStyle='#16f2c8'; ctx.font='700 26px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('RUN COMPLETE', W/2, H/2);
+    if(frames<10){ info.textContent='No tracking captured — keep the cursor inside the box.'; return; }
+    const onTarget=Math.round(onFrames/frames*100);
+    const avgErr=errors.reduce((a,b)=>a+b,0)/errors.length;
+    const variance=errors.reduce((a,b)=>a+(b-avgErr)*(b-avgErr),0)/errors.length;
+    const control=Math.max(0, Math.min(100, Math.round(100-Math.sqrt(variance)*2)));
+
+    const quality=clamp01(onTarget/100);
+    recordRun('tracking', {best:'max', value:onTarget});
+    Attr.applyVector({control:11, focus:6}, quality);
+    Ach.evaluate({tool:'tracking', onTarget, control});
+
+    info.textContent='';
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">On-Target</div><div class="v">${onTarget}%</div></div>
+      <div class="result-tile"><div class="k">Avg Error</div><div class="v">${avgErr.toFixed(1)}px</div></div>
+      <div class="result-tile"><div class="k">Control</div><div class="v">${control}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.tracking.value}%</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'REFLEX LAB', tool:'Tracking Trainer', glyph:'🛰️',
+      metric:[{k:'On-Target', v:onTarget+'%'},{k:'Control', v:control}],
+      designation: onTarget>=85?'Lock-On Master': onTarget>=60?'Smooth Tracker':'Drifty',
+      badge: onTarget>=85?'Lock-On':null
+    }));
+  }
+  canvas.addEventListener('pointermove', onMove);
+  startBtn.onclick=start;
+  bg(); ctx.fillStyle='#9aa3d4'; ctx.font='15px monospace'; ctx.textAlign='center';
+  ctx.fillText('Press START — keep the cursor on the node for 14s as it changes direction.', W/2, H-24);
+  return ()=>{ running=false; cancelAnimationFrame(raf); };
+};
+
+/* ---- 5.1 Double Click Test — time the gap inside a rapid double-tap ---- */
+Views.doubleClick = function(c){
+  const cab = getCab('doubleclick');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'muted', style:'font-size:12px',
+    html:'Double-click the panel as fast as you can. We time the gap between the two clicks of each pair — land 5 clean pairs to finish.'}));
+  const NEED=5, WINDOW=450;
+  const stage = el('div',{class:'stage ready'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  let gaps=[], prev=0, done=false;
+  function setReady(){
+    gaps=[]; prev=0; done=false;
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">DOUBLE-CLICK HERE</div><div class="small">Tap twice, fast — 0/${NEED} pairs.</div>`;
+    result.innerHTML='';
+  }
+  function grade(ms){ return ms<60?'S':ms<90?'A':ms<120?'B':ms<180?'C':'F'; }
+  function onDown(){
+    if(done){ setReady(); return; }
+    const now=performance.now();
+    if(prev && now-prev<=WINDOW){
+      const gap=now-prev; gaps.push(gap); prev=0;   // pair complete; next click opens a fresh pair
+      stage.className='stage go';
+      stage.innerHTML = `<div class="big">${Math.round(gap)} ms</div><div class="small">${gaps.length}/${NEED} pairs — keep going</div>`;
+      if(gaps.length>=NEED){ done=true; end(); }
+    } else {
+      prev=now;   // first click of a pair (or too slow — restart the pair)
+    }
+  }
+  function end(){
+    const best=Math.round(Math.min.apply(null, gaps));
+    const avg=Math.round(gaps.reduce((a,b)=>a+b,0)/gaps.length);
+    const g=grade(avg);
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${best} ms</div><div class="small">best gap — click below to retry</div>`;
+    const quality=clamp01((400-avg)/(400-40));
+    recordRun('doubleclick', {best:'min', value:best});
+    Attr.applyVector({speed:8, reflex:6}, quality);
+    Ach.evaluate({tool:'doubleclick', best, avg});
+
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Best Gap</div><div class="v">${best} ms</div></div>
+      <div class="result-tile"><div class="k">Avg Gap</div><div class="v">${avg} ms</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best Ever</div><div class="v">${Store.get().bests.doubleclick.value} ms</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'REFLEX LAB', tool:'Double Click Test', glyph:'👆',
+      grade:g, metric:[{k:'Best Gap', v:best+' ms'},{k:'Avg Gap', v:avg+' ms'}],
+      designation: avg<60?'Double Tap Demon': avg<120?'Snappy Fingers':'Steady Tapper',
+      badge: best<60?'Double Tap':null
+    }));
+  }
+  stage.addEventListener('pointerdown', onDown);
+  setReady();
+  return ()=>{};
+};
+
+/* ---- 5.1 Spacebar Speed — 10-second keyboard tap test ---- */
+Views.spacebar = function(c){
+  const cab = getCab('spacebar');
+  const panel = toolShell(c, cab);
+  const DURATION=10;
+  panel.append(el('p',{class:'muted', style:'font-size:12px',
+    html:'Click the panel to arm it, then hammer the <strong>SPACEBAR</strong>. The 10-second timer starts on your first tap.'}));
+  const stage = el('div',{class:'stage ready', tabindex:'0'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  let armed=false, running=false, taps=[], startT=0, timer=null, raf=null;
+  function setReady(){
+    armed=true; running=false; taps=[]; clearTimeout(timer); cancelAnimationFrame(raf);
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">TAP SPACEBAR</div><div class="small">Armed — press SPACE to start the 10s test.</div>`;
+    result.innerHTML='';
+    try{ stage.focus(); }catch(e){}
+  }
+  function begin(){
+    running=true; armed=false; startT=performance.now(); taps=[startT];
+    stage.className='stage go'; tick();
+    timer=setTimeout(end, DURATION*1000);
+  }
+  function tap(){
+    if(running) taps.push(performance.now());
+    else if(armed) begin();
+  }
+  function tick(){
+    if(!running) return;
+    const left=Math.max(0, DURATION-(performance.now()-startT)/1000);
+    stage.innerHTML = `<div class="big">${taps.length-1}</div><div class="small">${left.toFixed(1)}s left — keep tapping SPACE!</div>`;
+    raf=requestAnimationFrame(tick);
+  }
+  function grade(t){ return t>=9?'S':t>=7?'A':t>=5.5?'B':t>=4?'C':'F'; }
+  function end(){
+    running=false; cancelAnimationFrame(raf);
+    const total=taps.length-1;
+    const tps=total/DURATION;
+    const deltas=[]; for(let i=1;i<taps.length;i++) deltas.push(taps[i]-taps[i-1]);
+    let consistency=0;
+    if(deltas.length>1){
+      const mean=deltas.reduce((a,b)=>a+b,0)/deltas.length;
+      const v=deltas.reduce((a,b)=>a+(b-mean)*(b-mean),0)/deltas.length;
+      consistency=Math.max(0, Math.min(100, Math.round((1-Math.sqrt(v)/mean)*100)));
+    }
+    const g=grade(tps);
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${tps.toFixed(2)} TPS</div><div class="small">Click to arm another run</div>`;
+    const quality=clamp01(tps/9);
+    recordRun('spacebar', {best:'max', value:+tps.toFixed(2)});
+    Attr.applyVector({speed:13, consistency:5}, quality);
+    Ach.evaluate({tool:'spacebar', tps});
+
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Total Taps</div><div class="v">${total}</div></div>
+      <div class="result-tile"><div class="k">Taps / sec</div><div class="v">${tps.toFixed(2)}</div></div>
+      <div class="result-tile"><div class="k">Consistency</div><div class="v">${consistency}%</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'REFLEX LAB', tool:'Spacebar Speed', glyph:'⌨️',
+      grade:g, metric:[{k:'Taps/sec', v:tps.toFixed(2)},{k:'Taps', v:total},{k:'Consistency', v:consistency+'%'}],
+      designation: tps>=9?'Space Cadet': tps>=6?'Rapid Tapper':'Casual Masher',
+      badge: tps>=9?'Space Cadet':null
+    }));
+  }
+  function onKey(e){
+    if(e.code==='Space' || e.key===' ' || e.keyCode===32){
+      e.preventDefault();
+      if(e.repeat) return;   // ignore OS key-repeat — count real taps only
+      tap();
+    }
+  }
+  stage.addEventListener('pointerdown', ()=>{ if(!running) setReady(); });
+  window.addEventListener('keydown', onKey);
+  setReady();
+  return ()=>{ window.removeEventListener('keydown', onKey); clearTimeout(timer); cancelAnimationFrame(raf); running=false; };
 };
 
 /* ============================================================================
@@ -3408,7 +3779,7 @@ const UI = (function(){
       railCabs.filter(x=>x.lab===lab).forEach(cab=>{
         const a=el('a',{ href: cab.locked?'javascript:void 0':cab.route,
           class: cab.locked?'locked':'', 'data-route':cab.route||'' });
-        a.innerHTML = `<span>${cab.icon} ${cab.railName||cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':'<span class="mini-tag mvp">mvp</span>'}`;
+        a.innerHTML = `<span>${cab.icon} ${cab.railName||cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':`<span class="mini-tag ${cab.tag||'mvp'}">${cab.tag||'mvp'}</span>`}`;
         if(cab.locked) a.addEventListener('click', e=>{ e.preventDefault(); toast('Locked','Coming in a later build.'); });
         rail.append(a);
       });
@@ -3498,6 +3869,10 @@ Router.add('#/reflex/calibration', Views.calibration);
 Router.add('#/reflex/reaction', Views.reaction);
 Router.add('#/reflex/cps', Views.cps);
 Router.add('#/reflex/precision', Views.precision);
+Router.add('#/reflex/flick', Views.flick);
+Router.add('#/reflex/tracking', Views.tracking);
+Router.add('#/reflex/doubleclick', Views.doubleClick);
+Router.add('#/reflex/spacebar', Views.spacebar);
 Router.add('#/mouse/polling', Views.polling);
 Router.add('#/mouse/accuracy', Views.mouseAccuracy);
 Router.add('#/setup/edpi', Views.edpi);
