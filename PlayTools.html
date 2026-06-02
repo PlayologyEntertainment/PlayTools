@@ -875,6 +875,16 @@ const Ach = (function(){
       test:(d)=> Attr.gamerScore(d)>=10000 },
     { id:'tracking_expert', name:'Tracking Expert', icon:'〰️', desc:'Keep avg error under 4px on Mouse Accuracy.',
       test:(d,c)=> c && c.tool==='mouse_accuracy' && c.avgError<4 },
+    { id:'lift_master', name:'Lift-Off Master', icon:'📏', desc:'Score 90+ on the Lift-Off Distance Test (ultra-low LOD).',
+      test:(d,c)=> c && c.tool==='mouse_liftoff' && c.score>=90 },
+    { id:'drag_lord', name:'Drag Lord', icon:'🥁', desc:'Peak 20+ CPS on the Drag Click Test.',
+      test:(d,c)=> c && c.tool==='mouse_dragclick' && c.peak>=20 },
+    { id:'jitter_storm', name:'Jitter Storm', icon:'〽️', desc:'Hit 12+ CPS while holding 60%+ hand stability on the Jitter Click Test.',
+      test:(d,c)=> c && c.tool==='mouse_jitter' && c.cps>=12 && c.stability>=60 },
+    { id:'steady_hand', name:'Steady Hand', icon:'📉', desc:'Score 95+ Line Stability on the Mouse Stability Test.',
+      test:(d,c)=> c && c.tool==='mouse_stability' && c.score>=95 },
+    { id:'hardware_whisperer', name:'Hardware Whisperer', icon:'🖱️', desc:'Complete every Mouse & Hardware Lab diagnostic.',
+      test:(d)=> !!(d.bests && d.bests.mouse_polling && d.bests.mouse_accuracy && d.bests.mouse_liftoff && d.bests.mouse_dragclick && d.bests.mouse_jitter && d.bests.mouse_stability) },
     { id:'setup_specialist', name:'Setup Specialist', icon:'🛠️', desc:'Use every Setup Lab calculator.',
       test:(d)=> !!(d.counters && d.counters.setupEdpi && d.counters.setupSens && d.counters.setupFov && d.counters.setupAspect && d.counters.setupRefresh && d.counters.setupSession) },
     { id:'natural_20', name:'Natural 20', icon:'🎲', desc:'Roll a natural 20 in the Dice Roller.',
@@ -1100,6 +1110,16 @@ const CABINETS = [
     desc:'Estimate your mouse report rate (Hz) & stability.', dna:'Control +6 · Consistency +4' },
   { id:'mouse_accuracy', lab:'Mouse & Hardware', name:'Mouse Accuracy', icon:'〰️', tag:'mvp', route:'#/mouse/accuracy',
     desc:'Trace a moving node to score tracking control.', dna:'Precision +8 · Control +12' },
+
+  // Mouse & Hardware Lab Expansion Pack (DD §5.2) — sensor & clicking telemetry.
+  { id:'mouse_liftoff', lab:'Mouse & Hardware', name:'Lift-Off Distance Test', railName:'Lift-Off', icon:'📏', tag:'p2', route:'#/mouse/liftoff',
+    desc:'Lift & re-seat your mouse to map sensor tracking dropout — get a Lift Score.', dna:'Control +8 · Consistency +6' },
+  { id:'mouse_dragclick', lab:'Mouse & Hardware', name:'Drag Click Test', railName:'Drag Click', icon:'🥁', tag:'p2', route:'#/mouse/dragclick',
+    desc:'Frictional drag-clicking burst — capture your peak Drag-Click CPS index.', dna:'Speed +12 · Reflex +5' },
+  { id:'mouse_jitter', lab:'Mouse & Hardware', name:'Jitter Click Test', railName:'Jitter Click', icon:'〽️', tag:'p2', route:'#/mouse/jitter',
+    desc:'High-frequency jitter clicking with a live hand-stability monitor — get a Jitter Score.', dna:'Speed +10 · Consistency +6' },
+  { id:'mouse_stability', lab:'Mouse & Hardware', name:'Mouse Stability Test', railName:'Line Stability', icon:'📉', tag:'p2', route:'#/mouse/stability',
+    desc:'Trace a straight horizontal line to expose pointer drift & sensor jitter.', dna:'Precision +10 · Control +8' },
 
   // Setup Lab (DD §4.3) — gaming calculators & sensitivity math.
   { id:'edpi',     lab:'Setup Lab', name:'eDPI Calculator', icon:'🛠️', tag:'mvp', route:'#/setup/edpi',
@@ -2663,6 +2683,352 @@ Views.mouseAccuracy = function(c){
   bg(); drawPath();
   ctx.fillStyle='#9aa3d4'; ctx.font='15px monospace'; ctx.textAlign='center';
   ctx.fillText('Press START — follow the moving node for 12s. Feeds Precision + Control.', W/2, H-24);
+  return ()=>{ running=false; cancelAnimationFrame(raf); };
+};
+
+/* ---- 5.2 Lift-Off Distance Test — semi-manual LOD tuning widget ----
+   In-browser we can't read the physical sensor, so this is "semi-manual":
+   on each trial we open a short LIFT window and log any cursor drift that
+   leaks through while the mouse is in the air. A sensor with a high lift-off
+   distance keeps tracking when lifted, producing drift; a tightly-tuned
+   sensor cuts out fast, producing almost none. Less drift → higher Lift Score. */
+Views.liftoff = function(c){
+  const cab = getCab('mouse_liftoff');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'muted', style:'font-size:12px',
+    html:'When it says <strong>LIFT NOW</strong>, raise your mouse off the pad and re-seat it a few cm away before the window closes. We log any cursor drift that leaks through while it\'s airborne across 5 trials — the less it moves, the lower (tighter) your lift-off distance.'}));
+  const NEED=5, LIFT_MS=1300;
+  const stage = el('div',{class:'stage ready'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  let phase='idle';          // idle | lift | rest | done
+  let trials=[], drift=0, lastX=0, lastY=0, hasPos=false, timer=null;
+
+  function setReady(){
+    phase='idle'; trials=[]; clearTimeout(timer);
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">CLICK TO ARM</div><div class="small">Rest the mouse flat. Click here, then watch for the LIFT cue — 0/${NEED} trials.</div>`;
+    result.innerHTML='';
+  }
+  function startLift(){
+    phase='lift'; drift=0; hasPos=false;
+    stage.className='stage foul';
+    stage.innerHTML = `<div class="big">LIFT NOW</div><div class="small">Pick the mouse up & re-seat it — trial ${trials.length+1}/${NEED}.</div>`;
+    timer=setTimeout(endLift, LIFT_MS);
+  }
+  function onMove(e){
+    if(phase!=='lift') return;
+    const x=e.clientX, y=e.clientY;
+    if(hasPos) drift += Math.hypot(x-lastX, y-lastY);
+    lastX=x; lastY=y; hasPos=true;
+  }
+  function endLift(){
+    trials.push(drift);
+    if(trials.length>=NEED){ finish(); return; }
+    phase='rest';
+    stage.className='stage wait';
+    stage.innerHTML = `<div class="big">SET DOWN</div><div class="small">Good — ${trials.length}/${NEED} done. Next lift in a moment…</div>`;
+    timer=setTimeout(startLift, 900);
+  }
+  function grade(s){ return s>=90?'S':s>=75?'A':s>=55?'B':s>=35?'C':'F'; }
+  function finish(){
+    phase='done'; clearTimeout(timer);
+    const avgDrift = trials.reduce((a,b)=>a+b,0)/trials.length;
+    const maxDrift = Math.max.apply(null, trials);
+    const score = Math.max(0, Math.min(100, Math.round(100 - avgDrift*1.1)));
+    const lod = avgDrift<10?'Low (~1 DVD)': avgDrift<35?'Medium (~2 DVD)':'High (3+ DVD)';
+    const g=grade(score);
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${score}</div><div class="small">Lift Score — click to run again</div>`;
+
+    const quality=clamp01(score/100);
+    recordRun('mouse_liftoff', {best:'max', value:score});
+    Attr.applyVector({control:8, consistency:6}, quality);
+    Ach.evaluate({tool:'mouse_liftoff', score, avgDrift});
+
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Lift Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Avg Drift</div><div class="v">${avgDrift.toFixed(0)}px</div></div>
+      <div class="result-tile"><div class="k">Worst Trial</div><div class="v">${maxDrift.toFixed(0)}px</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>`;
+    result.append(r);
+    result.append(el('p',{class:'muted', style:'font-size:11px',
+      html:'Estimated LOD: <strong>'+lod+'</strong>. This is a feel-based gauge of leaked tracking, not a calibrated millimetre reading — pad surface & lift technique both move the number.'}));
+    result.append(shareRow({
+      lab:'MOUSE LAB', tool:'Lift-Off Distance', glyph:'📏',
+      grade:g, metric:[{k:'Lift Score', v:score},{k:'Avg Drift', v:avgDrift.toFixed(0)+'px'}],
+      designation: score>=90?'Sensor Surgeon': score>=70?'Tuned Tracker': score>=45?'Loose Sensor':'Sensor Skater',
+      badge: score>=90?'Lift-Off Master':null
+    }));
+  }
+  stage.addEventListener('pointermove', onMove);
+  stage.addEventListener('pointerdown', ()=>{ if(phase==='idle') startLift(); else if(phase==='done') setReady(); });
+  setReady();
+  return ()=>{ clearTimeout(timer); phase='idle'; };
+};
+
+/* ---- 5.2 Drag Click Test — peak frictional click frequency over a burst ----
+   Drag-clicking drags a fingertip across the button so surface friction trips
+   the switch many times per press. We count raw pointerdown events over a 5s
+   burst and report the peak rate inside any 1s sliding window as the index. */
+Views.dragClick = function(c){
+  const cab = getCab('mouse_dragclick');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'muted', style:'font-size:12px',
+    html:'Click the panel to arm it, then <strong>drag-click</strong> as hard as you can — the 5-second burst starts on your first click. Your <em>peak</em> clicks in any one second is your Drag-Click index.'}));
+  const DURATION=5000;
+  const stage = el('div',{class:'stage ready'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  let armed=false, running=false, stamps=[], startT=0, timer=null, raf=null;
+  function setReady(){
+    armed=true; running=false; stamps=[]; clearTimeout(timer); cancelAnimationFrame(raf);
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">CLICK TO ARM</div><div class="small">Then drag-click like mad — the 5s burst starts on your first click.</div>`;
+    result.innerHTML='';
+  }
+  function begin(){
+    running=true; armed=false; startT=performance.now(); stamps=[];
+    stage.className='stage go';
+    timer=setTimeout(end, DURATION);
+    raf=requestAnimationFrame(tick);
+  }
+  function onDown(){
+    if(running){ stamps.push(performance.now()); }
+    else if(armed){ begin(); stamps.push(startT); }
+    else { setReady(); }
+  }
+  function tick(){
+    if(!running) return;
+    const left=Math.max(0, DURATION-(performance.now()-startT))/1000;
+    stage.innerHTML = `<div class="big">${stamps.length}</div><div class="small">${left.toFixed(1)}s left — keep dragging!</div>`;
+    raf=requestAnimationFrame(tick);
+  }
+  // peak clicks within any 1000ms window (two-pointer sweep over sorted stamps)
+  function peakPerSec(arr){
+    let peak=0, j=0;
+    for(let i=0;i<arr.length;i++){
+      while(arr[i]-arr[j]>=1000) j++;
+      peak=Math.max(peak, i-j+1);
+    }
+    return peak;
+  }
+  function grade(p){ return p>=25?'S':p>=18?'A':p>=12?'B':p>=8?'C':'F'; }
+  function end(){
+    running=false; cancelAnimationFrame(raf);
+    const total=stamps.length;
+    const avg=+(total/(DURATION/1000)).toFixed(1);
+    const peak=peakPerSec(stamps);
+    const g=grade(peak);
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${peak} CPS</div><div class="small">peak burst — click to arm again</div>`;
+
+    const quality=clamp01(peak/25);
+    recordRun('mouse_dragclick', {best:'max', value:peak});
+    Attr.applyVector({speed:12, reflex:5}, quality);
+    Ach.evaluate({tool:'mouse_dragclick', peak, avg});
+
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Peak CPS</div><div class="v">${peak}</div></div>
+      <div class="result-tile"><div class="k">Avg CPS</div><div class="v">${avg}</div></div>
+      <div class="result-tile"><div class="k">Total Clicks</div><div class="v">${total}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>`;
+    result.append(r);
+    result.append(el('p',{class:'muted', style:'font-size:11px',
+      html:'Counts raw pointer-down events — a non-drag mouse usually tops out near 6–8 CPS, so anything well above that is genuine drag-click friction.'}));
+    result.append(shareRow({
+      lab:'MOUSE LAB', tool:'Drag Click', glyph:'🥁',
+      grade:g, metric:[{k:'Peak CPS', v:peak},{k:'Avg CPS', v:avg}],
+      designation: peak>=25?'Drag Lord': peak>=16?'Friction Master': peak>=10?'Drag Apprentice':'Single Tapper',
+      badge: peak>=20?'Drag Lord':null
+    }));
+  }
+  stage.addEventListener('pointerdown', onDown);
+  setReady();
+  return ()=>{ clearTimeout(timer); cancelAnimationFrame(raf); running=false; };
+};
+
+/* ---- 5.2 Jitter Click Test — fast vibration clicking + hand-stability watch ----
+   Jitter-clicking tenses the forearm to vibrate the finger on the button. We
+   count clicks over a 5s burst for raw speed, and simultaneously sum cursor
+   travel as a hand-stability proxy — a clean jitter holds the pointer still. */
+Views.jitterClick = function(c){
+  const cab = getCab('mouse_jitter');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'muted', style:'font-size:12px',
+    html:'Click to arm, then <strong>jitter-click</strong> — tense your arm and vibrate the finger on the button. The 5s burst starts on your first click. We track speed <em>and</em> how still you keep the cursor (hand stability).'}));
+  const DURATION=5000;
+  const stage = el('div',{class:'stage ready'});
+  const result = el('div',{});
+  panel.append(stage, result);
+
+  let armed=false, running=false, clicks=0, travel=0, lastX=0, lastY=0, hasPos=false, startT=0, timer=null, raf=null;
+  function setReady(){
+    armed=true; running=false; clicks=0; travel=0; hasPos=false; clearTimeout(timer); cancelAnimationFrame(raf);
+    stage.className='stage ready';
+    stage.innerHTML = `<div class="big">CLICK TO ARM</div><div class="small">Then jitter-click — the 5s burst starts on your first click.</div>`;
+    result.innerHTML='';
+  }
+  function begin(){
+    running=true; armed=false; clicks=0; travel=0; hasPos=false; startT=performance.now();
+    stage.className='stage go';
+    timer=setTimeout(end, DURATION);
+    raf=requestAnimationFrame(tick);
+  }
+  function onDown(){
+    if(running){ clicks++; }
+    else if(armed){ begin(); clicks=1; }
+    else { setReady(); }
+  }
+  function onMove(e){
+    if(!running) return;
+    const x=e.clientX, y=e.clientY;
+    if(hasPos) travel += Math.hypot(x-lastX, y-lastY);
+    lastX=x; lastY=y; hasPos=true;
+  }
+  function tick(){
+    if(!running) return;
+    const left=Math.max(0, DURATION-(performance.now()-startT))/1000;
+    stage.innerHTML = `<div class="big">${clicks}</div><div class="small">${left.toFixed(1)}s left — keep jittering!</div>`;
+    raf=requestAnimationFrame(tick);
+  }
+  function grade(c){ return c>=14?'S':c>=11?'A':c>=8?'B':c>=6?'C':'F'; }
+  function end(){
+    running=false; cancelAnimationFrame(raf);
+    const cps=+(clicks/(DURATION/1000)).toFixed(1);
+    const stability=Math.max(0, Math.min(100, Math.round(100 - travel/6)));
+    const jitterScore=Math.max(0, Math.min(100, Math.round(cps/14*100)));
+    const g=grade(cps);
+    stage.className='stage go';
+    stage.innerHTML = `<div class="big">${jitterScore}</div><div class="small">Jitter Score — click to arm again</div>`;
+
+    const quality=clamp01(cps/14)*clamp01(0.4+stability/100*0.6);
+    recordRun('mouse_jitter', {best:'max', value:jitterScore});
+    Attr.applyVector({speed:10, consistency:6}, quality);
+    Ach.evaluate({tool:'mouse_jitter', cps, stability, jitterScore});
+
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Jitter Score</div><div class="v">${jitterScore}</div></div>
+      <div class="result-tile"><div class="k">CPS</div><div class="v">${cps}</div></div>
+      <div class="result-tile"><div class="k">Hand Stability</div><div class="v">${stability}%</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>`;
+    result.append(r);
+    result.append(el('p',{class:'muted', style:'font-size:11px',
+      html:'Hand stability falls as the cursor wanders during the burst — the cleanest jitter clicks fast while keeping the pointer almost perfectly planted.'}));
+    result.append(shareRow({
+      lab:'MOUSE LAB', tool:'Jitter Click', glyph:'〽️',
+      grade:g, metric:[{k:'Jitter Score', v:jitterScore},{k:'CPS', v:cps},{k:'Stability', v:stability+'%'}],
+      designation: cps>=14?'Jitter Machine': cps>=10?'Buzzsaw Hands': cps>=7?'Trembling Trigger':'Smooth Clicker',
+      badge: (cps>=12 && stability>=60)?'Jitter Storm':null
+    }));
+  }
+  stage.addEventListener('pointerdown', onDown);
+  stage.addEventListener('pointermove', onMove);
+  setReady();
+  return ()=>{ clearTimeout(timer); cancelAnimationFrame(raf); running=false; };
+};
+
+/* ---- 5.2 Mouse Stability Test — horizontal-line tracing for drift/jitter ----
+   The user sweeps the cursor along a dead-straight guide line for 8s; we sample
+   the vertical offset from the line every frame. Low average deviation = a steady
+   hand and a clean sensor; the signed mean exposes consistent upward/downward
+   drift. Decoupled-input note (§4.2.1) doesn't apply — this is a render-loop trace. */
+Views.mouseStability = function(c){
+  const cab = getCab('mouse_stability');
+  const panel = toolShell(c, cab);
+  const W=760, H=300, DURATION=8000;
+  const canvas = el('canvas',{class:'game'}); canvas.width=W; canvas.height=H;
+  const wrap = el('div',{style:'overflow-x:auto'}); wrap.append(canvas);
+  const info = el('p',{class:'muted'});
+  const result = el('div',{});
+  const startBtn = el('button',{class:'btn primary', html:'▶ Start Trace'});
+  const startRow = el('div',{class:'controls-row'}); startRow.append(startBtn);
+  panel.append(startRow, info, wrap, result);
+
+  const ctx=canvas.getContext('2d');
+  const lineY=H/2;
+  let running=false, raf=null, startT=0;
+  const mouse={x:0, y:lineY, has:false};
+  let devs=[], signed=[];
+
+  function bg(){ ctx.fillStyle='#04060e'; ctx.fillRect(0,0,W,H); }
+  function drawLine(){
+    ctx.beginPath(); ctx.moveTo(0,lineY); ctx.lineTo(W,lineY);
+    ctx.strokeStyle='rgba(124,92,255,0.5)'; ctx.lineWidth=2; ctx.stroke();
+    // tolerance band
+    ctx.fillStyle='rgba(124,92,255,0.06)'; ctx.fillRect(0,lineY-12,W,24);
+  }
+  function onMove(e){
+    const rect=canvas.getBoundingClientRect();
+    mouse.x=(e.clientX-rect.left)*(W/rect.width);
+    mouse.y=(e.clientY-rect.top)*(H/rect.height);
+    mouse.has=true;
+  }
+  function loop(now){
+    if(!running) return;
+    const elapsed=now-startT;
+    bg(); drawLine();
+    if(mouse.has && mouse.x>=0 && mouse.x<=W){
+      const off=mouse.y-lineY;
+      devs.push(Math.abs(off)); signed.push(off);
+      ctx.beginPath(); ctx.moveTo(mouse.x,lineY); ctx.lineTo(mouse.x,mouse.y);
+      ctx.strokeStyle= Math.abs(off)<12?'rgba(55,227,91,0.7)':'rgba(255,77,109,0.7)'; ctx.lineWidth=1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(mouse.x,mouse.y,4,0,7); ctx.fillStyle='#fff'; ctx.fill();
+    }
+    ctx.fillStyle='#9aa3d4'; ctx.font='13px monospace'; ctx.textAlign='left';
+    ctx.fillText(`Time ${(Math.max(0,DURATION-elapsed)/1000).toFixed(1)}s   Glide along the line`, 12, 22);
+    if(elapsed>=DURATION) return end();
+    raf=requestAnimationFrame(loop);
+  }
+  function start(){
+    running=true; devs=[]; signed=[]; mouse.has=false; startBtn.disabled=true;
+    info.textContent='Sweep left↔right along the line, as flat and steady as you can.';
+    result.innerHTML=''; startT=performance.now(); raf=requestAnimationFrame(loop);
+  }
+  function grade(s){ return s>=95?'S':s>=80?'A':s>=60?'B':s>=40?'C':'F'; }
+  function end(){
+    running=false; cancelAnimationFrame(raf); startBtn.disabled=false;
+    bg(); drawLine();
+    ctx.fillStyle='#16f2c8'; ctx.font='700 26px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('TRACE COMPLETE', W/2, H/2-18);
+    if(devs.length<10){ info.textContent='No trace captured — keep the cursor inside the box.'; return; }
+    const avgDev=devs.reduce((a,b)=>a+b,0)/devs.length;
+    const maxDev=Math.max.apply(null, devs);
+    const meanSigned=signed.reduce((a,b)=>a+b,0)/signed.length;
+    const score=Math.max(0, Math.min(100, Math.round(100-avgDev*3)));
+    const driftDir = Math.abs(meanSigned)<2?'Centered':(meanSigned>0?'Drifts Down ':'Drifts Up ')+Math.abs(Math.round(meanSigned))+'px';
+    const g=grade(score);
+
+    const quality=clamp01(score/100);
+    recordRun('mouse_stability', {best:'max', value:score});
+    Attr.applyVector({precision:10, control:8}, quality);
+    Ach.evaluate({tool:'mouse_stability', score, avgDev});
+
+    info.textContent='';
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Line Stability</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Avg Deviation</div><div class="v">${avgDev.toFixed(1)}px</div></div>
+      <div class="result-tile"><div class="k">Max Deviation</div><div class="v">${maxDev.toFixed(0)}px</div></div>
+      <div class="result-tile"><div class="k">Drift</div><div class="v">${driftDir}</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'MOUSE LAB', tool:'Mouse Stability', glyph:'📉',
+      grade:g, metric:[{k:'Line Stability', v:score},{k:'Avg Dev', v:avgDev.toFixed(1)+'px'}],
+      designation: score>=95?'Laser Steady': score>=80?'Rock Solid': score>=60?'Minor Drift':'Shaky Line',
+      badge: score>=95?'Steady Hand':null
+    }));
+  }
+  canvas.addEventListener('pointermove', onMove);
+  startBtn.onclick=start;
+  bg(); drawLine();
+  ctx.fillStyle='#9aa3d4'; ctx.font='15px monospace'; ctx.textAlign='center';
+  ctx.fillText('Press START — glide along the line for 8s. Feeds Precision + Control.', W/2, H-24);
   return ()=>{ running=false; cancelAnimationFrame(raf); };
 };
 
@@ -4550,6 +4916,10 @@ Router.add('#/reflex/doubleclick', Views.doubleClick);
 Router.add('#/reflex/spacebar', Views.spacebar);
 Router.add('#/mouse/polling', Views.polling);
 Router.add('#/mouse/accuracy', Views.mouseAccuracy);
+Router.add('#/mouse/liftoff', Views.liftoff);
+Router.add('#/mouse/dragclick', Views.dragClick);
+Router.add('#/mouse/jitter', Views.jitterClick);
+Router.add('#/mouse/stability', Views.mouseStability);
 Router.add('#/setup/edpi', Views.edpi);
 Router.add('#/setup/sens', Views.sensConverter);
 Router.add('#/setup/fov', Views.fov);
