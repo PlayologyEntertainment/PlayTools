@@ -901,8 +901,8 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='dodge' && c.score>=5000 },
     { id:'gunslinger', name:'Gunslinger', icon:'🔫', desc:'Average under 400ms per hit on Flick Trainer.',
       test:(d,c)=> c && c.tool==='flick' && c.accuracy>=90 && c.avgTime<400 },
-    { id:'lock_on', name:'Lock-On', icon:'🛰️', desc:'Stay on target ≥85% of a Tracking Trainer run.',
-      test:(d,c)=> c && c.tool==='tracking' && c.onTarget>=85 },
+    { id:'lock_on', name:'Lock-On', icon:'🛰️', desc:'Stay on target ≥85% of a Challenging Tracking Trainer run.',
+      test:(d,c)=> c && c.tool==='tracking' && c.onTarget>=85 && c.difficulty==='challenging' },
     { id:'double_tap', name:'Double Tap', icon:'👆', desc:'Register a double-click under 60ms.',
       test:(d,c)=> c && c.tool==='doubleclick' && c.best<60 },
     { id:'space_cadet', name:'Space Cadet', icon:'⌨️', desc:'Reach ≥9 taps per second on Spacebar Speed.',
@@ -2292,17 +2292,39 @@ Views.flick = function(c){
 };
 
 /* ---- 5.1 Tracking Trainer — hold a cursor on a node that keeps turning ---- */
+// Difficulty tiers — Challenging mirrors the original tuning (speed 0.28, ring 28px,
+// 0.5–1s turns, full DNA). Easy/Medium slow the node, widen the ring, and stretch the
+// turn interval; DNA payout scales down to match the lower challenge.
+const TRK_LEVELS = [
+  { key:'easy',        name:'Easy',        speed:0.112, tol:46, turnMul:1.8, reward:0.4 },
+  { key:'medium',      name:'Medium',      speed:0.196, tol:36, turnMul:1.4, reward:0.7 },
+  { key:'challenging', name:'Challenging', speed:0.28,  tol:28, turnMul:1.0, reward:1.0 }
+];
+
 Views.tracking = function(c){
   const cab = getCab('tracking');
   const panel = toolShell(c, cab);
-  const W=760, H=420, DURATION=14000, TOL=28, NODE=9;
+  const W=760, H=420, DURATION=14000, NODE=9;
+  let TOL=28, turnMul=1.0; // set from the selected difficulty on each run
   const canvas = el('canvas',{class:'game'}); canvas.width=W; canvas.height=H;
   const wrap = el('div',{style:'overflow-x:auto'}); wrap.append(canvas);
   const info = el('p',{class:'muted'});
   const result = el('div',{});
+
+  // ---- difficulty selector ----
+  let levelIdx = 0;
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  TRK_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
+    b.onclick=()=>{ if(running) return; levelIdx=i; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+
   const startBtn = el('button',{class:'btn primary', html:'▶ Start Tracking'});
   const startRow = el('div',{class:'controls-row'}); startRow.append(startBtn);
-  panel.append(startRow, info, wrap, result);
+  panel.append(diffField, startRow, info, wrap, result);
 
   const ctx = canvas.getContext('2d');
   let running=false, raf=null, startT=0, lastTurn=0;
@@ -2325,7 +2347,7 @@ Views.tracking = function(c){
     if(!running) return;
     const elapsed=now-startT, dt=16;
     // sharp, continuous direction changes (DD §5.1 — measures follow consistency)
-    if(now-lastTurn > 500+Math.random()*500){ retarget(); lastTurn=now; }
+    if(now-lastTurn > (500+Math.random()*500)*turnMul){ retarget(); lastTurn=now; }
     node.x+=node.vx*dt; node.y+=node.vy*dt;
     const m=NODE+4;
     if(node.x<m){node.x=m;node.vx=Math.abs(node.vx);} if(node.x>W-m){node.x=W-m;node.vx=-Math.abs(node.vx);}
@@ -2352,9 +2374,11 @@ Views.tracking = function(c){
     raf=requestAnimationFrame(loop);
   }
   function start(){
+    const lvl=TRK_LEVELS[levelIdx];
+    node.speed=lvl.speed; TOL=lvl.tol; turnMul=lvl.turnMul;
     running=true; frames=0; onFrames=0; errors=[]; mouse.has=false;
     node.x=W/2; node.y=H/2; retarget(); lastTurn=performance.now();
-    startBtn.disabled=true; info.textContent='Keep your cursor inside the ring as the node darts around.';
+    startBtn.disabled=true; info.textContent=`${lvl.name} — keep your cursor inside the ring as the node darts around.`;
     result.innerHTML=''; startT=performance.now(); raf=requestAnimationFrame(loop);
   }
   function end(){
@@ -2367,24 +2391,27 @@ Views.tracking = function(c){
     const variance=errors.reduce((a,b)=>a+(b-avgErr)*(b-avgErr),0)/errors.length;
     const control=Math.max(0, Math.min(100, Math.round(100-Math.sqrt(variance)*2)));
 
+    const lvl=TRK_LEVELS[levelIdx];
     const quality=clamp01(onTarget/100);
     recordRun('tracking', {best:'max', value:onTarget});
-    Attr.applyVector({control:11, focus:6}, quality);
-    Ach.evaluate({tool:'tracking', onTarget, control});
+    // DNA payout scales with difficulty so easier tiers reward less for the same on-target %.
+    Attr.applyVector({control:11, focus:6}, quality*lvl.reward);
+    Ach.evaluate({tool:'tracking', onTarget, control, difficulty:lvl.key});
 
     info.textContent='';
     result.innerHTML='';
     const r=el('div',{class:'results'});
-    r.innerHTML = `<div class="result-tile"><div class="k">On-Target</div><div class="v">${onTarget}%</div></div>
+    r.innerHTML = `<div class="result-tile"><div class="k">Tier</div><div class="v">${lvl.name}</div></div>
+      <div class="result-tile"><div class="k">On-Target</div><div class="v">${onTarget}%</div></div>
       <div class="result-tile"><div class="k">Avg Error</div><div class="v">${avgErr.toFixed(1)}px</div></div>
       <div class="result-tile"><div class="k">Control</div><div class="v">${control}</div></div>
       <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.tracking.value}%</div></div>`;
     result.append(r);
     result.append(shareRow({
       lab:'REFLEX LAB', tool:'Tracking Trainer', glyph:'🛰️',
-      metric:[{k:'On-Target', v:onTarget+'%'},{k:'Control', v:control}],
+      metric:[{k:'On-Target', v:onTarget+'%'},{k:'Control', v:control},{k:'Tier', v:lvl.name}],
       designation: onTarget>=85?'Lock-On Master': onTarget>=60?'Smooth Tracker':'Drifty',
-      badge: onTarget>=85?'Lock-On':null
+      badge: (onTarget>=85 && lvl.key==='challenging')?'Lock-On':null
     }));
   }
   canvas.addEventListener('pointermove', onMove);
