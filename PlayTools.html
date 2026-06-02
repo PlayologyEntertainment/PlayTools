@@ -369,6 +369,18 @@
   @keyframes memPop{0%{transform:rotateY(180deg) scale(1);} 50%{transform:rotateY(180deg) scale(1.08);} 100%{transform:rotateY(180deg) scale(1);}}
   .mem-win{text-align:center; font-family:var(--pixel); color:var(--neon-5); font-size:clamp(22px,4vw,30px); text-shadow:0 0 22px rgba(55,227,91,0.6); margin:14px 0 2px; letter-spacing:2px;}
 
+  /* ---- Pixel Dodge (Retro Arcade) ---- */
+  .pd-stage{position:relative; width:100%; max-width:380px; margin:10px auto 4px;}
+  .pd-canvas{display:block; width:100%; height:auto; image-rendering:pixelated; image-rendering:crisp-edges;
+    border:1px solid var(--neon-4); border-radius:8px; background:#05030f;
+    box-shadow:0 0 26px rgba(124,92,255,0.28), inset 0 0 60px rgba(124,92,255,0.08); touch-action:none; cursor:crosshair;}
+  .pd-overlay{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; pointer-events:none; background:rgba(5,3,15,0.45);}
+  .pd-overlay .big{font-family:var(--pixel); font-size:clamp(22px,5.5vw,32px); color:var(--neon-3);
+    text-shadow:0 0 20px rgba(255,210,61,0.55); letter-spacing:3px;}
+  .pd-overlay .small{color:var(--ink-dim); font-size:12px; margin-top:8px; letter-spacing:1px;}
+  .pd-hint{color:var(--ink-dim); font-size:11px; letter-spacing:1px; text-align:center; margin:2px 0 4px;}
+
   /* ---- Gamer Quiz (Fun Lab) ---- */
   .quiz-progress{height:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:6px 0 18px;}
   .quiz-progress .bar{height:100%; background:linear-gradient(90deg,var(--neon-4),var(--neon)); width:0; transition:width .4s ease;}
@@ -828,6 +840,10 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='quiz') || !!(d.profile && d.profile.archetype) },
     { id:'total_recall', name:'Total Recall', icon:'🧠', desc:'Clear a Memory Match board with zero mismatches.',
       test:(d,c)=> (c && c.tool==='memory' && c.mismatches===0) || !!(d.counters && d.counters.memoryFlawless>=1) },
+    { id:'pixel_pilot', name:'Pixel Pilot', icon:'👾', desc:'Survive 60 seconds in a single Pixel Dodge run.',
+      test:(d,c)=> (c && c.tool==='dodge' && c.time>=60) || !!(d.counters && d.counters.dodgeMinute>=1) },
+    { id:'untouchable', name:'Untouchable', icon:'🛸', desc:'Score 5,000 or more in a single Pixel Dodge run.',
+      test:(d,c)=> c && c.tool==='dodge' && c.score>=5000 },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -1037,8 +1053,8 @@ const CABINETS = [
     desc:'Polyhedral dice, modifiers, advantage & notation.', dna:'Strategy +6 · fortune favors' },
   { id:'arcade_memory', lab:'Retro Arcade', name:'Memory Match', railName:'Memory Match', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
-  { id:'arcade_lab', lab:'Retro Arcade', name:'Pixel Dodge', icon:'👾', tag:'soon', locked:true,
-    desc:'Dodge falling blocks for a survival score.' }
+  { id:'arcade_dodge', lab:'Retro Arcade', name:'Pixel Dodge', railName:'Pixel Dodge', icon:'👾', tag:'mvp', route:'#/arcade/dodge',
+    desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' }
 ];
 
 /* ============================================================================
@@ -2780,6 +2796,259 @@ Views.memoryMatch = function(c){
 };
 
 /* ============================================================================
+   RETRO ARCADE — Pixel Dodge (DD §5.5)
+   Vertical-scrolling survival cabinet: steer a pixel ship left/right to dodge
+   falling blocks. The starting tier sets the baseline pace and the run auto-
+   escalates (blocks fall faster and denser) the longer you survive. Feeds
+   Reflex (primary) + Consistency, awards arcade metagame points, share card.
+   ============================================================================ */
+const PD_TIERS = [
+  { key:'rookie', name:'Rookie', mult:1.0, baseSpeed:130, spawn:0.85, ramp:55 },
+  { key:'pilot',  name:'Pilot',  mult:1.5, baseSpeed:170, spawn:0.68, ramp:48 },
+  { key:'ace',    name:'Ace',    mult:2.0, baseSpeed:215, spawn:0.54, ramp:42 }
+];
+const PD_W = 360, PD_H = 540;          // fixed logical canvas resolution (pixelated upscale)
+
+Views.pixelDodge = function(c){
+  const cab = getCab('arcade_dodge');
+  const panel = toolShell(c, cab);
+
+  // ---- WebAudio retro blips (respect mute pref) ----
+  let ac=null;
+  function blip(freq, dur, type, vol){
+    if(Store.getPrefs().dodgeMute) return;
+    try{
+      ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime;
+      o.type=type||'square'; o.frequency.value=freq;
+      o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(vol||0.04, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      o.start(t); o.stop(t+dur);
+    }catch(e){}
+  }
+  const sndStart=()=> [330,440,587].forEach((f,i)=> setTimeout(()=>blip(f,0.08),i*70));
+  const sndPoint=()=> blip(880,0.04,'square',0.03);
+  const sndNear =()=> blip(1320,0.05,'triangle',0.05);
+  const sndHit  =()=> [220,160,90].forEach((f,i)=> setTimeout(()=>blip(f,0.18,'sawtooth',0.07),i*90));
+
+  // ---- starting-tier selector + controls ----
+  let tierIdx = 0;
+  const diffField = el('div',{class:'field', html:'<label>Starting Tier</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  PD_TIERS.forEach((tv,i)=>{
+    const b=el('button',{html:tv.name}); if(i===tierIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; tierIdx=i; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  const soundBtn = el('button',{class:'btn ghost'});
+  function syncSound(){ soundBtn.innerHTML = Store.getPrefs().dodgeMute ? '🔇 Sound Off' : '🔊 Sound On'; }
+  syncSound();
+  soundBtn.onclick=()=>{ Store.setPref('dodgeMute', !Store.getPrefs().dodgeMute); syncSound(); };
+  startRow.append(startBtn, soundBtn);
+
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=PD_W; canvas.height=PD_H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▶ or A · D &nbsp;·&nbsp; drag on screen &nbsp;·&nbsp; move mouse to steer'});
+  const result = el('div',{});
+  panel.append(diffField, startRow, hud, stage, hint, result);
+
+  const ctx2d = canvas.getContext('2d');
+
+  // ---- game state ----
+  let playing=false, raf=null, lastT=0, elapsed=0, spawnTimer=0, diff=1;
+  let shipX=PD_W/2, targetX=PD_W/2, keyDir=0;
+  let blocks=[], score=0, dodged=0, near=0, runScore=0;
+  const SHIP_W=18, SHIP_H=16, SHIP_Y=PD_H-34;
+
+  function reset(){
+    elapsed=0; spawnTimer=0; diff=1; shipX=PD_W/2; targetX=PD_W/2; keyDir=0;
+    blocks=[]; score=0; dodged=0; near=0;
+  }
+  function spawnBlock(){
+    const w = 26 + Math.random()*60;
+    blocks.push({ x:Math.random()*(PD_W-w), y:-30, w, h:20+Math.random()*14, passed:false, near:false });
+  }
+  function grade(comp){ return comp>=0.92?'S':comp>=0.8?'A':comp>=0.65?'B':comp>=0.45?'C':'F'; }
+
+  function renderHud(){
+    const tv=PD_TIERS[tierIdx];
+    const best = Store.get().bests.arcade_dodge ? Store.get().bests.arcade_dodge.value : 0;
+    hud.innerHTML = `<span class="pill">Tier <b>${tv.name}</b></span>
+      <span class="pill">Time <b>${elapsed.toFixed(1)}s</b></span>
+      <span class="pill">Score <b>${Math.round(score)}</b></span>
+      <span class="pill">Dodged <b>${dodged}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+
+  // ---- render ----
+  function drawShip(cx, y){
+    const x = cx - SHIP_W/2;
+    ctx2d.fillStyle='#16f2c8';
+    ctx2d.fillRect(cx-2, y-6, 4, 6);                 // nose
+    ctx2d.fillRect(x, y, SHIP_W, SHIP_H-5);          // body
+    ctx2d.fillRect(x-3, y+SHIP_H-9, SHIP_W+6, 5);    // wings
+    ctx2d.fillStyle = (Math.floor(elapsed*22)%2) ? '#ffd23d' : '#ff7a3d';
+    ctx2d.fillRect(cx-3, y+SHIP_H-5, 6, 4+Math.random()*5);   // thruster flicker
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,PD_W,PD_H);
+    // streaking starfield — speeds up with difficulty
+    ctx2d.fillStyle='rgba(124,92,255,0.55)';
+    for(let i=0;i<26;i++){
+      const sx=(i*53)%PD_W;
+      const sy=((i*139 + elapsed*150*diff)%PD_H);
+      ctx2d.fillRect(sx, sy, 2, 6);
+    }
+    // falling blocks
+    blocks.forEach(b=>{
+      ctx2d.fillStyle = b.near ? '#ffd23d' : '#ff3df0';
+      ctx2d.fillRect(b.x, b.y, b.w, b.h);
+      ctx2d.fillStyle='rgba(255,255,255,0.18)';
+      ctx2d.fillRect(b.x, b.y, b.w, 3);              // lit top edge
+    });
+    drawShip(shipX, SHIP_Y);
+  }
+
+  // ---- simulation ----
+  function update(dt){
+    const tv=PD_TIERS[tierIdx];
+    elapsed += dt;
+    diff = 1 + elapsed/tv.ramp;                      // run auto-escalation
+    const speed = tv.baseSpeed*diff;
+    score += dt*60*tv.mult*diff;                     // survival accrual (faster late-run)
+
+    // steering: keyboard nudges target, pointer sets it directly; ship eases toward it
+    if(keyDir!==0) targetX += keyDir*270*dt;
+    targetX = Math.max(SHIP_W/2, Math.min(PD_W-SHIP_W/2, targetX));
+    shipX += (targetX-shipX)*Math.min(1, dt*18);
+
+    // spawn cadence tightens as difficulty climbs
+    spawnTimer -= dt;
+    if(spawnTimer<=0){ spawnBlock(); spawnTimer=Math.max(0.22, tv.spawn/diff); }
+
+    // forgiving hitbox (slightly smaller than the drawn ship)
+    const hb = { x:shipX-SHIP_W/2+2, y:SHIP_Y, w:SHIP_W-4, h:SHIP_H-4 };
+    for(const b of blocks){
+      b.y += speed*dt;
+      if(!b.passed && b.y > SHIP_Y+SHIP_H){ b.passed=true; dodged++; score += 12*tv.mult; sndPoint(); }
+      if(hb.x < b.x+b.w && hb.x+hb.w > b.x && hb.y < b.y+b.h && hb.y+hb.h > b.y){ gameOver(); return; }
+      if(!b.near && !b.passed && b.y+b.h > hb.y && b.y < hb.y+hb.h){
+        const gap = Math.min(Math.abs((b.x+b.w)-hb.x), Math.abs(b.x-(hb.x+hb.w)));
+        if(gap>0 && gap<8){ b.near=true; near++; sndNear(); }
+      }
+    }
+    blocks = blocks.filter(b=> b.y < PD_H+40);
+  }
+
+  function frame(t){
+    if(!playing) return;
+    const now=t/1000; let dt=now-lastT; lastT=now;
+    if(dt>0.05) dt=0.05;                             // clamp tab-switch / jank gaps
+    update(dt);
+    if(!playing) return;                             // update() may have ended the run
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+
+  function startGame(){
+    result.innerHTML=''; overlay.innerHTML=''; overlay.style.display='none';
+    reset(); playing=true; sndStart();
+    startBtn.innerHTML='⟳ Restart';
+    lastT=performance.now()/1000;
+    raf=requestAnimationFrame(frame);
+    renderHud();
+  }
+
+  function gameOver(){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null; sndHit();
+    startBtn.innerHTML='▶ START';
+    const tv=PD_TIERS[tierIdx];
+    const finalScore=Math.round(score);
+    runScore += finalScore;
+
+    // quality blends survival time + score against soft benchmarks
+    const comp = clamp01(0.55*clamp01(elapsed/60) + 0.45*clamp01(finalScore/6000));
+    const g = grade(comp);
+
+    // DNA: dodging twitch -> Reflex (primary) + Consistency (DD §3.1.3)
+    Attr.applyVector({reflex:14, consistency:6}, comp);
+    recordDodgeRun(finalScore, {elapsed, near, dodged});
+    Ach.evaluate({tool:'dodge', grade:g, score:finalScore, time:elapsed, tier:tv.key});
+
+    draw();   // freeze the final frame beneath the overlay
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Survived ${elapsed.toFixed(1)}s · ${dodged} dodged · ${near} near misses</div>`;
+
+    renderHud();
+    result.innerHTML='';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${finalScore}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Survived</div><div class="v">${elapsed.toFixed(1)}s</div></div>
+      <div class="result-tile"><div class="k">Dodged</div><div class="v">${dodged}</div></div>
+      <div class="result-tile"><div class="k">Tier</div><div class="v">${tv.name}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_dodge.value}</div></div>`;
+    result.append(r);
+
+    const row=el('div',{class:'controls-row'});
+    if(tierIdx < PD_TIERS.length-1){
+      const next=el('button',{class:'btn primary', html:`⏫ Step Up · ${PD_TIERS[tierIdx+1].name}`});
+      next.onclick=()=>{ tierIdx++; [...diffSeg.children].forEach((x,i)=> x.className=(i===tierIdx?'on':'')); startGame(); };
+      row.append(next);
+    }
+    const again=el('button',{class:'btn', html:'↻ Play Again'});
+    again.onclick=()=> startGame();
+    row.append(again);
+    result.append(row);
+
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Pixel Dodge', glyph:'👾',
+      grade:g, metric:[{k:'Score', v:String(finalScore)}, {k:'Survived', v:elapsed.toFixed(1)+'s'}, {k:'Tier', v:tv.name}],
+      designation: g==='S'?'Untouchable Ace': g==='A'?'Crack Pilot': g==='B'?'Steady Dodger':'Rookie Run',
+      badge: elapsed>=60?'Minute Survivor':null
+    }));
+  }
+
+  // ---- input bindings ----
+  function onKeyDown(e){
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){ keyDir=-1; if(playing) e.preventDefault(); }
+    else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){ keyDir=1; if(playing) e.preventDefault(); }
+    else if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); }
+  }
+  function onKeyUp(e){
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){ if(keyDir<0) keyDir=0; }
+    else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){ if(keyDir>0) keyDir=0; }
+  }
+  function pointerX(clientX){ const rc=canvas.getBoundingClientRect(); return clamp01((clientX-rc.left)/rc.width)*PD_W; }
+  function onMouse(e){ if(playing){ targetX=pointerX(e.clientX); keyDir=0; } }
+  function onTouch(e){ if(!playing) return; e.preventDefault(); const tch=e.touches[0]; if(tch){ targetX=pointerX(tch.clientX); keyDir=0; } }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('mousemove', onMouse);
+  canvas.addEventListener('touchstart', onTouch, {passive:false});
+  canvas.addEventListener('touchmove', onTouch, {passive:false});
+
+  // ---- idle attract frame ----
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">PIXEL DODGE</div><div class="small">Press START to launch</div>`;
+
+  return ()=>{
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup', onKeyUp);
+  };
+};
+
+/* ============================================================================
    shared helpers for tool views
    ============================================================================ */
 function clamp01(x){ return Math.max(0, Math.min(1, x)); }
@@ -2823,6 +3092,19 @@ function recordMemoryRun(score, ctx){
     d.arcadePoints += Math.round(score/20);   // modest metagame contribution — avoids grind-farming the Gamer Score
     d.counters.memoryClears=(d.counters.memoryClears||0)+1;
     if(ctx && ctx.mismatches===0) d.counters.memoryFlawless=(d.counters.memoryFlawless||0)+1;
+  });
+}
+// record a Pixel Dodge run. Replayable mini-game, so toolsCompleted is credited
+// only on the first-ever run to keep Gamer Score honest; best survival score,
+// arcade metagame points and counters update every run.
+function recordDodgeRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_dodge){ d.toolsCompleted++; d.bests.arcade_dodge={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_dodge.value){ d.bests.arcade_dodge.value=score; }
+    d.arcadePoints += Math.round(score/40);   // modest metagame contribution — avoids grind-farming the Gamer Score
+    d.counters.dodgeRuns=(d.counters.dodgeRuns||0)+1;
+    if(ctx && ctx.elapsed>=60) d.counters.dodgeMinute=(d.counters.dodgeMinute||0)+1;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -3222,6 +3504,7 @@ Router.add('#/setup/edpi', Views.edpi);
 Router.add('#/setup/sens', Views.sensConverter);
 Router.add('#/dice/roller', Views.diceRoller);
 Router.add('#/arcade/memory', Views.memoryMatch);
+Router.add('#/arcade/dodge', Views.pixelDodge);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/report', Views.dnaReport);
 
