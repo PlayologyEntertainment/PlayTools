@@ -1406,7 +1406,8 @@ const ProfileIO = (function(){
     return payload;
   }
 
-  // Open the default mail client with arcade-themed copy + attach instructions.
+  // Open a Gmail compose window in the browser with subject + body pre-filled.
+  // (Gmail's compose URL can't pre-attach files, so the body explains the attach step.)
   function shareEmail(){
     const payload = buildPayload();
     const subject = '[PlayTools] Challenge Issued by '+(payload.tag||'a friend')+'!';
@@ -1418,28 +1419,28 @@ My rank:  ${payload.rankName}
 Gamer Score: ${(payload.score||0).toLocaleString()}
 
 HOW TO ACCEPT:
-1. I've attached my PlayTools DNA file (download it first).
+1. Download my attached PlayTools DNA file.
 2. Open PlayTools, go to Friends, and hit "Import Friend Profile".
 3. Pick the file to load me onto your roster — then compare our stats!
 
-(Remember to attach the downloaded playtools-dna file before you hit send.)
+(Don't forget to attach the downloaded playtools-dna file before you hit send.)
 — ${payload.tag}`;
-    const href = 'mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-    // Trigger via a transient anchor — more reliable inside a click handler than
-    // assigning location.href, and it won't blank the page if no handler exists.
-    const a = document.createElement('a');
-    a.href = href; a.style.display = 'none';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    // mailto: silently no-ops when no default mail client is registered, so always
-    // give feedback and drop the message on the clipboard as a fallback.
+    const gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to='
+      + '&su=' + encodeURIComponent(subject)
+      + '&body=' + encodeURIComponent(body);
+    // Opened from a click handler, so this counts as a user gesture and isn't popup-blocked.
+    const win = window.open(gmailUrl, '_blank', 'noopener,noreferrer');
     const fallback = subject + '\n\n' + body;
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(fallback).then(
-        ()=> UI.toast('Email Ready','Opening your mail app — message also copied in case nothing opens.'),
-        ()=> UI.toast('Email Ready','Opening your mail app…')
-      );
+    const copy = navigator.clipboard && navigator.clipboard.writeText
+      ? navigator.clipboard.writeText(fallback) : Promise.reject();
+    if(win){
+      UI.toast('Gmail Opened','Compose window opened with your challenge — add a recipient and attach your DNA file.');
     } else {
-      UI.toast('Email Ready','Opening your mail app…');
+      // Popup blocked: fall back to clipboard + a manual link so the message isn't lost.
+      copy.then(
+        ()=> UI.toast('Popup Blocked','Allow popups to open Gmail. Your message was copied to the clipboard.'),
+        ()=> UI.toast('Popup Blocked','Allow popups for this site to open Gmail compose.')
+      );
     }
   }
 
