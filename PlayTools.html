@@ -420,6 +420,39 @@
   .swot .box li .vv{font-family:var(--pixel); color:var(--neon);}
   .report-empty{background:var(--panel-2); border:1px dashed var(--line); border-radius:8px; padding:22px; text-align:center; color:var(--ink-dim); line-height:1.6;}
 
+  /* ---- Fun Lab Generators (DD §5.4) ---- */
+  .gen-out{margin:18px 0 4px; animation:gen-pop .28s ease;}
+  @keyframes gen-pop{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+  .gen-card{
+    background:linear-gradient(180deg, var(--panel-2) 0%, #070a1c 100%);
+    border:1px solid var(--line); border-radius:10px; padding:20px 22px;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.4), inset 0 0 26px rgba(124,92,255,0.08);
+  }
+  .gen-card .gen-glyph{font-size:54px; line-height:1; text-align:center; filter:drop-shadow(0 0 16px var(--neon));}
+  .gen-card .gen-title{font-family:var(--pixel); font-size:24px; color:#fff; text-align:center; margin:8px 0 4px; text-shadow:0 0 12px var(--neon);}
+  .gen-card .gen-tagline{color:var(--neon-3); font-size:11px; letter-spacing:2px; text-transform:uppercase; text-align:center; margin-bottom:14px;}
+  .gen-card .gen-body{color:var(--ink); line-height:1.6; text-align:center; max-width:560px; margin:0 auto;}
+  .gen-rows{display:flex; flex-direction:column; gap:8px; margin:8px 0 4px;}
+  .gen-rows .row{display:flex; justify-content:space-between; gap:14px; padding:9px 13px; background:var(--panel); border:1px solid var(--line); border-radius:7px;}
+  .gen-rows .row .k{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--neon-3); align-self:center;}
+  .gen-rows .row .v{font-family:var(--mono); color:var(--ink); text-align:right;}
+  .gen-diff{font-size:18px; letter-spacing:3px; text-align:center; margin:10px 0 2px;}
+  .gen-diff .on{filter:drop-shadow(0 0 6px var(--danger));}
+  .gen-diff .off{opacity:0.18; filter:grayscale(1);}
+  .gen-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; margin:8px 0;}
+  .gen-pill{
+    text-align:center; font-family:var(--mono); font-size:15px; color:var(--ink); cursor:pointer;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:13px 12px;
+    transition:border-color .15s, box-shadow .15s, transform .05s; word-break:break-word;
+  }
+  .gen-pill:hover{border-color:var(--neon); box-shadow:0 0 14px rgba(22,242,200,0.18);}
+  .gen-pill:active{transform:translateY(1px);}
+  .gen-pill.sel{border-color:var(--neon); box-shadow:0 0 16px rgba(22,242,200,0.3); color:#fff; background:rgba(22,242,200,0.07);}
+  .gen-pill .tag{display:block; font-family:var(--pixel); font-size:11px; letter-spacing:2px; color:var(--neon-3); margin-top:5px;}
+  .gen-hint{color:var(--ink-dim); font-size:12px; margin:4px 0 0;}
+  .gen-roast-lines{list-style:none; padding:0; margin:6px 0 2px; display:flex; flex-direction:column; gap:10px;}
+  .gen-roast-lines li{background:var(--panel); border-left:3px solid var(--neon-2); border-radius:0 7px 7px 0; padding:11px 14px; line-height:1.55; color:var(--ink);}
+
   /* ============================================================
      SHARE CARD MODAL
      ============================================================ */
@@ -853,6 +886,8 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='doubleclick' && c.best<60 },
     { id:'space_cadet', name:'Space Cadet', icon:'⌨️', desc:'Reach ≥9 taps per second on Spacebar Speed.',
       test:(d,c)=> c && c.tool==='spacebar' && c.tps>=9 },
+    { id:'content_creator', name:'Content Creator', icon:'✨', desc:'Use every Fun Lab generator at least once.',
+      test:(d)=> !!(d.counters && d.counters.genChallenge && d.counters.genUsername && d.counters.genClan && d.counters.genLoadout && d.counters.genRoast) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -1066,6 +1101,19 @@ const CABINETS = [
     desc:'10-question archetype quiz — discover your player type.', dna:'Sets your Archetype tag' },
   { id:'dna_report', lab:'Fun Lab', name:'Gamer DNA Report', railName:'DNA Report', icon:'📊', tag:'mvp', route:'#/fun/report',
     desc:'Your class, strengths, weaknesses & tier — as a share card.', dna:'Logs a completed tool' },
+
+  // Fun Lab Expansion Pack (DD §5.4) — pure-fun entertainment generators. No
+  // attribute deltas; first use of each is credited as a completed tool.
+  { id:'gen_challenge', lab:'Fun Lab', name:'Challenge Generator', railName:'Challenges', icon:'🎯', tag:'p2', route:'#/fun/challenge',
+    desc:'Roll a creative gameplay modifier — No Reload Run, Pacifist, Ironman & more.', dna:'Pure fun · logs a tool' },
+  { id:'gen_username', lab:'Fun Lab', name:'Username Generator', railName:'Usernames', icon:'🏷️', tag:'p2', route:'#/fun/username',
+    desc:'Mint a batch of retro-arcade gamertags from vintage-tech word salad.', dna:'Pure fun · logs a tool' },
+  { id:'gen_clan', lab:'Fun Lab', name:'Clan Name Generator', railName:'Clan Names', icon:'🛡️', tag:'p2', route:'#/fun/clan',
+    desc:'Forge competitive team identities with arcade-fighter swagger and a tag.', dna:'Pure fun · logs a tool' },
+  { id:'gen_loadout', lab:'Fun Lab', name:'Loadout Generator', railName:'Loadouts', icon:'🔫', tag:'p2', route:'#/fun/loadout',
+    desc:'Randomly balanced tactical-shooter kits to shake up a casual session.', dna:'Pure fun · logs a tool' },
+  { id:'gen_roast', lab:'Fun Lab', name:'Gamer Setup Roast', railName:'Setup Roast', icon:'🔥', tag:'p2', route:'#/fun/roast',
+    desc:'Type your rig & desk — the engine fires back a savage retro critique card.', dna:'Pure fun · logs a tool' },
 
   // Foundation pass: remaining labs are visible but locked (coming soon).
   { id:'dice_lab',   lab:'Tabletop / RPG', name:'Dice Roller', icon:'🎲', tag:'mvp', route:'#/dice/roller',
@@ -3761,6 +3809,306 @@ Views.dnaReport = function(c){
 };
 
 /* ============================================================================
+   FUN LAB EXPANSION PACK — entertainment generators (DD §5.4)
+   Pure-fun toys: they never touch attribute vectors. Each generator credits
+   toolsCompleted only on its first use (keyed by a counter) so re-rolling
+   can't farm Gamer Score; runs + the counter still bump on every generate.
+   ============================================================================ */
+function gPick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function gEsc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function gSkulls(n, max, icon){
+  let s=''; for(let i=0;i<max;i++){ s+=`<span class="${i<n?'on':'off'}">${icon}</span>`; }
+  return s;
+}
+function recordGenerator(toolId, counterKey){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.counters[counterKey]){ d.toolsCompleted++; }
+    d.counters[counterKey]=(d.counters[counterKey]||0)+1;
+  });
+  Ach.evaluate({tool:toolId});
+}
+// Standard scaffold: a "Generate" button (relabels to Re-roll after first run)
+// over an output area. genFn(out) renders one result into the cleared output.
+function generatorShell(panel, label, genFn){
+  const out = el('div',{});
+  const row = el('div',{class:'controls-row'});
+  const btn = el('button',{class:'btn primary', html:'🎲 '+label});
+  let first = true;
+  btn.onclick = ()=>{ out.innerHTML=''; genFn(out); if(first){ btn.innerHTML='↻ Re-roll'; first=false; } };
+  row.append(btn);
+  panel.append(row, out);
+  return out;
+}
+// Share row that re-reads a live card builder at click time (for pickable batches).
+function genShareRow(getCard, onReroll){
+  const row = el('div',{class:'controls-row'});
+  const share = el('button',{class:'btn primary', html:'📸 Share Result'});
+  share.onclick = ()=> ShareCard.open(getCard());
+  row.append(share);
+  if(onReroll){ const rr=el('button',{class:'btn', html:'↻ Re-roll'}); rr.onclick=onReroll; row.append(rr); }
+  const dna = el('button',{class:'btn ghost', html:'🧬 View Gamer DNA'});
+  dna.onclick = ()=> Router.go('#/dna');
+  row.append(dna);
+  return row;
+}
+
+/* ---- 5.4 Random Challenge Generator ---- */
+const CHALLENGES = [
+  { name:'No Reload Run',        rule:'Finish the run without ever pressing reload — scavenge fresh weapons instead.', diff:3 },
+  { name:'Pacifist Protocol',    rule:'Reach the objective without eliminating a single enemy. Stealth, sprint, survive.', diff:5 },
+  { name:'Single Weapon Only',   rule:'Commit to one weapon at spawn. No swapping, no pickups — make it sing.', diff:3 },
+  { name:'Full Stealth Extraction', rule:'Never trip an alarm. A single detection voids the entire run.', diff:4 },
+  { name:'Ironman Mode',         rule:'One life. Go down once and the run is over — back to zero.', diff:5 },
+  { name:'Melee Mayhem',         rule:'Firearms holstered. Only melee, fists and improvised tools count.', diff:4 },
+  { name:'Pistols at Dawn',      rule:'Sidearms only for the whole session. No primaries permitted.', diff:2 },
+  { name:'Hud-Off Hardcore',     rule:'Disable every HUD element — no crosshair, no ammo count, no minimap.', diff:4 },
+  { name:'Naked & Afraid',       rule:'No armor, no gear, no consumables. Just you and the bare minimum.', diff:4 },
+  { name:'Low-Sens Legend',      rule:'Quarter your usual sensitivity for the run. Wide, deliberate turns only.', diff:2 },
+  { name:'Pickup Roulette',      rule:'Only use weapons you find on the ground — never your own loadout.', diff:3 },
+  { name:'One in the Chamber',   rule:'Strip every mag down to a single round before each engagement.', diff:5 },
+  { name:'Grenade Gauntlet',     rule:'Explosives only — frags, launchers and demolitions. Bullets are banned.', diff:4 },
+  { name:'Collector’s Curse', rule:'Loot every container and grab every item before you’re allowed to finish.', diff:2 },
+  { name:'Backwards Day',        rule:'Sprint is disabled and you may only walk. Patience is the meta now.', diff:3 },
+  { name:'Good Sport',           rule:'Compliment every opponent before you engage them. Stay impossibly classy.', diff:1 }
+];
+const CHAL_MODES = ['Tactical Shooter','Battle Royale','Looter Shooter','Survival Sandbox','Open-World RPG','Arena FPS','Stealth-Action','Roguelike'];
+const CHAL_TWISTS = ['20-minute hard time cap.','Permadeath — no respawns.','Solo only — no teammates or carries.','Zero healing items allowed.','Enemy difficulty cranked to max.','Audio only — minimap stays off.'];
+const CHAL_LABELS = ['', 'Casual', 'Tricky', 'Hard', 'Brutal', 'Nightmare'];
+Views.genChallenge = function(c){
+  const cab = getCab('gen_challenge');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'gen-hint', text:'Hit generate for a fresh gameplay modifier. Re-roll until one dares you.'}));
+  generatorShell(panel, 'Generate Challenge', out=>{
+    const base = gPick(CHALLENGES);
+    const mode = gPick(CHAL_MODES);
+    const twist = Math.random()<0.45 ? gPick(CHAL_TWISTS) : null;
+    const diff = Math.min(5, base.diff + (twist?1:0));
+    const label = CHAL_LABELS[diff];
+
+    const card = el('div',{class:'gen-out'});
+    const inner = el('div',{class:'gen-card'});
+    inner.innerHTML =
+      `<div class="gen-glyph">🎯</div>
+       <div class="gen-title">${gEsc(base.name)}</div>
+       <div class="gen-tagline">${gEsc(mode)} · ${label}</div>
+       <div class="gen-diff">${gSkulls(diff,5,'💀')}</div>
+       <p class="gen-body">${gEsc(base.rule)}</p>`;
+    if(twist){
+      const rows = el('div',{class:'gen-rows'});
+      rows.innerHTML = `<div class="row"><span class="k">Twist</span><span class="v">${gEsc(twist)}</span></div>`;
+      inner.append(rows);
+    }
+    card.append(inner);
+    out.append(card);
+
+    const cardData = { lab:'Fun Lab', tool:'Challenge', glyph:'🎯',
+      metric:[ {k:'Challenge', v:base.name}, {k:'Mode', v:mode}, {k:'Difficulty', v:label} ],
+      designation:base.name, badge:'Challenge Issued' };
+    out.append(genShareRow(()=>cardData));
+    recordGenerator('gen_challenge','genChallenge');
+  });
+};
+
+/* ---- 5.4 Username Generator ---- */
+const UN_PREFIX = ['Pixel','Turbo','Neon','Cyber','Retro','Glitch','Vapor','Laser','Mega','Hyper','Quantum','Static','Chrome','Plasma','Binary','Arcade','Astro','Synth','Volt','Atomic'];
+const UN_CORE   = ['Raider','Goblin','Phantom','Knight','Specter','Viper','Drifter','Warlord','Ronin','Nomad','Reaper','Maverick','Bandit','Sentinel','Wizard','Joker','Gremlin','Falcon','Hydra','Comet'];
+const UN_SUFFIX = ['X','HD','99','2K','Prime','Zero','64','EXE','Max','Neo','Pro','OG','XL','GG'];
+/* ---- 5.4 Clan Name Generator ---- */
+const CLAN_ADJ  = ['Neon','Savage','Iron','Crimson','Phantom','Toxic','Rogue','Elite','Frenzied','Vapor','Brutal','Eternal','Rabid','Velvet','Obsidian','Feral','Apex','Grim','Wild','Royal'];
+const CLAN_NOUN = ['Reapers','Vipers','Titans','Syndicate','Wolves','Dynasty','Renegades','Phantoms','Legion','Outlaws','Vanguard','Hooligans','Specters','Warlords','Hornets','Dragons','Misfits','Goliaths','Ravens','Crew'];
+
+// Shared pickable-batch view used by Username + Clan generators. makeItem()
+// returns {name, tag?}; the user taps a card to choose the one they'll share.
+function pickBatchView(panel, cfg){
+  let selected = null, list = [];
+  const out = generatorShell(panel, cfg.btn, container=>{
+    list = []; const seen = new Set(); let guard = 0;
+    while(list.length<6 && guard++<300){ const it=cfg.make(); if(!seen.has(it.name)){ seen.add(it.name); list.push(it); } }
+    selected = list[0];
+
+    const grid = el('div',{class:'gen-grid gen-out'});
+    list.forEach(it=>{
+      const pill = el('div',{class:'gen-pill'+(it===selected?' sel':'')});
+      pill.innerHTML = `${gEsc(it.name)}${it.tag?`<span class="tag">[${gEsc(it.tag)}]</span>`:''}`;
+      pill.onclick = ()=>{
+        selected = it;
+        grid.querySelectorAll('.gen-pill').forEach(p=>p.classList.remove('sel'));
+        pill.classList.add('sel');
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(it.name).then(()=>UI.toast('Copied', gEsc(it.name)+' → clipboard'), ()=>{});
+        }
+      };
+      grid.append(pill);
+    });
+    container.append(grid);
+    container.append(el('p',{class:'gen-hint', text:'Tap a card to select & copy it, then share your pick.'}));
+    container.append(genShareRow(()=> cfg.card(selected)));
+    recordGenerator(cfg.toolId, cfg.counter);
+  });
+  return out;
+}
+Views.genUsername = function(c){
+  const cab = getCab('gen_username');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'gen-hint', text:'Mint six retro gamertags from vintage-tech word salad. Re-roll for a fresh batch.'}));
+  pickBatchView(panel, {
+    btn:'Generate Tags', toolId:'gen_username', counter:'genUsername',
+    make:()=>{
+      let n = gPick(UN_PREFIX)+gPick(UN_CORE);
+      if(Math.random()<0.6) n += (Math.random()<0.5?'_':'')+gPick(UN_SUFFIX);
+      return { name:n };
+    },
+    card:(sel)=>({ lab:'Fun Lab', tool:'Username Generator', glyph:'🏷️',
+      metric:[ {k:'Gamertag', v:sel?sel.name:'—'}, {k:'Batch', v:'6 minted'} ],
+      designation: sel?sel.name:'—', badge:'Fresh Handle' })
+  });
+};
+Views.genClan = function(c){
+  const cab = getCab('gen_clan');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'gen-hint', text:'Forge six competitive clan identities, each with a battle-ready tag.'}));
+  pickBatchView(panel, {
+    btn:'Generate Clans', toolId:'gen_clan', counter:'genClan',
+    make:()=>{
+      const adj=gPick(CLAN_ADJ), noun=gPick(CLAN_NOUN);
+      return { name:adj+' '+noun, tag:(adj.slice(0,1)+noun.slice(0,2)).toUpperCase() };
+    },
+    card:(sel)=>({ lab:'Fun Lab', tool:'Clan Name Generator', glyph:'🛡️',
+      metric:[ {k:'Clan', v:sel?sel.name:'—'}, {k:'Tag', v: sel?('['+sel.tag+']'):'—'} ],
+      designation: sel?sel.name:'—', badge:'Squad Assembled' })
+  });
+};
+
+/* ---- 5.4 Loadout Generator ---- */
+const LO_STYLES = {
+  Aggressive:{ primary:['Assault Rifle','SMG','Shotgun'],                desc:'Push every angle. Win the duel before they finish ADS.' },
+  Tactical:  { primary:['Assault Rifle','Battle Rifle','Carbine'],      desc:'Hold the lanes, trade smart, control the tempo.' },
+  Recon:     { primary:['Marksman Rifle','Sniper Rifle','Battle Rifle'],desc:'Long sightlines, patient picks, rotate unseen.' },
+  Support:   { primary:['LMG','Assault Rifle','SMG'],                   desc:'Suppress, cover the push, never let the squad get peeked.' },
+  Stealth:   { primary:['Suppressed SMG','Suppressed Carbine','Marksman Rifle'], desc:'Stay off the minimap. Flank, eliminate, vanish.' }
+};
+const LO_SECONDARY = ['Pistol','Machine Pistol','Revolver','Hand Cannon','Sawn-Off'];
+const LO_TACTICAL  = ['Flashbang','Smoke Grenade','Stim','Stun Grenade','Recon Drone','Heartbeat Sensor'];
+const LO_LETHAL    = ['Frag Grenade','Semtex','Claymore','Throwing Knife','Thermite','Proximity Mine'];
+const LO_PERK      = ['Fast Hands','Ghost','Double Time','Scavenger','Hardline','Cold-Blooded','Quick Fix','High Alert'];
+const LO_FIELD     = ['Dead Silence','Munitions Box','Trophy System','Smoke Screen','Portable Cover'];
+Views.genLoadout = function(c){
+  const cab = getCab('gen_loadout');
+  const panel = toolShell(c, cab);
+  panel.append(el('p',{class:'gen-hint', text:'Roll a randomly balanced kit around a playstyle. Re-roll to mix up your session.'}));
+  generatorShell(panel, 'Generate Loadout', out=>{
+    const styleKey = gPick(Object.keys(LO_STYLES));
+    const style = LO_STYLES[styleKey];
+    const primary = gPick(style.primary);
+    const perks = []; while(perks.length<2){ const p=gPick(LO_PERK); if(!perks.includes(p)) perks.push(p); }
+    const slots = [
+      ['Primary', primary],
+      ['Secondary', gPick(LO_SECONDARY)],
+      ['Tactical', gPick(LO_TACTICAL)],
+      ['Lethal', gPick(LO_LETHAL)],
+      ['Perks', perks.join(' · ')],
+      ['Field Upgrade', gPick(LO_FIELD)]
+    ];
+    const card = el('div',{class:'gen-out'});
+    const inner = el('div',{class:'gen-card'});
+    inner.innerHTML =
+      `<div class="gen-glyph">🔫</div>
+       <div class="gen-title">${gEsc(styleKey)} Loadout</div>
+       <div class="gen-tagline">${gEsc(style.desc)}</div>`;
+    const rows = el('div',{class:'gen-rows'});
+    rows.innerHTML = slots.map(([k,v])=>`<div class="row"><span class="k">${gEsc(k)}</span><span class="v">${gEsc(v)}</span></div>`).join('');
+    inner.append(rows);
+    card.append(inner);
+    out.append(card);
+
+    const cardData = { lab:'Fun Lab', tool:'Loadout', glyph:'🔫',
+      metric:[ {k:'Style', v:styleKey}, {k:'Primary', v:primary}, {k:'Field', v:slots[5][1]} ],
+      designation:styleKey+' Loadout', badge:'Locked & Loaded' };
+    out.append(genShareRow(()=>cardData));
+    recordGenerator('gen_loadout','genLoadout');
+  });
+};
+
+/* ---- 5.4 Gamer Setup Roast ---- */
+const ROAST_RIG = [
+  r => `A "${r}"? Bold. My graphing calculator holds a steadier framerate.`,
+  r => `"${r}" — somewhere a power bill is quietly weeping.`,
+  r => `You call "${r}" a battlestation? It’s a space heater that occasionally boots.`,
+  r => `"${r}". The RGB is doing more work than the GPU.`,
+  r => `Running "${r}"? That’s not a rig, that’s a museum exhibit with a fan.`
+];
+const ROAST_GEAR = [
+  g => `"${g}" for peripherals? Your aim isn’t the only thing dragging.`,
+  g => `"${g}"? Every click sounds like a dying cricket and performs like one too.`,
+  g => `Ah, "${g}" — peak "blame the gear, not the hands" energy.`,
+  g => `"${g}". Esports-grade marketing, garage-sale results.`
+];
+const ROAST_DESK = [
+  d => `"${d}" as a setup? OSHA wants a word about that cable nest.`,
+  d => `"${d}"? I’ve seen tidier crime scenes.`,
+  d => `Love the "${d}" aesthetic — early-onset goblin chic.`,
+  d => `"${d}". The energy-drink cans are load-bearing now.`
+];
+const ROAST_GENERIC = [
+  'Your K/D is the only thing in the room that’s negative.',
+  'Touch grass? You can’t even touch your win rate.',
+  'The lag was never the problem, champ.',
+  'Somewhere a tutorial level is still patiently waiting for you.',
+  'Your reflexes filed for early retirement last patch.'
+];
+const ROAST_VERDICT = ['', 'Mildly Toasted', 'Well Done', 'Charred', 'Absolutely Roasted', 'Ashes Remain'];
+Views.genRoast = function(c){
+  const cab = getCab('gen_roast');
+  const panel = toolShell(c, cab);
+  const form = el('div',{class:'form-grid'});
+  form.innerHTML =
+    `<div class="field"><label>Your Rig / PC</label><input id="roastRig" placeholder="e.g. 10-year-old laptop"></div>
+     <div class="field"><label>Peripherals</label><input id="roastGear" placeholder="e.g. $5 office mouse"></div>
+     <div class="field"><label>Desk / Setup</label><input id="roastDesk" placeholder="e.g. cardboard box throne"></div>`;
+  panel.append(form);
+  panel.append(el('p',{class:'gen-hint', text:'Fill in what you dare — blanks just get a generic burn. Then brace yourself.'}));
+
+  generatorShell(panel, 'Roast My Setup', out=>{
+    const rigV  = (document.getElementById('roastRig').value||'').trim();
+    const gearV = (document.getElementById('roastGear').value||'').trim();
+    const deskV = (document.getElementById('roastDesk').value||'').trim();
+
+    const lines = [];
+    if(rigV)  lines.push(gPick(ROAST_RIG)(gEsc(rigV)));
+    if(gearV) lines.push(gPick(ROAST_GEAR)(gEsc(gearV)));
+    if(deskV) lines.push(gPick(ROAST_DESK)(gEsc(deskV)));
+    // always finish with a generic gut-punch; backfill if every field was blank
+    const generics = ROAST_GENERIC.slice();
+    while(lines.length<2){ lines.push(generics.splice(Math.floor(Math.random()*generics.length),1)[0]); }
+    lines.push(gPick(generics.length?generics:ROAST_GENERIC));
+
+    const filled = [rigV,gearV,deskV].filter(Boolean).length;
+    const level = Math.max(1, Math.min(5, filled + 1 + (Math.random()<0.5?1:0)));
+    const verdict = ROAST_VERDICT[level];
+
+    const card = el('div',{class:'gen-out'});
+    const inner = el('div',{class:'gen-card'});
+    inner.innerHTML =
+      `<div class="gen-glyph">🔥</div>
+       <div class="gen-title">${gEsc(verdict)}</div>
+       <div class="gen-tagline">Roast Level</div>
+       <div class="gen-diff">${gSkulls(level,5,'🔥')}</div>`;
+    const ul = el('ul',{class:'gen-roast-lines'});
+    lines.forEach(line=> ul.append(el('li',{html:line})));
+    inner.append(ul);
+    card.append(inner);
+    out.append(card);
+
+    const cardData = { lab:'Fun Lab', tool:'Setup Roast', glyph:'🔥',
+      metric:[ {k:'Verdict', v:verdict}, {k:'Roast Level', v:level+'/5'}, {k:'Burns', v:String(lines.length)} ],
+      designation:verdict, badge:'Setup Roasted' };
+    out.append(genShareRow(()=>cardData));
+    recordGenerator('gen_roast','genRoast');
+  });
+};
+
+/* ============================================================================
    UI — shell wiring: rail, status strip, CRT toggle, accent theme, toasts
    ============================================================================ */
 const UI = (function(){
@@ -3882,6 +4230,11 @@ Router.add('#/arcade/memory', Views.memoryMatch);
 Router.add('#/arcade/dodge', Views.pixelDodge);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/report', Views.dnaReport);
+Router.add('#/fun/challenge', Views.genChallenge);
+Router.add('#/fun/username', Views.genUsername);
+Router.add('#/fun/clan', Views.genClan);
+Router.add('#/fun/loadout', Views.genLoadout);
+Router.add('#/fun/roast', Views.genRoast);
 
 UI.init();
 Router.start();
