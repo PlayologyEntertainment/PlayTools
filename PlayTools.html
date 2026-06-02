@@ -931,7 +931,7 @@ const CABINETS = [
   { id:'gamer_quiz', lab:'Fun Lab', name:'Gamer Quiz', icon:'🎭', tag:'mvp', route:'#/fun/quiz',
     desc:'10-question archetype quiz — discover your player type.', dna:'Sets your Archetype tag' },
   { id:'dna_report', lab:'Fun Lab', name:'Gamer DNA Report', railName:'DNA Report', icon:'📊', tag:'mvp', route:'#/fun/report',
-    desc:'Your class, strengths, weaknesses & tier — as a share card.', dna:'Reads your profile' },
+    desc:'Your class, strengths, weaknesses & tier — as a share card.', dna:'Logs a completed tool' },
 
   // Foundation pass: remaining labs are visible but locked (coming soon).
   { id:'dice_lab',   lab:'Tabletop / RPG', name:'Dice Roller', icon:'🎲', tag:'mvp', route:'#/dice/roller',
@@ -2347,6 +2347,13 @@ Views.dnaReport = function(c){
     go.onclick = ()=> Router.go('#/');
     row.append(go); panel.append(row);
     return;
+  }
+
+  // Viewing the full report counts as completing the Fun Lab tool — but only
+  // once, so re-opening it later can't farm Gamer Score (mirrors the quiz).
+  if(!d.counters.reportViewed){
+    Store.update(s=>{ s.counters.reportViewed=1; s.toolsCompleted++; });
+    Ach.evaluate({tool:'dna_report'});
   }
 
   const a = d.attributes;
