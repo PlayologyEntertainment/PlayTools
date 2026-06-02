@@ -956,14 +956,29 @@ const ShareCard = (function(){
     // border
     ctx.strokeStyle=accent; ctx.lineWidth=3; ctx.strokeRect(8,8,W-16,H-16);
 
-    function center(text,y,font,color,glow){
-      ctx.font=font; ctx.fillStyle=color; ctx.textAlign='center';
+    // Shrink a "[weight ]<px>px <family>" font until text fits maxW, ellipsizing as a
+    // last resort. Leaves ctx.font set to the chosen size and returns the text to draw.
+    function fitInline(text, font, maxW){
+      const m = font.match(/^(.*?)(\d+)px(.*)$/);
+      if(!m){ ctx.font=font; return text; }
+      const pre=m[1], fam=m[3]; let px=parseInt(m[2],10);
+      ctx.font = font;
+      while(px>9 && ctx.measureText(text).width>maxW){ px--; ctx.font=`${pre}${px}px${fam}`; }
+      if(ctx.measureText(text).width>maxW){
+        let s=text; while(s.length>1 && ctx.measureText(s+'…').width>maxW) s=s.slice(0,-1);
+        text=s+'…';
+      }
+      return text;
+    }
+    function center(text,y,font,color,glow,maxW){
+      ctx.fillStyle=color; ctx.textAlign='center';
+      text = maxW ? fitInline(text, font, maxW) : (ctx.font=font, text);
       if(glow){ ctx.shadowColor=color; ctx.shadowBlur=glow; } else ctx.shadowBlur=0;
       ctx.fillText(text, W/2, y); ctx.shadowBlur=0;
     }
 
     center('PLAYTOOLS', 48, '700 13px monospace', '#ffd23d', 8);
-    center((data.lab||'ARCADE')+' · '+(data.tool||''), 70, '11px monospace', '#9aa3d4');
+    center((data.lab||'ARCADE')+' · '+(data.tool||''), 70, '11px monospace', '#9aa3d4', 0, W-60);
 
     // glyph
     center(data.glyph||'🕹️', 160, '90px sans-serif', '#fff', 0);
@@ -979,10 +994,13 @@ const ShareCard = (function(){
     let y = data.grade ? 300 : 270;
     ctx.textAlign='left';
     (data.metric||[]).forEach(m=>{
-      ctx.font='12px monospace'; ctx.fillStyle='#9aa3d4';
-      ctx.fillText(String(m.k).toUpperCase(), 50, y);
-      ctx.font='700 20px monospace'; ctx.fillStyle=accent; ctx.textAlign='right';
-      ctx.fillText(String(m.v), W-50, y);
+      const keyTxt=String(m.k).toUpperCase();
+      ctx.font='12px monospace'; ctx.fillStyle='#9aa3d4'; ctx.textAlign='left';
+      ctx.fillText(keyTxt, 50, y);
+      const keyW=ctx.measureText(keyTxt).width;
+      ctx.fillStyle=accent; ctx.textAlign='right';
+      const valTxt=fitInline(String(m.v), '700 20px monospace', (W-50)-(50+keyW+14));
+      ctx.fillText(valTxt, W-50, y);
       ctx.textAlign='left'; y+=38;
     });
 
@@ -991,20 +1009,20 @@ const ShareCard = (function(){
       y+=6;
       ctx.font='12px monospace'; ctx.fillStyle='#9aa3d4'; ctx.textAlign='center';
       ctx.fillText('DESIGNATION', W/2, y); y+=24;
-      ctx.font='700 18px sans-serif'; ctx.fillStyle='#ff3df0'; ctx.shadowColor='#ff3df0'; ctx.shadowBlur=10;
-      ctx.fillText(data.designation, W/2, y); ctx.shadowBlur=0; y+=10;
+      ctx.fillStyle='#ff3df0'; ctx.shadowColor='#ff3df0'; ctx.shadowBlur=10; ctx.textAlign='center';
+      ctx.fillText(fitInline(String(data.designation), '700 18px sans-serif', W-80), W/2, y); ctx.shadowBlur=0; y+=10;
     }
 
     // badge strip
     if(data.badge){
       ctx.fillStyle='rgba(255,210,61,0.12)'; ctx.fillRect(30, H-128, W-60, 36);
       ctx.strokeStyle='#ffd23d'; ctx.lineWidth=1; ctx.strokeRect(30, H-128, W-60, 36);
-      ctx.font='13px monospace'; ctx.fillStyle='#ffd23d'; ctx.textAlign='center';
-      ctx.fillText('★ '+data.badge, W/2, H-104);
+      ctx.fillStyle='#ffd23d'; ctx.textAlign='center';
+      ctx.fillText(fitInline('★ '+data.badge, '13px monospace', W-72), W/2, H-104);
     }
 
     // footer — player + url
-    center('@'+tag, H-64, '700 15px sans-serif', accent, 6);
+    center('@'+tag, H-64, '700 15px sans-serif', accent, 6, W-80);
     center('playology · playtools', H-40, '11px monospace', '#9aa3d4');
   }
 
@@ -1260,9 +1278,9 @@ Views.home = function(c){
 
 function cabCard(cab){
   const card = el('a',{class:'cab'+(cab.locked?' locked':''), href: cab.locked?'javascript:void 0':cab.route});
-  const tagHtml = cab.tag ? `<span class="tag ${cab.tag}">${cab.tag==='soon'?'soon':cab.tag}</span>` : '';
+  const tagHtml = cab.locked ? '<span class="tag soon">soon</span>' : '';
   card.innerHTML = `<div class="cab-icon">${cab.icon}</div>
-    <div class="cab-name">${cab.name} ${tagHtml}</div>
+    <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
     <div class="cab-desc">${cab.desc||''}</div>
     ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}`;
   if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
@@ -1911,8 +1929,14 @@ Views.reaction = function(c){
   const cab = getCab('reaction');
   const panel = toolShell(c, cab);
   const tlink = Store.get().calibration || 0;
+  // t_link is a rapid-click cadence, which is mostly motor cycle time — only a small
+  // slice is genuine system/display latency. Bound how much we subtract so calibration
+  // can't deflate a real reaction into physically impossible territory.
+  const CAL_MAX_OFFSET = 50; // ms — generous ceiling on browser input + display latency
+  const MIN_REACTION   = 100; // ms — below this is anticipation, not a true reaction
+  const calOffset = Math.min(tlink, CAL_MAX_OFFSET);
   panel.append(el('p',{class:'muted', style:'font-size:12px',
-    html: tlink ? `Calibrated baseline t_link = <strong>${tlink}ms</strong> (subtracted from your raw time).`
+    html: tlink ? `Calibrated baseline t_link = <strong>${tlink}ms</strong> (a bounded ${calOffset}ms latency offset is subtracted from your raw time).`
                 : `<a href="#/reflex/calibration">Calibrate latency first</a> for the most accurate score (optional).`}));
 
   const stage = el('div',{class:'stage'});
@@ -1945,7 +1969,7 @@ Views.reaction = function(c){
   }
   function capture(){
     const raw = performance.now()-t0;
-    const dt = Math.max(1, Math.round(raw - tlink));
+    const dt = Math.max(MIN_REACTION, Math.round(raw - calOffset));
     state='done';
     finish(dt);
   }
@@ -4921,7 +4945,7 @@ const UI = (function(){
       railCabs.filter(x=>x.lab===lab).forEach(cab=>{
         const a=el('a',{ href: cab.locked?'javascript:void 0':cab.route,
           class: cab.locked?'locked':'', 'data-route':cab.route||'' });
-        a.innerHTML = `<span>${cab.icon} ${cab.railName||cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':`<span class="mini-tag ${cab.tag||'mvp'}">${cab.tag||'mvp'}</span>`}`;
+        a.innerHTML = `<span>${cab.icon} ${cab.railName||cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':''}`;
         if(cab.locked) a.addEventListener('click', e=>{ e.preventDefault(); toast('Locked','Coming in a later build.'); });
         rail.append(a);
       });
