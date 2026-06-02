@@ -406,6 +406,56 @@
   .modal-close:hover{color:var(--danger);}
 
   /* ============================================================
+     FRIENDS LIST (DD §3.2)
+     ============================================================ */
+  .friend-toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:10px 0 4px;}
+  .friend-toolbar .spacer{flex:1;}
+  .friend-toolbar label{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--neon-3);}
+  .friend-toolbar select{
+    background:var(--panel-2); color:var(--ink); border:1px solid var(--line);
+    border-radius:6px; padding:7px 10px; font-family:inherit; font-size:13px;
+  }
+  .friend-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; margin:16px 0;}
+  .friend-card{
+    background:var(--panel-2); border:1px solid var(--line); border-left:3px solid var(--neon);
+    border-radius:8px; padding:16px; display:flex; flex-direction:column; gap:10px;
+  }
+  .friend-card .fc-head{display:flex; align-items:center; gap:12px;}
+  .friend-card .fc-avatar{
+    width:42px; height:42px; flex:0 0 42px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-family:var(--pixel); font-size:18px; color:#04120a; font-weight:800;
+  }
+  .friend-card .fc-tag{font-weight:700; font-size:16px; line-height:1.1;}
+  .friend-card .fc-sub{font-size:11px; color:var(--ink-dim); font-family:monospace; margin-top:2px;}
+  .friend-card .fc-chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .friend-card .fc-chip{font:600 11px monospace; color:#cfd6ff; border:1px solid var(--line); border-radius:14px; padding:3px 9px;}
+  .friend-card .fc-chip b{color:var(--neon);}
+  .friend-card .fc-attrs{display:flex; flex-direction:column; gap:5px;}
+  .friend-card .fc-attrs .row{display:flex; align-items:center; gap:8px;}
+  .friend-card .fc-attrs .lbl{width:74px; font:10px monospace; text-transform:uppercase; color:var(--ink-dim);}
+  .friend-card .fc-attrs .track{flex:1; height:7px; background:rgba(124,92,255,0.15); border-radius:5px; overflow:hidden;}
+  .friend-card .fc-attrs .fill{display:block; height:100%; background:var(--neon);}
+  .friend-card .fc-attrs .val{width:24px; text-align:right; font:700 11px monospace; color:var(--neon);}
+  .friend-card .fc-note{
+    width:100%; box-sizing:border-box; background:var(--panel); color:var(--ink); border:1px solid var(--line);
+    border-radius:6px; padding:8px 10px; font-family:inherit; font-size:12px; resize:vertical; min-height:38px;
+  }
+  .friend-card .fc-note:focus{outline:none; border-color:var(--neon);}
+  .friend-card .fc-actions{display:flex; gap:8px;}
+  .friend-card .fc-actions .btn{flex:1; padding:8px 10px; font-size:12px;}
+  .friend-empty{
+    border:1px dashed var(--line); border-radius:10px; padding:30px; text-align:center; color:var(--ink-dim); margin:18px 0;
+  }
+  .compare-legend{display:flex; gap:18px; justify-content:center; margin:0 0 12px; font:12px monospace;}
+  .compare-legend span{display:inline-flex; align-items:center; gap:6px;}
+  .compare-legend i{width:12px; height:12px; border-radius:3px; display:inline-block;}
+  table.compare-tbl{width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;}
+  table.compare-tbl th, table.compare-tbl td{padding:6px 8px; text-align:right; border-bottom:1px solid var(--line);}
+  table.compare-tbl th:first-child, table.compare-tbl td:first-child{text-align:left; text-transform:uppercase; font:11px monospace; color:var(--ink-dim);}
+  table.compare-tbl td.win{color:var(--neon-2); font-weight:700;}
+  table.compare-tbl td.lose{color:var(--danger);}
+
+  /* ============================================================
      TOASTS (achievement unlocks)
      ============================================================ */
   #toast-stack{position:fixed; top:16px; right:16px; z-index:300; display:flex; flex-direction:column; gap:10px; max-width:320px;}
@@ -589,7 +639,8 @@ const Store = (function(){
       counters: {},            // misc counters used by achievements (e.g. nat20s, platformSetups)
       achievements: [],        // unlocked achievement ids
       calibration: null,       // measured system latency t_link (ms)
-      sensitivity: null        // Setup Lab sensitivity profile {dpi,inGame,edpi,cohort}
+      sensitivity: null,       // Setup Lab sensitivity profile {dpi,inGame,edpi,cohort}
+      friends: []              // imported peer Gamer DNA snapshots (DD §3.2) — local only
     };
   }
 
@@ -605,7 +656,8 @@ const Store = (function(){
       return Object.assign(defaultDNA(), parsed, {
         profile: Object.assign(defaultDNA().profile, parsed.profile||{}),
         attributes: Object.assign(defaultDNA().attributes, parsed.attributes||{}),
-        bests: parsed.bests||{}, counters: parsed.counters||{}, achievements: parsed.achievements||[]
+        bests: parsed.bests||{}, counters: parsed.counters||{}, achievements: parsed.achievements||[],
+        friends: Array.isArray(parsed.friends) ? parsed.friends : []
       });
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
   }
@@ -630,7 +682,31 @@ const Store = (function(){
     setPref(k,v){ prefs[k]=v; savePrefs(); },
     save, subscribe,
     reset(){ dna = defaultDNA(); save(); },
-    update(mut){ mut(dna); save(); }
+    update(mut){ mut(dna); save(); },
+
+    /* ---- Friends list (DD §3.2) — keyed by gamerTag, newer import overwrites ---- */
+    getFriends(){ return dna.friends || (dna.friends=[]); },
+    addFriend(friend){
+      if(!dna.friends) dna.friends=[];
+      const key = (friend.tag||'').toLowerCase();
+      const i = dna.friends.findIndex(f=> (f.tag||'').toLowerCase()===key);
+      if(i>=0){ friend.note = dna.friends[i].note || friend.note || ''; dna.friends[i]=friend; }  // overwrite, keep local note
+      else dna.friends.push(friend);
+      save();
+      return i>=0;   // true if an existing friend was updated
+    },
+    removeFriend(tag){
+      if(!dna.friends) return;
+      const key=(tag||'').toLowerCase();
+      dna.friends = dna.friends.filter(f=> (f.tag||'').toLowerCase()!==key);
+      save();
+    },
+    setFriendNote(tag, note){
+      if(!dna.friends) return;
+      const key=(tag||'').toLowerCase();
+      const f = dna.friends.find(x=> (x.tag||'').toLowerCase()===key);
+      if(f){ f.note = note; save(); }
+    }
   };
 })();
 
@@ -905,6 +981,8 @@ function el(tag, opts){
 const CABINETS = [
   { id:'dna',        lab:'Gamer DNA', name:'Gamer DNA Hub', icon:'🧬', tag:'mvp', route:'#/dna',
     desc:'Your profile, 7 attributes, class & rank.' },
+  { id:'friends',    lab:'Gamer DNA', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
+    desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
 
   { id:'calibration',lab:'Reflex Lab', name:'Latency Calibration', railName:'Latency', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
     desc:'3-click baseline to factor out system latency.', dna:'Calibrates t_link' },
@@ -1116,6 +1194,19 @@ Views.dna = function(c){
     }
   };
 
+  // ---- export & share (DD §3.1.2) ----
+  panel.append(el('h2',{class:'sub', text:'Export & Share'}));
+  panel.append(el('p',{class:'muted', html:'Bundle your Gamer DNA into a self-contained file to challenge a friend — they import it under <strong>Friends</strong>. Only your own profile is ever exported; your roster stays private.'}));
+  const shareRow = el('div',{class:'controls-row'});
+  const expBtn  = el('button',{class:'btn primary', html:'⬇ Export My DNA'});
+  const mailBtn = el('button',{class:'btn', html:'✉ Share via Email'});
+  const friendsBtn = el('button',{class:'btn ghost', html:'👥 Open Friends'});
+  expBtn.onclick = ()=> ProfileIO.exportProfile();
+  mailBtn.onclick = ()=> ProfileIO.shareEmail();
+  friendsBtn.onclick = ()=> Router.go('#/friends');
+  shareRow.append(expBtn, mailBtn, friendsBtn);
+  panel.append(shareRow);
+
   // ---- achievements ----
   panel.append(el('h2',{class:'sub', text:'Achievements'}));
   const ag = el('div',{class:'ach-grid'});
@@ -1164,6 +1255,401 @@ function drawRadar(canvas, attrs){
 function hexA(hex,a){
   const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)||['','16','f2','c8'];
   return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
+}
+
+// 7-axis radar that overlays two attribute sets (you vs a friend) for compare.
+function drawRadarCompare(canvas, a1, c1, a2, c2){
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height, cx=W/2, cy=H/2, R=Math.min(W,H)/2-34;
+  const keys = Store.ATTRS, N=keys.length;
+  ctx.clearRect(0,0,W,H);
+  function pt(i, r){ const ang=-Math.PI/2 + i*2*Math.PI/N; return [cx+Math.cos(ang)*r, cy+Math.sin(ang)*r]; }
+  // rings
+  ctx.strokeStyle='rgba(124,92,255,0.25)'; ctx.lineWidth=1;
+  for(let ring=1; ring<=4; ring++){
+    ctx.beginPath();
+    for(let i=0;i<=N;i++){ const [x,y]=pt(i%N, R*ring/4); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.stroke();
+  }
+  // spokes + labels
+  ctx.fillStyle='#9aa3d4'; ctx.font='9px monospace'; ctx.textAlign='center';
+  for(let i=0;i<N;i++){
+    const [x,y]=pt(i,R); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
+    const [lx,ly]=pt(i,R+16); ctx.fillText(keys[i].slice(0,4).toUpperCase(), lx, ly+3);
+  }
+  function poly(attrs, color){
+    ctx.beginPath();
+    for(let i=0;i<=N;i++){ const k=keys[i%N]; const r=R*Math.max(0,Math.min(100,attrs[k]||0))/100; const [x,y]=pt(i%N,r); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.closePath();
+    ctx.fillStyle=hexA(color,0.18); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.shadowColor=color; ctx.shadowBlur=8;
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.fillStyle=color;
+    for(let i=0;i<N;i++){ const k=keys[i]; const r=R*Math.max(0,Math.min(100,attrs[k]||0))/100; const [x,y]=pt(i,r); ctx.beginPath(); ctx.arc(x,y,2.5,0,7); ctx.fill(); }
+  }
+  poly(a2, c2);   // friend underneath
+  poly(a1, c1);   // you on top
+}
+
+/* ============================================================================
+   PROFILEIO — Gamer DNA export / import (DD §3.1.2)
+   Privacy Guard: only ever serialises the LOCAL user's own profile, never the
+   friends list. Export produces a self-contained, styled HTML file with the
+   data payload embedded as JSON; import accepts that HTML or a raw JSON dump.
+   ============================================================================ */
+const ProfileIO = (function(){
+  const SIG = 'playtools-dna';
+  const SCHEMA = 1;
+
+  // Build the shareable payload from the local profile only.
+  function buildPayload(){
+    const d = Store.get();
+    const score = Attr.gamerScore(d);
+    return {
+      _pt: SIG, v: SCHEMA, exportedAt: Date.now(),
+      tag: d.profile.gamerTag || 'Player One',
+      profile: JSON.parse(JSON.stringify(d.profile)),
+      attributes: Object.assign({}, d.attributes),
+      score,
+      rankName: Attr.rankFor(score).name,
+      klass: Attr.classFor(d),
+      achievements: (d.achievements||[]).slice(),
+      toolsCompleted: d.toolsCompleted||0,
+      runs: d.runs||0
+    };
+  }
+
+  // Convert a validated payload into a local friend record.
+  function payloadToFriend(p){
+    return {
+      tag: p.tag || (p.profile && p.profile.gamerTag) || 'Player One',
+      profile: p.profile || {},
+      attributes: Object.assign(
+        { reflex:0,precision:0,speed:0,focus:0,consistency:0,control:0,strategy:0 },
+        p.attributes || {}),
+      score: p.score|0,
+      rankName: p.rankName || 'Newbie',
+      klass: p.klass || 'Unranked',
+      achievements: Array.isArray(p.achievements) ? p.achievements : [],
+      toolsCompleted: p.toolsCompleted|0,
+      runs: p.runs|0,
+      note: '',                       // local-only contact override (DD §3.2)
+      importedAt: Date.now()
+    };
+  }
+
+  function safeName(s){ return String(s||'player').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'player'; }
+
+  // Self-contained HTML document embedding the payload + a retro visual card.
+  function buildHTML(payload){
+    const accent = (payload.profile && payload.profile.accent) || '#16f2c8';
+    const json = JSON.stringify(payload).replace(/</g,'\\u003c');   // escape < so an embedded closing script tag can't break the file
+    const p = payload.profile || {};
+    const loc = [p.city,p.state,p.country].filter(Boolean).join(', ');
+    const bars = Store.ATTRS.map(k=>{
+      const v = Math.round(payload.attributes[k]||0);
+      return `<div class="row"><span class="lbl">${k}</span><span class="track"><span class="fill" style="width:${v}%"></span></span><span class="val">${v}</span></div>`;
+    }).join('');
+    const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PlayTools Gamer DNA — @${esc(payload.tag)}</title>
+<script type="application/json" id="${SIG}">${json}<\/script>
+<style>
+  :root{--neon:${esc(accent)};}
+  body{margin:0;background:#05070f;color:#e9ecff;font-family:system-ui,Segoe UI,Roboto,sans-serif;
+       display:flex;justify-content:center;padding:28px 14px;}
+  .card{width:100%;max-width:460px;background:linear-gradient(180deg,#0c1024,#05070f);
+        border:3px solid var(--neon);border-radius:14px;padding:24px;box-shadow:0 0 36px rgba(0,0,0,.6);}
+  .brand{font:700 13px monospace;color:#ffd23d;letter-spacing:2px;text-align:center;}
+  .tag{font-size:30px;font-weight:800;text-align:center;margin:6px 0 2px;color:var(--neon);
+       text-shadow:0 0 14px var(--neon);}
+  .meta{text-align:center;color:#9aa3d4;font:12px monospace;margin-bottom:16px;}
+  .chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;}
+  .chip{border:1px solid rgba(124,92,255,.4);border-radius:20px;padding:5px 12px;font:600 12px monospace;color:#cfd6ff;}
+  .chip b{color:var(--neon);}
+  .row{display:flex;align-items:center;gap:10px;margin:7px 0;}
+  .lbl{width:92px;font:11px monospace;text-transform:uppercase;color:#9aa3d4;}
+  .track{flex:1;height:9px;background:rgba(124,92,255,.15);border-radius:6px;overflow:hidden;}
+  .fill{display:block;height:100%;background:var(--neon);box-shadow:0 0 8px var(--neon);}
+  .val{width:28px;text-align:right;font:700 12px monospace;color:var(--neon);}
+  .foot{margin-top:18px;text-align:center;color:#9aa3d4;font:11px monospace;line-height:1.6;}
+  .foot b{color:#ffd23d;}
+</style></head><body>
+<div class="card">
+  <div class="brand">★ PLAYTOOLS GAMER DNA ★</div>
+  <div class="tag">@${esc(payload.tag)}</div>
+  <div class="meta">${esc(payload.klass)} · ${esc(payload.rankName)}${loc?' · '+esc(loc):''}</div>
+  <div class="chips">
+    <span class="chip">SCORE <b>${(payload.score||0).toLocaleString()}</b></span>
+    <span class="chip">TOOLS <b>${payload.toolsCompleted||0}</b></span>
+    <span class="chip">ACHIEVEMENTS <b>${(payload.achievements||[]).length}</b></span>
+  </div>
+  ${bars}
+  <div class="foot">A challenge has been issued! 🕹️<br>
+    Import this file at <b>PlayTools → Friends → Import Friend Profile</b> to add @${esc(payload.tag)} to your roster.</div>
+</div>
+</body></html>`;
+  }
+
+  function download(filename, text, mime){
+    const blob = new Blob([text], {type: mime||'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);
+  }
+
+  // Trigger a download of the current profile as a self-contained HTML file.
+  function exportProfile(){
+    const payload = buildPayload();
+    download('playtools-dna_'+safeName(payload.tag)+'.html', buildHTML(payload), 'text/html');
+    UI.toast('Exported','Your Gamer DNA file downloaded. Attach it to share with a friend.');
+    return payload;
+  }
+
+  // Open a Gmail compose window in the browser with subject + body pre-filled.
+  // (Gmail's compose URL can't pre-attach files, so the body explains the attach step.)
+  function shareEmail(){
+    const payload = buildPayload();
+    const subject = '[PlayTools] Challenge Issued by '+(payload.tag||'a friend')+'!';
+    const body =
+`I just dropped my Gamer DNA — think you can top it?
+
+My class: ${payload.klass}
+My rank:  ${payload.rankName}
+Gamer Score: ${(payload.score||0).toLocaleString()}
+
+HOW TO ACCEPT:
+1. Download my attached PlayTools DNA file.
+2. Open PlayTools, go to Friends, and hit "Import Friend Profile".
+3. Pick the file to load me onto your roster — then compare our stats!
+
+(Don't forget to attach the downloaded playtools-dna file before you hit send.)
+— ${payload.tag}`;
+    const gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to='
+      + '&su=' + encodeURIComponent(subject)
+      + '&body=' + encodeURIComponent(body);
+    // Open via a real anchor click (not window.open): browsers treat this as a
+    // user-initiated navigation, so it opens a normal new tab and isn't popup-blocked.
+    // (window.open with a features string gets blocked, and noopener makes it return null.)
+    const a = document.createElement('a');
+    a.href = gmailUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    // Drop the message on the clipboard too, so it's never lost if the tab is blocked.
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(subject + '\n\n' + body).then(
+        ()=> UI.toast('Opening Gmail','Compose opened in a new tab — message also copied to your clipboard.'),
+        ()=> UI.toast('Opening Gmail','Compose opening in a new tab — add a recipient and attach your DNA file.')
+      );
+    } else {
+      UI.toast('Opening Gmail','Compose opening in a new tab — add a recipient and attach your DNA file.');
+    }
+  }
+
+  // Extract + validate a payload from exported HTML or a raw JSON string.
+  function parsePayload(text){
+    if(!text || !text.trim()) throw new Error('The file is empty.');
+    let raw = text.trim();
+    const m = raw.match(/<script[^>]*id=["']playtools-dna["'][^>]*>([\s\S]*?)<\/script>/i);
+    if(m) raw = m[1].trim();
+    let obj;
+    try{ obj = JSON.parse(raw); }
+    catch(e){ throw new Error('Could not read a PlayTools profile from that file.'); }
+    if(!obj || obj._pt !== SIG) throw new Error('That file is not a PlayTools Gamer DNA export.');
+    if(!obj.attributes || !(obj.tag || (obj.profile && obj.profile.gamerTag)))
+      throw new Error('That profile is missing its core data.');
+    return obj;
+  }
+
+  // Read a chosen File, import it into the friends list. Returns a Promise<{tag,updated}>.
+  function importFromFile(file){
+    return file.text().then(text=>{
+      const payload = parsePayload(text);
+      // Privacy Guard: never let an import clobber the local user's own slot.
+      const me = (Store.get().profile.gamerTag||'').toLowerCase();
+      if(me && (payload.tag||'').toLowerCase()===me)
+        throw new Error('That profile shares your Gamer Tag — friends need a different tag.');
+      const friend = payloadToFriend(payload);
+      const updated = Store.addFriend(friend);
+      return { tag: friend.tag, updated };
+    });
+  }
+
+  return { buildPayload, exportProfile, shareEmail, parsePayload, importFromFile, payloadToFriend };
+})();
+
+/* ============================================================================
+   FRIENDS VIEW (DD §3.2) — local roster of imported Gamer DNA snapshots
+   ============================================================================ */
+let friendsSort = 'score';   // persists across re-mounts
+
+const FRIEND_SORTS = [
+  { key:'score',      label:'Gamer Score',  cmp:(a,b)=> (b.score||0)-(a.score||0) },
+  { key:'reflex',     label:'Reflex',       cmp:(a,b)=> (b.attributes.reflex||0)-(a.attributes.reflex||0) },
+  { key:'precision',  label:'Precision',    cmp:(a,b)=> (b.attributes.precision||0)-(a.attributes.precision||0) },
+  { key:'speed',      label:'Speed',        cmp:(a,b)=> (b.attributes.speed||0)-(a.attributes.speed||0) },
+  { key:'recent',     label:'Recently Added', cmp:(a,b)=> (b.importedAt||0)-(a.importedAt||0) },
+  { key:'name',       label:'Name (A–Z)',   cmp:(a,b)=> String(a.tag).localeCompare(String(b.tag)) },
+  { key:'color',      label:'Persona Color', cmp:(a,b)=> hue(a.profile&&a.profile.accent)-hue(b.profile&&b.profile.accent) }
+];
+function hue(hex){
+  const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex||'#16f2c8'); if(!m) return 0;
+  let r=parseInt(m[1],16)/255, g=parseInt(m[2],16)/255, b=parseInt(m[3],16)/255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn; let h=0;
+  if(d){ if(mx===r) h=((g-b)/d)%6; else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4; }
+  return (h*60+360)%360;
+}
+
+Views.friends = function(c){
+  const panel = el('div',{class:'panel'});
+  panel.append(
+    el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
+    el('h1',{class:'title', html:'👥 Friends'}),
+    el('p',{class:'view-desc', html:'Import your friends\' Gamer DNA files to build a local roster — sort it, jot private notes, and overlay their attributes against your own. Everything stays in this browser; you can only ever export <em>your own</em> profile.'})
+  );
+
+  // ---- import / export toolbar ----
+  const fileInput = el('input',{type:'file', accept:'.html,.json,text/html,application/json', style:'display:none'});
+  const importBtn = el('button',{class:'btn primary', html:'📥 Import Friend Profile'});
+  const exportBtn = el('button',{class:'btn', html:'⬇ Export My DNA'});
+  const mailBtn   = el('button',{class:'btn', html:'✉ Share via Email'});
+  const io = el('div',{class:'controls-row'});
+  io.append(importBtn, exportBtn, mailBtn, fileInput);
+  panel.append(io);
+
+  importBtn.onclick = ()=> fileInput.click();
+  exportBtn.onclick = ()=> ProfileIO.exportProfile();
+  mailBtn.onclick   = ()=> ProfileIO.shareEmail();
+  fileInput.onchange = ()=>{
+    const file = fileInput.files && fileInput.files[0];
+    if(!file) return;
+    ProfileIO.importFromFile(file)
+      .then(({tag, updated})=>{
+        UI.toast(updated?'Friend Updated':'Friend Added', '@'+tag+(updated?' was refreshed.':' joined your roster.'));
+        Router.go('#/friends');
+      })
+      .catch(err=> UI.toast('Import Failed', err.message||'Could not read that file.'));
+    fileInput.value='';
+  };
+
+  // ---- roster ----
+  const friends = Store.getFriends().slice();
+  panel.append(el('h2',{class:'sub', text:'Your Roster ('+friends.length+')'}));
+
+  if(!friends.length){
+    panel.append(el('div',{class:'friend-empty', html:
+      '🕹️ No friends on your roster yet.<br><span class="muted">Ask a friend to <strong>Export their DNA</strong> and send you the file, then hit <strong>Import Friend Profile</strong> above.</span>'}));
+    c.append(panel);
+    return;
+  }
+
+  // sort toolbar
+  const toolbar = el('div',{class:'friend-toolbar'});
+  toolbar.append(el('span',{class:'spacer'}), el('label',{html:'Sort by'}));
+  const sortSel = el('select');
+  FRIEND_SORTS.forEach(s=> sortSel.append(el('option',{value:s.key, text:s.label, ...(s.key===friendsSort?{selected:'selected'}:{})})));
+  sortSel.value = friendsSort;
+  sortSel.onchange = ()=>{ friendsSort = sortSel.value; Router.go('#/friends'); };
+  toolbar.append(sortSel);
+  panel.append(toolbar);
+
+  const sorter = (FRIEND_SORTS.find(s=>s.key===friendsSort)||FRIEND_SORTS[0]).cmp;
+  friends.sort(sorter);
+
+  const grid = el('div',{class:'friend-grid'});
+  friends.forEach(f=> grid.append(friendCard(f)));
+  panel.append(grid);
+
+  c.append(panel);
+};
+
+function friendCard(f){
+  const accent = (f.profile && f.profile.accent) || '#16f2c8';
+  const p = f.profile || {};
+  const loc = [p.city,p.state,p.country].filter(Boolean).join(', ');
+  const initial = (f.tag||'?').trim().charAt(0).toUpperCase() || '?';
+  const card = el('div',{class:'friend-card'});
+  card.style.borderLeftColor = accent;
+
+  // top three attributes for the compact view
+  const top = Store.ATTRS.slice().sort((a,b)=> (f.attributes[b]||0)-(f.attributes[a]||0)).slice(0,3);
+  const attrsHtml = top.map(k=>{
+    const v = Math.round(f.attributes[k]||0);
+    return `<div class="row"><span class="lbl">${k}</span><span class="track"><span class="fill" style="width:${v}%;background:${accent}"></span></span><span class="val" style="color:${accent}">${v}</span></div>`;
+  }).join('');
+
+  card.innerHTML =
+    `<div class="fc-head">
+       <div class="fc-avatar" style="background:${accent}">${initial}</div>
+       <div>
+         <div class="fc-tag">@${escAttr(f.tag)}</div>
+         <div class="fc-sub">${escAttr(f.klass||'Unranked')} · ${escAttr(f.rankName||'Newbie')}${loc?' · '+escAttr(loc):''}</div>
+       </div>
+     </div>
+     <div class="fc-chips">
+       <span class="fc-chip">SCORE <b>${(f.score||0).toLocaleString()}</b></span>
+       <span class="fc-chip">TOOLS <b>${f.toolsCompleted||0}</b></span>
+       <span class="fc-chip">ACH <b>${(f.achievements||[]).length}</b></span>
+     </div>
+     <div class="fc-attrs">${attrsHtml}</div>`;
+
+  // local-only contact note (DD §3.2 "manual contact fields")
+  const note = el('textarea',{class:'fc-note', placeholder:'Private note — Discord tag, phone ext, how you know them…'});
+  note.value = f.note || '';
+  note.addEventListener('change', ()=> Store.setFriendNote(f.tag, note.value));
+  card.append(note);
+
+  const actions = el('div',{class:'fc-actions'});
+  const cmpBtn = el('button',{class:'btn primary', html:'⚔ Compare'});
+  const delBtn = el('button',{class:'btn danger ghost', html:'✕ Remove'});
+  cmpBtn.onclick = ()=> openCompare(f);
+  delBtn.onclick = ()=>{
+    if(confirm('Remove @'+f.tag+' from your roster?')){ Store.removeFriend(f.tag); Router.go('#/friends'); UI.toast('Removed','@'+f.tag+' left your roster.'); }
+  };
+  actions.append(cmpBtn, delBtn);
+  card.append(actions);
+  return card;
+}
+function escAttr(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+
+// Comparative Stat Radar (DD §3.2) — overlay YOU vs a friend across the 7 vectors.
+function openCompare(friend){
+  const root = document.getElementById('modal-root');
+  root.innerHTML='';
+  const me = Store.get();
+  const myAccent = me.profile.accent || '#16f2c8';
+  const frAccent = (friend.profile && friend.profile.accent) || '#ff3df0';
+  const myTag = me.profile.gamerTag || 'You';
+
+  const backdrop = el('div',{class:'modal-backdrop'});
+  const modal = el('div',{class:'modal'});
+  const close = el('button',{class:'modal-close', html:'✕'});
+  const h3 = el('h3',{html:'⚔ STAT COMPARE'});
+  const legend = el('div',{class:'compare-legend'});
+  legend.innerHTML =
+    `<span><i style="background:${myAccent}"></i>@${escAttr(myTag)}</span>`+
+    `<span><i style="background:${frAccent}"></i>@${escAttr(friend.tag)}</span>`;
+  const canvas = document.createElement('canvas'); canvas.width=320; canvas.height=320;
+  const tbl = el('table',{class:'compare-tbl'});
+
+  let rows = `<tr><th>Vector</th><th>@${escAttr(myTag)}</th><th>@${escAttr(friend.tag)}</th><th>Δ</th></tr>`;
+  Store.ATTRS.forEach(k=>{
+    const mv = Math.round(me.attributes[k]||0), fv = Math.round(friend.attributes[k]||0), d = mv-fv;
+    const cls = d>0?'win':(d<0?'lose':'');
+    rows += `<tr><td>${k}</td><td>${mv}</td><td>${fv}</td><td class="${cls}">${d>0?'+':''}${d}</td></tr>`;
+  });
+  tbl.innerHTML = rows;
+
+  const actions = el('div',{class:'modal-actions'});
+  const cl = el('button',{class:'btn ghost', html:'Close'});
+  actions.append(cl);
+
+  modal.append(close, h3, legend, canvas, tbl, actions);
+  backdrop.append(modal); root.append(backdrop);
+  drawRadarCompare(canvas, me.attributes, myAccent, friend.attributes, frAccent);
+
+  function dismiss(){ root.innerHTML=''; }
+  close.onclick = dismiss; cl.onclick = dismiss;
+  backdrop.onclick = e=>{ if(e.target===backdrop) dismiss(); };
 }
 
 /* ============================================================================
@@ -2511,6 +2997,7 @@ const APP_VERSION = '1.0.0';
    ============================================================================ */
 Router.add('#/', Views.home);
 Router.add('#/dna', Views.dna);
+Router.add('#/friends', Views.friends);
 Router.add('#/reflex/calibration', Views.calibration);
 Router.add('#/reflex/reaction', Views.reaction);
 Router.add('#/reflex/cps', Views.cps);
