@@ -1077,6 +1077,44 @@ function el(tag, opts){
   return n;
 }
 
+/* ----------------------------------------------------------------------------
+   CONFIRM-RERUN GATE
+   Speed-click / tap activities (CPS, Spacebar, Drag-Click, Jitter-Click) used to
+   restart the instant a timed run ended, so the player's trailing momentum
+   clicks/taps would auto-launch run after run in an endless loop. This pops a
+   brief confirmation at the end of a run: a full-screen backdrop swallows the
+   trailing input, and a short grace period disarms the buttons so a stray click
+   can't auto-confirm. The player must make a deliberate choice — Run Again or
+   Done — before another run can begin.
+   ---------------------------------------------------------------------------- */
+function confirmRerun(opts){
+  opts = opts || {};
+  const root = document.getElementById('modal-root');
+  if(!root){ if(opts.onConfirm) opts.onConfirm(); return ()=>{}; }
+  const backdrop = el('div',{class:'modal-backdrop'});
+  const modal = el('div',{class:'modal confirm-rerun', style:'max-width:420px; text-align:center;'});
+  const h3 = el('h3',{html: opts.title || 'Run it again?'});
+  const body = el('p',{class:'muted', style:'margin:0 0 18px; font-size:13px; line-height:1.5;',
+    html: opts.body || 'That run is logged. Take a beat, then start another timed run whenever you\'re ready.'});
+  const actions = el('div',{class:'modal-actions'});
+  const again = el('button',{class:'btn primary', html: opts.againLabel || '▶ Run Again', disabled:'disabled'});
+  const done  = el('button',{class:'btn', html: opts.doneLabel || 'Done', disabled:'disabled'});
+  actions.append(again, done);
+  modal.append(h3, body, actions);
+  backdrop.append(modal); root.append(backdrop);
+
+  let armed=false, closed=false;
+  // Grace window absorbs the trailing momentum clicks/taps from the run that just
+  // ended, so neither button (nor a backdrop tap) can be triggered by accident.
+  const graceT = setTimeout(()=>{ armed=true; again.disabled=false; done.disabled=false; }, 600);
+
+  function dismiss(){ if(closed) return; closed=true; clearTimeout(graceT); backdrop.remove(); }
+  again.onclick = ()=>{ if(!armed) return; dismiss(); if(opts.onConfirm) opts.onConfirm(); };
+  done.onclick  = ()=>{ if(!armed) return; dismiss(); if(opts.onDismiss) opts.onDismiss(); };
+  backdrop.onclick = e=>{ if(e.target===backdrop && armed) dismiss(); };
+  return dismiss;
+}
+
 /* ============================================================================
    CABINET REGISTRY — declares labs + cabinets (drives rail + home + router)
    ============================================================================ */
@@ -1182,6 +1220,7 @@ const Router = (function(){
     const mount = routes[hash] || routes['#/'];
     if(current && current.teardown){ try{ current.teardown(); }catch(e){ console.error(e); } }
     screen.innerHTML='';
+    const mroot = document.getElementById('modal-root'); if(mroot) mroot.innerHTML='';  // drop any open overlay (e.g. a confirm-rerun gate) when leaving a view
     window.scrollTo({top:0, behavior:'instant' in window ? 'instant':'auto'});
     let teardown=null;
     try{ teardown = mount(screen); }catch(e){ console.error('view error', e); screen.innerHTML='<div class="panel"><h1 class="title">Glitch in the Matrix</h1><p class="muted">This cabinet failed to load.</p></div>'; }
@@ -1971,14 +2010,15 @@ Views.cps = function(c){
   const result = el('div',{});
   panel.append(stage, result);
 
-  let running=false, clicks=[], startT=0, timer=null;
+  let running=false, ended=false, clicks=[], startT=0, timer=null;
   function reset(){
-    running=false; clicks=[]; clearTimeout(timer);
+    running=false; ended=false; clicks=[]; clearTimeout(timer);
     stage.className='stage ready';
     stage.innerHTML = `<div class="big">CLICK TO START</div><div class="small">First click starts a ${duration}s timer. Click as fast as you can until time runs out.</div>`;
     result.innerHTML='';
   }
   function onDown(){
+    if(ended) return;   // run just ended — wait for the confirm gate before re-arming
     if(!running){
       running=true; startT=performance.now(); clicks=[startT];
       stage.className='stage go'; tick();
@@ -1994,7 +2034,7 @@ Views.cps = function(c){
     if(running) requestAnimationFrame(tick);
   }
   function end(){
-    running=false;
+    running=false; ended=true;
     const total = clicks.length-1; // first click was the starter
     const cps = total/duration;
     // consistency = inverse coefficient of variation of inter-click deltas
@@ -2027,6 +2067,12 @@ Views.cps = function(c){
       designation: cps>=12?'Speed Demon': cps>=8?'Rapid Fire':'Click Cadet',
       badge: cps>=12?'Speed Demon':null
     }));
+    confirmRerun({
+      title:'Run the CPS test again?',
+      body:`That run logged <strong>${cps.toFixed(2)} CPS</strong>. Start another ${duration}s burst when you\'re ready.`,
+      onConfirm: reset,
+      onDismiss: ()=>{ ended=false; }   // keep results up; a fresh click starts the next run
+    });
   }
   stage.addEventListener('pointerdown', onDown);
   reset();
@@ -2359,15 +2405,16 @@ Views.doubleClick = function(c){
   const result = el('div',{});
   panel.append(stage, result);
 
-  let gaps=[], prev=0, done=false;
+  let gaps=[], prev=0, done=false, ended=false;
   function setReady(){
-    gaps=[]; prev=0; done=false;
+    gaps=[]; prev=0; done=false; ended=false;
     stage.className='stage ready';
     stage.innerHTML = `<div class="big">DOUBLE-CLICK HERE</div><div class="small">Tap twice, fast — 0/${NEED} pairs.</div>`;
     result.innerHTML='';
   }
   function grade(ms){ return ms<60?'S':ms<90?'A':ms<120?'B':ms<180?'C':'F'; }
   function onDown(){
+    if(ended) return;   // run just ended — wait for the confirm gate before re-arming
     if(done){ setReady(); return; }
     const now=performance.now();
     if(prev && now-prev<=WINDOW){
@@ -2380,6 +2427,7 @@ Views.doubleClick = function(c){
     }
   }
   function end(){
+    ended=true;
     const best=Math.round(Math.min.apply(null, gaps));
     const avg=Math.round(gaps.reduce((a,b)=>a+b,0)/gaps.length);
     const g=grade(avg);
@@ -2403,6 +2451,12 @@ Views.doubleClick = function(c){
       designation: avg<60?'Double Tap Demon': avg<120?'Snappy Fingers':'Steady Tapper',
       badge: best<60?'Double Tap':null
     }));
+    confirmRerun({
+      title:'Run the double-click test again?',
+      body:`That run logged a <strong>${best} ms</strong> best gap. Start another set of ${NEED} pairs when you\'re ready.`,
+      onConfirm: setReady,
+      onDismiss: ()=>{ ended=false; }   // keep results up; a fresh click re-arms the next set
+    });
   }
   stage.addEventListener('pointerdown', onDown);
   setReady();
@@ -2420,9 +2474,9 @@ Views.spacebar = function(c){
   const result = el('div',{});
   panel.append(stage, result);
 
-  let armed=false, running=false, taps=[], startT=0, timer=null, raf=null;
+  let armed=false, running=false, ended=false, taps=[], startT=0, timer=null, raf=null;
   function setReady(){
-    armed=true; running=false; taps=[]; clearTimeout(timer); cancelAnimationFrame(raf);
+    armed=true; running=false; ended=false; taps=[]; clearTimeout(timer); cancelAnimationFrame(raf);
     stage.className='stage ready';
     stage.innerHTML = `<div class="big">TAP SPACEBAR</div><div class="small">Armed — press SPACE to start the 10s test.</div>`;
     result.innerHTML='';
@@ -2445,7 +2499,7 @@ Views.spacebar = function(c){
   }
   function grade(t){ return t>=9?'S':t>=7?'A':t>=5.5?'B':t>=4?'C':'F'; }
   function end(){
-    running=false; cancelAnimationFrame(raf);
+    running=false; ended=true; cancelAnimationFrame(raf);
     const total=taps.length-1;
     const tps=total/DURATION;
     const deltas=[]; for(let i=1;i<taps.length;i++) deltas.push(taps[i]-taps[i-1]);
@@ -2476,6 +2530,12 @@ Views.spacebar = function(c){
       designation: tps>=9?'Space Cadet': tps>=6?'Rapid Tapper':'Casual Masher',
       badge: tps>=9?'Space Cadet':null
     }));
+    confirmRerun({
+      title:'Run the spacebar test again?',
+      body:`That run logged <strong>${tps.toFixed(2)} taps/sec</strong>. Click to arm another ${DURATION}s run when you\'re ready.`,
+      onConfirm: setReady,
+      onDismiss: ()=>{ ended=false; }   // keep results up; click to arm the next run
+    });
   }
   function onKey(e){
     if(e.code==='Space' || e.key===' ' || e.keyCode===32){
@@ -2484,7 +2544,7 @@ Views.spacebar = function(c){
       tap();
     }
   }
-  stage.addEventListener('pointerdown', ()=>{ if(!running) setReady(); });
+  stage.addEventListener('pointerdown', ()=>{ if(!running && !ended) setReady(); });
   window.addEventListener('keydown', onKey);
   setReady();
   return ()=>{ window.removeEventListener('keydown', onKey); clearTimeout(timer); cancelAnimationFrame(raf); running=false; };
@@ -2783,9 +2843,9 @@ Views.dragClick = function(c){
   const result = el('div',{});
   panel.append(stage, result);
 
-  let armed=false, running=false, stamps=[], startT=0, timer=null, raf=null;
+  let armed=false, running=false, ended=false, stamps=[], startT=0, timer=null, raf=null;
   function setReady(){
-    armed=true; running=false; stamps=[]; clearTimeout(timer); cancelAnimationFrame(raf);
+    armed=true; running=false; ended=false; stamps=[]; clearTimeout(timer); cancelAnimationFrame(raf);
     stage.className='stage ready';
     stage.innerHTML = `<div class="big">CLICK TO ARM</div><div class="small">Then drag-click like mad — the 5s burst starts on your first click.</div>`;
     result.innerHTML='';
@@ -2797,6 +2857,7 @@ Views.dragClick = function(c){
     raf=requestAnimationFrame(tick);
   }
   function onDown(){
+    if(ended) return;   // run just ended — wait for the confirm gate before re-arming
     if(running){ stamps.push(performance.now()); }
     else if(armed){ begin(); stamps.push(startT); }
     else { setReady(); }
@@ -2818,7 +2879,7 @@ Views.dragClick = function(c){
   }
   function grade(p){ return p>=25?'S':p>=18?'A':p>=12?'B':p>=8?'C':'F'; }
   function end(){
-    running=false; cancelAnimationFrame(raf);
+    running=false; ended=true; cancelAnimationFrame(raf);
     const total=stamps.length;
     const avg=+(total/(DURATION/1000)).toFixed(1);
     const peak=peakPerSec(stamps);
@@ -2846,6 +2907,12 @@ Views.dragClick = function(c){
       designation: peak>=25?'Drag Lord': peak>=16?'Friction Master': peak>=10?'Drag Apprentice':'Single Tapper',
       badge: peak>=20?'Drag Lord':null
     }));
+    confirmRerun({
+      title:'Run the drag-click test again?',
+      body:`That run logged <strong>${peak} peak CPS</strong>. Click to arm another 5s burst when you\'re ready.`,
+      onConfirm: setReady,
+      onDismiss: ()=>{ ended=false; }   // keep results up; click to arm the next run
+    });
   }
   stage.addEventListener('pointerdown', onDown);
   setReady();
@@ -2866,9 +2933,9 @@ Views.jitterClick = function(c){
   const result = el('div',{});
   panel.append(stage, result);
 
-  let armed=false, running=false, clicks=0, travel=0, lastX=0, lastY=0, hasPos=false, startT=0, timer=null, raf=null;
+  let armed=false, running=false, ended=false, clicks=0, travel=0, lastX=0, lastY=0, hasPos=false, startT=0, timer=null, raf=null;
   function setReady(){
-    armed=true; running=false; clicks=0; travel=0; hasPos=false; clearTimeout(timer); cancelAnimationFrame(raf);
+    armed=true; running=false; ended=false; clicks=0; travel=0; hasPos=false; clearTimeout(timer); cancelAnimationFrame(raf);
     stage.className='stage ready';
     stage.innerHTML = `<div class="big">CLICK TO ARM</div><div class="small">Then jitter-click — the 5s burst starts on your first click.</div>`;
     result.innerHTML='';
@@ -2880,6 +2947,7 @@ Views.jitterClick = function(c){
     raf=requestAnimationFrame(tick);
   }
   function onDown(){
+    if(ended) return;   // run just ended — wait for the confirm gate before re-arming
     if(running){ clicks++; }
     else if(armed){ begin(); clicks=1; }
     else { setReady(); }
@@ -2898,7 +2966,7 @@ Views.jitterClick = function(c){
   }
   function grade(c){ return c>=14?'S':c>=11?'A':c>=8?'B':c>=6?'C':'F'; }
   function end(){
-    running=false; cancelAnimationFrame(raf);
+    running=false; ended=true; cancelAnimationFrame(raf);
     const cps=+(clicks/(DURATION/1000)).toFixed(1);
     const stability=Math.max(0, Math.min(100, Math.round(100 - travel/6)));
     const jitterScore=Math.max(0, Math.min(100, Math.round(cps/14*100)));
@@ -2926,6 +2994,12 @@ Views.jitterClick = function(c){
       designation: cps>=14?'Jitter Machine': cps>=10?'Buzzsaw Hands': cps>=7?'Trembling Trigger':'Smooth Clicker',
       badge: (cps>=12 && stability>=60)?'Jitter Storm':null
     }));
+    confirmRerun({
+      title:'Run the jitter-click test again?',
+      body:`That run scored <strong>${jitterScore}</strong> (${cps} CPS). Click to arm another 5s burst when you\'re ready.`,
+      onConfirm: setReady,
+      onDismiss: ()=>{ ended=false; }   // keep results up; click to arm the next run
+    });
   }
   stage.addEventListener('pointerdown', onDown);
   stage.addEventListener('pointermove', onMove);
