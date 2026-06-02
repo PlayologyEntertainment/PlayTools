@@ -453,6 +453,17 @@
   .gen-roast-lines{list-style:none; padding:0; margin:6px 0 2px; display:flex; flex-direction:column; gap:10px;}
   .gen-roast-lines li{background:var(--panel); border-left:3px solid var(--neon-2); border-radius:0 7px 7px 0; padding:11px 14px; line-height:1.55; color:var(--ink);}
 
+  /* Setup Lab · Session Planner schedule timeline */
+  .sched{list-style:none; padding:0; margin:16px 0 4px; display:flex; flex-direction:column; gap:8px;}
+  .sched li{display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line);
+    border-radius:7px; padding:10px 14px; line-height:1.4;}
+  .sched li.play{border-left:3px solid var(--neon-5);}
+  .sched li.brk{border-left:3px solid var(--neon-3);}
+  .sched .clock{font-family:var(--pixel); font-size:15px; color:var(--neon); min-width:118px;}
+  .sched .what{flex:1; color:var(--ink);}
+  .sched .dur{font-size:11px; color:var(--ink-dim); letter-spacing:1px;}
+  .sched-note{color:var(--neon-3); font-size:12px; margin:10px 0 0; line-height:1.5;}
+
   /* ============================================================
      SHARE CARD MODAL
      ============================================================ */
@@ -865,7 +876,7 @@ const Ach = (function(){
     { id:'tracking_expert', name:'Tracking Expert', icon:'〰️', desc:'Keep avg error under 4px on Mouse Accuracy.',
       test:(d,c)=> c && c.tool==='mouse_accuracy' && c.avgError<4 },
     { id:'setup_specialist', name:'Setup Specialist', icon:'🛠️', desc:'Use every Setup Lab calculator.',
-      test:(d)=> !!(d.counters && d.counters.setupEdpi && d.counters.setupSens) },
+      test:(d)=> !!(d.counters && d.counters.setupEdpi && d.counters.setupSens && d.counters.setupFov && d.counters.setupAspect && d.counters.setupRefresh && d.counters.setupSession) },
     { id:'natural_20', name:'Natural 20', icon:'🎲', desc:'Roll a natural 20 in the Dice Roller.',
       test:(d,c)=> (c && c.tool==='dice' && c.nat20) || (d.counters && d.counters.nat20s>=1) },
     { id:'high_roller', name:'High Roller', icon:'🔮', desc:'Land a single roll totalling 50 or more.',
@@ -1095,6 +1106,17 @@ const CABINETS = [
     desc:'Compute true effective DPI & your sensitivity cohort.', dna:'Updates Sensitivity Profile' },
   { id:'senscvt',  lab:'Setup Lab', name:'Sensitivity Converter', icon:'🔁', tag:'mvp', route:'#/setup/sens',
     desc:'Convert sens between game engines (same cm/360°).', dna:'Pure utility · no DNA' },
+
+  // Setup Lab Expansion Pack (DD §5.3) — display & schedule calculators. Pure
+  // utilities; first use of each is credited as a completed tool (no attribute deltas).
+  { id:'fov',      lab:'Setup Lab', name:'FOV Calculator', railName:'FOV', icon:'📐', tag:'p2', route:'#/setup/fov',
+    desc:'Match screen size & seating distance to your real field of view.', dna:'Pure utility · logs a tool' },
+  { id:'aspect',   lab:'Setup Lab', name:'Aspect Ratio Calculator', railName:'Aspect Ratio', icon:'🖼️', tag:'p2', route:'#/setup/aspect',
+    desc:'Reduce any resolution to its ratio & scale it to a new one.', dna:'Pure utility · logs a tool' },
+  { id:'refresh',  lab:'Setup Lab', name:'Refresh Rate Calculator', railName:'Refresh Rate', icon:'🔄', tag:'p2', route:'#/setup/refresh',
+    desc:'Pit your FPS against your panel — frame times & a config call.', dna:'Pure utility · logs a tool' },
+  { id:'session',  lab:'Setup Lab', name:'Gaming Session Planner', railName:'Session Planner', icon:'🗓️', tag:'p2', route:'#/setup/session',
+    desc:'Build a balanced play schedule with breaks & hydration alerts.', dna:'Pure utility · logs a tool' },
 
   // Fun Lab (DD §4.4) — identity profiling.
   { id:'gamer_quiz', lab:'Fun Lab', name:'Gamer Quiz', icon:'🎭', tag:'mvp', route:'#/fun/quiz',
@@ -2751,6 +2773,311 @@ Views.sensConverter = function(c){
   return ()=>{};
 };
 
+/* ============================================================================
+   SETUP LAB EXPANSION PACK (DD §5.3)
+   Display & schedule calculators. Each is a pure utility: it sets its own
+   counter (for the Setup Specialist achievement) and is credited as a
+   completed tool on first use, but applies no attribute deltas.
+   ============================================================================ */
+
+/* ---- 5.3.1 FOV Calculator ----
+   Real-world field of view from physical screen size, aspect ratio and
+   viewing distance. width = diag · w/√(w²+h²); FOV = 2·atan((size/2)/dist). */
+const FOV_RATIOS = [
+  ['16:9 (Widescreen)', 16, 9],
+  ['16:10', 16, 10],
+  ['21:9 (Ultrawide)', 21, 9],
+  ['32:9 (Super Ultrawide)', 32, 9],
+  ['4:3 (Classic)', 4, 3],
+  ['5:4', 5, 4],
+  ['3:2', 3, 2]
+];
+Views.fov = function(c){
+  const cab = getCab('fov');
+  const panel = toolShell(c, cab);
+  const opts = FOV_RATIOS.map((r,i)=>`<option value="${i}">${r[0]}</option>`).join('');
+  const form = el('div',{class:'form-grid'});
+  form.innerHTML = `
+    <div class="field"><label for="f_diag">Screen Size (in)</label><input id="f_diag" type="number" min="5" step="0.5" value="27"><span class="hint">Diagonal, e.g. 27</span></div>
+    <div class="field"><label for="f_ratio">Aspect Ratio</label><select id="f_ratio">${opts}</select></div>
+    <div class="field"><label for="f_dist">Viewing Distance (in)</label><input id="f_dist" type="number" min="4" step="1" value="24"><span class="hint">Eyes to screen</span></div>`;
+  panel.append(form);
+
+  const out = el('div',{class:'results'});
+  const actions = el('div',{class:'controls-row'});
+  const calc = el('button',{class:'btn primary', html:'📐 Calculate FOV'});
+  actions.append(calc);
+  const shareHolder = el('div',{});
+  panel.append(out, actions, shareHolder);
+
+  function bracket(h){
+    if(h<35) return 'Distant Desk';
+    if(h<55) return 'Balanced View';
+    if(h<75) return 'Immersive';
+    return 'Wraparound';
+  }
+  const DEG = 180/Math.PI;
+  function render(){
+    const diag=parseFloat(document.getElementById('f_diag').value)||0;
+    const ri=+document.getElementById('f_ratio').value;
+    const dist=parseFloat(document.getElementById('f_dist').value)||0;
+    const w=FOV_RATIOS[ri][1], h=FOV_RATIOS[ri][2];
+    const norm=Math.sqrt(w*w+h*h);
+    const widthIn=diag*w/norm, heightIn=diag*h/norm;
+    const hFov = dist>0 ? 2*Math.atan((widthIn/2)/dist)*DEG : 0;
+    const vFov = dist>0 ? 2*Math.atan((heightIn/2)/dist)*DEG : 0;
+    const br=bracket(hFov);
+    out.innerHTML = `<div class="result-tile"><div class="k">Horizontal FOV</div><div class="v">${hFov.toFixed(1)}°</div></div>
+      <div class="result-tile"><div class="k">Vertical FOV</div><div class="v">${vFov.toFixed(1)}°</div></div>
+      <div class="result-tile"><div class="k">Screen</div><div class="v" style="font-size:15px">${widthIn.toFixed(1)}″ × ${heightIn.toFixed(1)}″</div></div>
+      <div class="result-tile"><div class="k">Immersion</div><div class="v" style="font-size:15px">${br}</div></div>`;
+    return {hFov,vFov,diag,dist,br,ratio:FOV_RATIOS[ri][0]};
+  }
+  ['f_diag','f_ratio','f_dist'].forEach(id=> document.getElementById(id).addEventListener('input', render));
+  calc.onclick=()=>{
+    const r=render();
+    if(!r.hFov){ UI.toast('Check inputs','Enter a screen size and viewing distance.'); return; }
+    recordGenerator('fov','setupFov');
+    UI.toast('Setup Lab','FOV logged to your Gamer DNA.');
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'SETUP LAB', tool:'FOV', glyph:'📐',
+      metric:[{k:'Horizontal', v:r.hFov.toFixed(1)+'°'},{k:'Vertical', v:r.vFov.toFixed(1)+'°'},{k:'Distance', v:r.dist+'″'}],
+      designation: r.br, badge:null
+    }));
+  };
+  render();
+  return ()=>{};
+};
+
+/* ---- 5.3.2 Aspect Ratio Calculator ----
+   Reduce a resolution to its lowest-terms ratio, then scale proportionally:
+   edit either New dimension and the other is solved to preserve the ratio. */
+function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a||1; }
+const ASPECT_NAMES = { '16:9':'Widescreen', '16:10':'Tall Widescreen', '21:9':'Ultrawide',
+  '64:27':'Ultrawide', '43:18':'Ultrawide', '12:5':'Ultrawide', '32:9':'Super Ultrawide',
+  '4:3':'Classic', '5:4':'Square-ish', '3:2':'Photo', '1:1':'Square' };
+Views.aspect = function(c){
+  const cab = getCab('aspect');
+  const panel = toolShell(c, cab);
+  const form = el('div',{class:'form-grid'});
+  form.innerHTML = `
+    <div class="field"><label for="a_ow">Source Width</label><input id="a_ow" type="number" min="1" step="1" value="1920"></div>
+    <div class="field"><label for="a_oh">Source Height</label><input id="a_oh" type="number" min="1" step="1" value="1080"></div>
+    <div class="field"><label for="a_nw">Scaled Width</label><input id="a_nw" type="number" min="1" step="1" placeholder="enter to solve →"></div>
+    <div class="field"><label for="a_nh">Scaled Height</label><input id="a_nh" type="number" min="1" step="1" placeholder="← or enter to solve"></div>`;
+  panel.append(form);
+
+  const out = el('div',{class:'results'});
+  const actions = el('div',{class:'controls-row'});
+  const calc = el('button',{class:'btn primary', html:'🖼️ Log Ratio'});
+  actions.append(calc);
+  const shareHolder = el('div',{});
+  panel.append(out, actions, shareHolder);
+
+  let lastRatio='16:9';
+  function ratioOf(ow,oh){ const g=gcd(ow,oh); return (ow/g)+':'+(oh/g); }
+  function render(){
+    const ow=parseInt(document.getElementById('a_ow').value,10)||0;
+    const oh=parseInt(document.getElementById('a_oh').value,10)||0;
+    let scaled='';
+    if(ow>0 && oh>0){
+      lastRatio=ratioOf(ow,oh);
+      const dec=(ow/oh).toFixed(3);
+      const nw=parseInt(document.getElementById('a_nw').value,10)||0;
+      const nh=parseInt(document.getElementById('a_nh').value,10)||0;
+      if(nw>0) scaled=`${nw} × ${Math.round(nw*oh/ow)}`;
+      else if(nh>0) scaled=`${Math.round(nh*ow/oh)} × ${nh}`;
+      const name=ASPECT_NAMES[lastRatio]||'Custom';
+      out.innerHTML = `<div class="result-tile"><div class="k">Aspect Ratio</div><div class="v">${lastRatio}</div></div>
+        <div class="result-tile"><div class="k">Decimal</div><div class="v">${dec}</div></div>
+        <div class="result-tile"><div class="k">Class</div><div class="v" style="font-size:15px">${name}</div></div>
+        ${scaled?`<div class="result-tile"><div class="k">Scaled</div><div class="v" style="font-size:18px">${scaled}</div></div>`:''}`;
+    }
+    return {ow,oh,scaled};
+  }
+  // editing a scaled field solves the partner; clear the other so intent is unambiguous
+  document.getElementById('a_nw').addEventListener('input', ()=>{ document.getElementById('a_nh').value=''; render(); });
+  document.getElementById('a_nh').addEventListener('input', ()=>{ document.getElementById('a_nw').value=''; render(); });
+  ['a_ow','a_oh'].forEach(id=> document.getElementById(id).addEventListener('input', render));
+  calc.onclick=()=>{
+    const r=render();
+    if(!r.ow||!r.oh){ UI.toast('Check inputs','Enter a source width and height.'); return; }
+    recordGenerator('aspect','setupAspect');
+    UI.toast('Setup Lab','Aspect ratio logged to your Gamer DNA.');
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'SETUP LAB', tool:'Aspect Ratio', glyph:'🖼️',
+      metric:[{k:'Ratio', v:lastRatio},{k:'Source', v:r.ow+'×'+r.oh}].concat(r.scaled?[{k:'Scaled', v:r.scaled.replace(/ /g,'')}]:[]),
+      designation: ASPECT_NAMES[lastRatio]||'Custom', badge:null
+    }));
+  };
+  render();
+  return ()=>{};
+};
+
+/* ---- 5.3.3 Refresh Rate Calculator ----
+   Frame-time math + a plain-language config call: does your FPS feed your panel,
+   is tearing likely, and what cap suits a VRR (G-Sync / FreeSync) display. */
+Views.refresh = function(c){
+  const cab = getCab('refresh');
+  const panel = toolShell(c, cab);
+  const form = el('div',{class:'form-grid'});
+  form.innerHTML = `
+    <div class="field"><label for="r_hz">Panel Refresh (Hz)</label><input id="r_hz" type="number" min="24" step="1" value="144"></div>
+    <div class="field"><label for="r_fps">Average FPS</label><input id="r_fps" type="number" min="1" step="1" value="120"></div>
+    <div class="field"><label for="r_vrr">VRR (G-Sync / FreeSync)</label><select id="r_vrr"><option value="0">Off</option><option value="1">On</option></select></div>`;
+  panel.append(form);
+
+  const out = el('div',{class:'results'});
+  const note = el('p',{class:'sched-note'});
+  const actions = el('div',{class:'controls-row'});
+  const calc = el('button',{class:'btn primary', html:'🔄 Log Setup'});
+  actions.append(calc);
+  const shareHolder = el('div',{});
+  panel.append(out, note, actions, shareHolder);
+
+  function render(){
+    const hz=parseInt(document.getElementById('r_hz').value,10)||0;
+    const fps=parseInt(document.getElementById('r_fps').value,10)||0;
+    const vrr=document.getElementById('r_vrr').value==='1';
+    if(!hz||!fps){ out.innerHTML=''; note.textContent=''; return {hz,fps}; }
+    const ftHz=(1000/hz), ftFps=(1000/fps);
+    const effective=Math.min(fps,hz);
+    let status, advice;
+    if(fps>=hz){
+      status='Display-Limited';
+      advice = vrr
+        ? `Your GPU outruns the panel. With VRR on, cap FPS to ${Math.max(1,hz-3)} so you stay inside the VRR window and dodge tearing.`
+        : `Your GPU outruns the panel. Enable V-Sync or cap FPS at ${hz} to stop screen tearing — extra frames are wasted otherwise.`;
+    } else if(fps>=hz*0.8){
+      status='Well Matched';
+      advice = vrr
+        ? 'Nicely paired. VRR is smoothing the variance — no cap needed below your refresh.'
+        : 'Nicely paired, but uneven frames below refresh can still tear. VRR or a steady cap keeps it clean.';
+    } else {
+      status='GPU-Limited';
+      advice = `The panel can show ${hz}Hz but you're feeding ${fps} FPS — drop settings or resolution to climb toward ${hz}.`;
+    }
+    out.innerHTML = `<div class="result-tile"><div class="k">Frame Time @ ${hz}Hz</div><div class="v">${ftHz.toFixed(2)}ms</div></div>
+      <div class="result-tile"><div class="k">Frame Time @ ${fps}FPS</div><div class="v">${ftFps.toFixed(2)}ms</div></div>
+      <div class="result-tile"><div class="k">Effective</div><div class="v">${effective} Hz</div></div>
+      <div class="result-tile"><div class="k">Verdict</div><div class="v" style="font-size:15px">${status}</div></div>`;
+    note.textContent = '⚙ '+advice;
+    return {hz,fps,ftHz,status};
+  }
+  ['r_hz','r_fps','r_vrr'].forEach(id=> document.getElementById(id).addEventListener('input', render));
+  calc.onclick=()=>{
+    const r=render();
+    if(!r.hz||!r.fps){ UI.toast('Check inputs','Enter a refresh rate and average FPS.'); return; }
+    recordGenerator('refresh','setupRefresh');
+    UI.toast('Setup Lab','Refresh setup logged to your Gamer DNA.');
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'SETUP LAB', tool:'Refresh Rate', glyph:'🔄',
+      metric:[{k:'Panel', v:r.hz+'Hz'},{k:'Avg FPS', v:String(r.fps)},{k:'Frame Time', v:r.ftHz.toFixed(2)+'ms'}],
+      designation: r.status, badge:null
+    }));
+  };
+  render();
+  return ()=>{};
+};
+
+/* ---- 5.3.4 Gaming Session Planner ----
+   Builds a balanced play schedule: alternating play blocks and breaks, with
+   rotating hydration / stretch / eye-rest reminders, rendered as a retro
+   Play Schedule Card. */
+const BREAK_TIPS = [
+  ['💧','Hydrate','Down a glass of water — eyes and reflexes both run on it.'],
+  ['🧍','Stretch','Stand up, roll your shoulders and wrists, shake out the click hand.'],
+  ['👀','Rest Eyes','Look at something 20ft away for 20 seconds — reset your focus.'],
+  ['🚶','Move','Quick lap of the room — get the blood moving before the next block.']
+];
+Views.session = function(c){
+  const cab = getCab('session');
+  const panel = toolShell(c, cab);
+  const form = el('div',{class:'form-grid'});
+  form.innerHTML = `
+    <div class="field"><label for="s_total">Total Session (min)</label><input id="s_total" type="number" min="20" step="10" value="120"></div>
+    <div class="field"><label for="s_play">Play Block (min)</label><input id="s_play" type="number" min="10" step="5" value="50"></div>
+    <div class="field"><label for="s_break">Break (min)</label><input id="s_break" type="number" min="3" step="1" value="10"></div>
+    <div class="field"><label for="s_start">Start Time</label><input id="s_start" type="time"><span class="hint">Optional — for clock times</span></div>`;
+  panel.append(form);
+
+  const out = el('div',{class:'results'});
+  const list = el('ul',{class:'sched'});
+  const note = el('p',{class:'sched-note'});
+  const actions = el('div',{class:'controls-row'});
+  const calc = el('button',{class:'btn primary', html:'🗓️ Build Schedule'});
+  actions.append(calc);
+  const shareHolder = el('div',{});
+  panel.append(out, list, note, actions, shareHolder);
+
+  function fmtClock(startMin, offset){
+    if(startMin==null) return '+'+offset+'m';
+    let t=(startMin+offset)%1440; const h=Math.floor(t/60), m=t%60;
+    const ap=h<12?'AM':'PM'; let hh=h%12; if(hh===0) hh=12;
+    return `${hh}:${String(m).padStart(2,'0')} ${ap}`;
+  }
+  function render(){
+    const total=parseInt(document.getElementById('s_total').value,10)||0;
+    const play=parseInt(document.getElementById('s_play').value,10)||0;
+    const brk=parseInt(document.getElementById('s_break').value,10)||0;
+    const st=document.getElementById('s_start').value;
+    let startMin=null;
+    if(st){ const [h,m]=st.split(':').map(Number); startMin=h*60+m; }
+    list.innerHTML=''; out.innerHTML=''; note.textContent='';
+    if(total<10||play<1||brk<1) return {blocks:0};
+
+    let cursor=0, blocks=0, playMin=0, breakMin=0, hydration=0, ti=0;
+    while(cursor < total && blocks < 24){
+      const remain = total-cursor;
+      const thisPlay = Math.min(play, remain);
+      blocks++; playMin+=thisPlay;
+      const li=el('li',{class:'play'});
+      li.innerHTML = `<span class="clock">${fmtClock(startMin,cursor)}</span>
+        <span class="what">🎮 Play — Block ${blocks}</span><span class="dur">${thisPlay}m</span>`;
+      list.append(li);
+      cursor+=thisPlay;
+      if(cursor>=total) break;
+      const thisBrk=Math.min(brk, total-cursor);
+      if(thisBrk<=0) break;
+      const tip=BREAK_TIPS[ti%BREAK_TIPS.length]; ti++;
+      if(tip[1]==='Hydrate') hydration++;
+      breakMin+=thisBrk;
+      const lb=el('li',{class:'brk'});
+      lb.innerHTML = `<span class="clock">${fmtClock(startMin,cursor)}</span>
+        <span class="what">${tip[0]} ${tip[1]} — ${tip[2]}</span><span class="dur">${thisBrk}m</span>`;
+      list.append(lb);
+      cursor+=thisBrk;
+    }
+    const endsAt = fmtClock(startMin, total);
+    out.innerHTML = `<div class="result-tile"><div class="k">Play Blocks</div><div class="v">${blocks}</div></div>
+      <div class="result-tile"><div class="k">Total Play</div><div class="v">${playMin}m</div></div>
+      <div class="result-tile"><div class="k">Break Time</div><div class="v">${breakMin}m</div></div>
+      <div class="result-tile"><div class="k">${startMin!=null?'Ends At':'Wraps After'}</div><div class="v" style="font-size:18px">${startMin!=null?endsAt:total+'m'}</div></div>`;
+    if(play>90) note.textContent='⚠ Long play blocks — stretches over 90 minutes strain wrists and eyes. Consider 50–60 minute blocks.';
+    else if(breakMin>0 && breakMin/(playMin||1) < 0.1) note.textContent='⚠ Light on breaks. Aim for ~10 minutes of rest per hour of play to stay sharp.';
+    else note.textContent='✅ Balanced cadence — '+hydration+' hydration break'+(hydration===1?'':'s')+' built in. Game well.';
+    return {blocks, playMin, breakMin, hydration, total, endsAt:(startMin!=null?endsAt:total+'m')};
+  }
+  ['s_total','s_play','s_break','s_start'].forEach(id=> document.getElementById(id).addEventListener('input', render));
+  calc.onclick=()=>{
+    const r=render();
+    if(!r.blocks){ UI.toast('Check inputs','Total must be at least 10 minutes with valid block/break sizes.'); return; }
+    recordGenerator('session','setupSession');
+    UI.toast('Setup Lab','Session plan logged to your Gamer DNA.');
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'SETUP LAB', tool:'Session Plan', glyph:'🗓️',
+      metric:[{k:'Blocks', v:String(r.blocks)},{k:'Play', v:r.playMin+'m'},{k:'Breaks', v:r.breakMin+'m'}],
+      designation: r.total+'-min Session', badge:null
+    }));
+  };
+  render();
+  return ()=>{};
+};
+
 /* ---- Tabletop / RPG · Dice Roller ----
    Full polyhedral set + quantity/modifier, advantage/disadvantage, dice notation,
    RPG presets, animated tray + retro SFX. Feeds a Strategy/Luck DNA vector. */
@@ -4225,6 +4552,10 @@ Router.add('#/mouse/polling', Views.polling);
 Router.add('#/mouse/accuracy', Views.mouseAccuracy);
 Router.add('#/setup/edpi', Views.edpi);
 Router.add('#/setup/sens', Views.sensConverter);
+Router.add('#/setup/fov', Views.fov);
+Router.add('#/setup/aspect', Views.aspect);
+Router.add('#/setup/refresh', Views.refresh);
+Router.add('#/setup/session', Views.session);
 Router.add('#/dice/roller', Views.diceRoller);
 Router.add('#/arcade/memory', Views.memoryMatch);
 Router.add('#/arcade/dodge', Views.pixelDodge);
