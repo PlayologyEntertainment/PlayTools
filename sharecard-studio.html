@@ -186,55 +186,55 @@ function defaultTheme(){
     persona:  { accent:'#16f2c8', gamerTag:'PLAYER ONE' },
 
     background:{
-      gradTop:'#0c1024', gradBottom:'#05070f',
-      gridShow:true, gridColor:'rgba(124,92,255,0.12)', gridSpacing:28,
-      borderUseAccent:true, borderColor:'#16f2c8', borderWidth:3, borderInset:8
+      gradTop:'#0a1c75', gradBottom:'#05070f',
+      gridShow:false, gridColor:'rgba(124,92,255,0.12)', gridSpacing:60,
+      borderUseAccent:true, borderColor:'#6f18f2', borderWidth:0, borderInset:10
     },
 
     header:{
-      brand:'PLAYTOOLS', brandY:48, brandSize:13, brandWeight:700,
-      brandFamily:'monospace', brandColor:'#ffd23d', brandGlow:8,
-      subY:70, subSize:11, subFamily:'monospace', subColor:'#9aa3d4'
+      brand:'PLAYTOOLS', brandY:55, brandSize:30, brandWeight:400,
+      brandFamily:'Press Start 2P', brandColor:'#3dcfff', brandGlow:0,
+      subY:86, subSize:14, subFamily:'Press Start 2P', subColor:'#9aa3d4'
     },
 
-    glyph:{ y:160, size:90, family:'sans-serif', color:'#ffffff',
-            quadY:86, quadSize:84, quadGap:6 },
+    glyph:{ y:184, size:90, family:'monospace', color:'#ffffff',
+            quadY:90, quadSize:84, quadGap:7 },
 
-    grade:{ y:250, size:64, weight:800, family:'sans-serif',
-            useAccent:true, color:'#16f2c8', glow:18 },
+    grade:{ y:261, size:36, weight:400, family:'Press Start 2P',
+            useAccent:true, color:'#16f2c8', glow:0 },
 
     metrics:{
-      startYGrade:300, startYNoGrade:270, marginX:50, rowGap:38,
-      keySize:12, keyFamily:'monospace', keyColor:'#9aa3d4',
-      valSize:20, valWeight:700, valFamily:'monospace', valUseAccent:true, valColor:'#16f2c8'
+      startYGrade:301, startYNoGrade:271, marginX:72, rowGap:27,
+      keySize:10, keyFamily:'Press Start 2P', keyColor:'#9aa3d4',
+      valSize:18, valWeight:700, valFamily:'Press Start 2P', valUseAccent:true, valColor:'#16f2c8'
     },
 
     designation:{
-      gapAbove:6, labelSize:12, labelFamily:'monospace', labelColor:'#9aa3d4',
-      valSize:18, valWeight:700, valFamily:'sans-serif', valColor:'#ff3df0', valGlow:10
+      gapAbove:18, labelSize:11, labelFamily:'Press Start 2P', labelColor:'#9aa3d4',
+      valSize:13, valWeight:400, valFamily:'Press Start 2P', valColor:'#ff3df0', valGlow:10
     },
 
     badge:{
-      fromBottom:128, height:36, marginX:30,
-      fillColor:'rgba(255,210,61,0.12)', strokeColor:'#ffd23d', strokeWidth:1,
-      textColor:'#ffd23d', textSize:13, textFamily:'monospace', prefix:'★ '
+      fromBottom:129, height:28, marginX:55,
+      fillColor:'rgba(255,210,61,0.1)', strokeColor:'#a08222', strokeWidth:0,
+      textColor:'#ffef3d', textSize:11, textFamily:'Press Start 2P', prefix:''
     },
 
     footer:{
-      tagFromBottom:64, tagSize:15, tagWeight:700, tagFamily:'sans-serif',
-      tagUseAccent:true, tagColor:'#16f2c8', tagGlow:6,
-      urlText:'playology · playtools', urlFromBottom:40, urlSize:11,
-      urlFamily:'monospace', urlColor:'#9aa3d4'
+      tagFromBottom:47, tagSize:15, tagWeight:400, tagFamily:'Press Start 2P',
+      tagUseAccent:true, tagColor:'#16f2c8', tagGlow:13,
+      urlText:'PLAYOLOGY ENTERTAINMENT', urlFromBottom:20, urlSize:13,
+      urlFamily:'Press Start 2P', urlColor:'#1a224c'
     },
 
-    /* NEW visual elements — all OFF by default so the baseline matches production */
+    /* NEW visual elements (FX) */
     fx:{
-      roundedCorners:false, cornerRadius:18,
-      cornerBrackets:false, bracketColor:'#16f2c8', bracketLen:26, bracketWidth:3, bracketInset:16,
-      scanlines:false, scanlineOpacity:0.06, scanlineGap:3,
-      vignette:false, vignetteStrength:0.35,
+      roundedCorners:false, cornerRadius:6,
+      cornerBrackets:true, bracketColor:'#f2a218', bracketLen:10, bracketWidth:1, bracketInset:8,
+      scanlines:true, scanlineOpacity:0.16, scanlineGap:5,
+      vignette:true, vignetteStrength:0.71,
       footerDivider:false, footerDividerColor:'rgba(124,92,255,0.30)',
-      avatar:false, avatarSize:34, avatarX:30, avatarY:30, avatarUseAccent:true, avatarColor:'#16f2c8'
+      avatar:false, avatarSize:36, avatarX:30, avatarY:30, avatarUseAccent:true, avatarColor:'#16f2c8'
     }
   };
 }
@@ -596,7 +596,7 @@ const SCHEMA=[
     {p:'footer.urlFamily', l:'URL font', t:'font'},
     {p:'footer.urlColor', l:'URL color', t:'color'},
   ]},
-  {title:'✦ New elements (FX)', desc:'Optional extras — all off by default so the baseline matches today.', open:true, ctrls:[
+  {title:'✦ New elements (FX)', desc:'Optional extras layered onto the card (brackets, scanlines, vignette, etc.).', open:true, ctrls:[
     {p:'fx.roundedCorners', l:'Rounded corners', t:'check'},
     {p:'fx.cornerRadius', l:'Corner radius', t:'range', min:0, max:40, step:1},
     {p:'fx.cornerBrackets', l:'Corner brackets', t:'check'},

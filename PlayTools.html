@@ -987,7 +987,6 @@ const Ach = (function(){
    SHARECARD — canvas renderer + modal (DD §5.1)
    ============================================================================ */
 const ShareCard = (function(){
-  const W=440, H=560;
 
   /* --------------------------------------------------------------------------
      FONT REGISTRY — shared with the Share Card Studio (sharecard-studio.html);
@@ -1027,37 +1026,142 @@ const ShareCard = (function(){
     return Promise.all(need.map(n => document.fonts.load("700 16px '"+n+"'").catch(()=>{}))).then(()=>{});
   }
 
-  // Font names referenced by a given card. Currently the renderer uses the two
-  // system fonts; when the card becomes THEME-driven, pull the chosen families
-  // from the theme here so ensureFonts() preloads them before drawing.
-  function fontsUsedBy(data){ return ['monospace','sans-serif']; }
+  // Font families referenced by the active THEME, so ensureFonts() can preload
+  // any web fonts before the card is drawn.
+  function fontsUsedBy(){
+    const T=THEME;
+    return [
+      T.header.brandFamily, T.header.subFamily, T.glyph.family, T.grade.family,
+      T.metrics.keyFamily, T.metrics.valFamily, T.designation.labelFamily, T.designation.valFamily,
+      T.badge.textFamily, T.footer.tagFamily, T.footer.urlFamily
+    ];
+  }
+
+  function roundRectPath(ctx,x,y,w,h,r){
+    r=Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  /* --------------------------------------------------------------------------
+     THEME — Share Card visual design, authored in sharecard-studio.html. Every
+     field maps 1:1 to a Studio control, so a future restyle is just pasting a
+     new exported theme here. NOTE: persona.accent and persona.gamerTag are
+     overridden at runtime from the player's saved profile; the values below are
+     only fallbacks used before a profile exists.
+     ------------------------------------------------------------------------ */
+  const THEME = {
+    canvas:   { w:440, h:560 },
+    persona:  { accent:'#16f2c8', gamerTag:'PLAYER ONE' },
+    background:{
+      gradTop:'#0a1c75', gradBottom:'#05070f',
+      gridShow:false, gridColor:'rgba(124,92,255,0.12)', gridSpacing:60,
+      borderUseAccent:true, borderColor:'#6f18f2', borderWidth:0, borderInset:10
+    },
+    header:{
+      brand:'PLAYTOOLS', brandY:55, brandSize:30, brandWeight:400,
+      brandFamily:'Press Start 2P', brandColor:'#3dcfff', brandGlow:0,
+      subY:86, subSize:14, subFamily:'Press Start 2P', subColor:'#9aa3d4'
+    },
+    glyph:{ y:184, size:90, family:'monospace', color:'#ffffff', quadY:90, quadSize:84, quadGap:7 },
+    grade:{ y:261, size:36, weight:400, family:'Press Start 2P', useAccent:true, color:'#16f2c8', glow:0 },
+    metrics:{
+      startYGrade:301, startYNoGrade:271, marginX:72, rowGap:27,
+      keySize:10, keyFamily:'Press Start 2P', keyColor:'#9aa3d4',
+      valSize:18, valWeight:700, valFamily:'Press Start 2P', valUseAccent:true, valColor:'#16f2c8'
+    },
+    designation:{
+      gapAbove:18, labelSize:11, labelFamily:'Press Start 2P', labelColor:'#9aa3d4',
+      valSize:13, valWeight:400, valFamily:'Press Start 2P', valColor:'#ff3df0', valGlow:10
+    },
+    badge:{
+      fromBottom:129, height:28, marginX:55,
+      fillColor:'rgba(255,210,61,0.1)', strokeColor:'#a08222', strokeWidth:0,
+      textColor:'#ffef3d', textSize:11, textFamily:'Press Start 2P', prefix:''
+    },
+    footer:{
+      tagFromBottom:47, tagSize:15, tagWeight:400, tagFamily:'Press Start 2P',
+      tagUseAccent:true, tagColor:'#16f2c8', tagGlow:13,
+      urlText:'PLAYOLOGY ENTERTAINMENT', urlFromBottom:20, urlSize:13,
+      urlFamily:'Press Start 2P', urlColor:'#1a224c'
+    },
+    fx:{
+      roundedCorners:false, cornerRadius:6,
+      cornerBrackets:true, bracketColor:'#f2a218', bracketLen:10, bracketWidth:1, bracketInset:8,
+      scanlines:true, scanlineOpacity:0.16, scanlineGap:5,
+      vignette:true, vignetteStrength:0.71,
+      footerDivider:false, footerDividerColor:'rgba(124,92,255,0.30)',
+      avatar:false, avatarSize:36, avatarX:30, avatarY:30, avatarUseAccent:true, avatarColor:'#16f2c8'
+    }
+  };
 
   // data: { lab, tool, glyph, metric:[{k,v}], grade, designation, badge }
   function draw(canvas, data){
     const ctx = canvas.getContext('2d');
-    const accent = Store.get().profile.accent || '#16f2c8';
-    const tag = Store.get().profile.gamerTag || 'PLAYER ONE';
-    canvas.width=W; canvas.height=H;
+    const T = THEME;
+    const Wc = T.canvas.w, Hc = T.canvas.h;
+    const accent = Store.get().profile.accent || T.persona.accent || '#16f2c8';
+    const tag = Store.get().profile.gamerTag || T.persona.gamerTag || 'PLAYER ONE';
+    canvas.width=Wc; canvas.height=Hc;
+    ctx.clearRect(0,0,Wc,Hc);
 
-    // background
-    const g = ctx.createLinearGradient(0,0,0,H);
-    g.addColorStop(0,'#0c1024'); g.addColorStop(1,'#05070f');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.save();
+    if(T.fx.roundedCorners){ roundRectPath(ctx,0,0,Wc,Hc,T.fx.cornerRadius); ctx.clip(); }
+
+    // background gradient
+    const g = ctx.createLinearGradient(0,0,0,Hc);
+    g.addColorStop(0,T.background.gradTop); g.addColorStop(1,T.background.gradBottom);
+    ctx.fillStyle=g; ctx.fillRect(0,0,Wc,Hc);
+
     // grid
-    ctx.strokeStyle='rgba(124,92,255,0.12)'; ctx.lineWidth=1;
-    for(let x=0;x<W;x+=28){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for(let y=0;y<H;y+=28){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    if(T.background.gridShow){
+      ctx.strokeStyle=T.background.gridColor; ctx.lineWidth=1;
+      const sp=Math.max(4,T.background.gridSpacing);
+      for(let x=0;x<Wc;x+=sp){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,Hc); ctx.stroke(); }
+      for(let yv=0;yv<Hc;yv+=sp){ ctx.beginPath(); ctx.moveTo(0,yv); ctx.lineTo(Wc,yv); ctx.stroke(); }
+    }
+
+    // vignette
+    if(T.fx.vignette){
+      const rg=ctx.createRadialGradient(Wc/2,Hc/2,Math.min(Wc,Hc)*0.25, Wc/2,Hc/2,Math.max(Wc,Hc)*0.62);
+      rg.addColorStop(0,'rgba(0,0,0,0)');
+      rg.addColorStop(1,'rgba(0,0,0,'+T.fx.vignetteStrength+')');
+      ctx.fillStyle=rg; ctx.fillRect(0,0,Wc,Hc);
+    }
+
     // border
-    ctx.strokeStyle=accent; ctx.lineWidth=3; ctx.strokeRect(8,8,W-16,H-16);
+    if(T.background.borderWidth>0){
+      const bc = T.background.borderUseAccent ? accent : T.background.borderColor;
+      const bi = T.background.borderInset;
+      ctx.strokeStyle=bc; ctx.lineWidth=T.background.borderWidth;
+      if(T.fx.roundedCorners){ roundRectPath(ctx,bi,bi,Wc-bi*2,Hc-bi*2,Math.max(0,T.fx.cornerRadius-bi)); ctx.stroke(); }
+      else ctx.strokeRect(bi,bi,Wc-bi*2,Hc-bi*2);
+    }
+
+    // corner brackets
+    if(T.fx.cornerBrackets){
+      const L=T.fx.bracketLen, mm=T.fx.bracketInset;
+      ctx.strokeStyle=T.fx.bracketColor; ctx.lineWidth=T.fx.bracketWidth; ctx.lineCap='round';
+      [[mm,mm,1,1],[Wc-mm,mm,-1,1],[mm,Hc-mm,1,-1],[Wc-mm,Hc-mm,-1,-1]].forEach(c=>{
+        const x=c[0],yv=c[1],sx=c[2],sy=c[3];
+        ctx.beginPath(); ctx.moveTo(x+sx*L,yv); ctx.lineTo(x,yv); ctx.lineTo(x,yv+sy*L); ctx.stroke();
+      });
+      ctx.lineCap='butt';
+    }
 
     // Shrink a "[weight ]<px>px <family>" font until text fits maxW, ellipsizing as a
     // last resort. Leaves ctx.font set to the chosen size and returns the text to draw.
     function fitInline(text, font, maxW){
       const m = font.match(/^(.*?)(\d+)px(.*)$/);
       if(!m){ ctx.font=font; return text; }
-      const pre=m[1], fam=m[3]; let px=parseInt(m[2],10);
+      const pre=m[1], famStr=m[3]; let px=parseInt(m[2],10);
       ctx.font = font;
-      while(px>9 && ctx.measureText(text).width>maxW){ px--; ctx.font=`${pre}${px}px${fam}`; }
+      while(px>9 && ctx.measureText(text).width>maxW){ px--; ctx.font=`${pre}${px}px${famStr}`; }
       if(ctx.measureText(text).width>maxW){
         let s=text; while(s.length>1 && ctx.measureText(s+'…').width>maxW) s=s.slice(0,-1);
         text=s+'…';
@@ -1068,64 +1172,99 @@ const ShareCard = (function(){
       ctx.fillStyle=color; ctx.textAlign='center';
       text = maxW ? fitInline(text, font, maxW) : (ctx.font=font, text);
       if(glow){ ctx.shadowColor=color; ctx.shadowBlur=glow; } else ctx.shadowBlur=0;
-      ctx.fillText(text, W/2, y); ctx.shadowBlur=0;
+      ctx.fillText(text, Wc/2, y); ctx.shadowBlur=0;
     }
 
-    center('PLAYTOOLS', 48, '700 13px '+fam('monospace'), '#ffd23d', 8);
-    center((data.lab||'ARCADE')+' · '+(data.tool||''), 70, '11px '+fam('monospace'), '#9aa3d4', 0, W-60);
+    // header
+    const Hd=T.header;
+    center(Hd.brand, Hd.brandY, `${Hd.brandWeight} ${Hd.brandSize}px ${fam(Hd.brandFamily)}`, Hd.brandColor, Hd.brandGlow);
+    center((data.lab||'ARCADE')+' · '+(data.tool||''), Hd.subY, `${Hd.subSize}px ${fam(Hd.subFamily)}`, Hd.subColor, 0, Wc-60);
+
+    // avatar chip
+    if(T.fx.avatar){
+      const a=T.fx, col=a.avatarUseAccent?accent:a.avatarColor, r=a.avatarSize/2;
+      ctx.beginPath(); ctx.arc(a.avatarX+r,a.avatarY+r,r,0,Math.PI*2);
+      ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fill();
+      ctx.lineWidth=2; ctx.strokeStyle=col; ctx.stroke();
+      ctx.fillStyle=col; ctx.textAlign='center'; ctx.font=`700 ${Math.round(a.avatarSize*0.5)}px ${fam('sans-serif')}`;
+      ctx.fillText((tag[0]||'P').toUpperCase(), a.avatarX+r, a.avatarY+r+a.avatarSize*0.18);
+    }
 
     // glyph — either a text glyph or, when supplied, four connected quadrant pads
+    const Gl=T.glyph;
     if(data.glyphQuads){
-      const cols=data.glyphQuads, S=84, gap=6, half=(S-gap)/2, x0=W/2-S/2, y0=86;
+      const cols=data.glyphQuads, S=Gl.quadSize, gap=Gl.quadGap, half=(S-gap)/2, x0=Wc/2-S/2, y0=Gl.quadY;
       [[0,0],[1,0],[0,1],[1,1]].forEach((p,i)=>{
         ctx.fillStyle=cols[i];
         ctx.fillRect(x0+p[0]*(half+gap), y0+p[1]*(half+gap), half, half);
       });
     } else {
-      center(data.glyph||'🕹️', 160, '90px '+fam('sans-serif'), '#fff', 0);
+      center(data.glyph||'🕹️', Gl.y, `${Gl.size}px ${fam(Gl.family)}`, Gl.color, 0);
     }
 
     // grade badge
     if(data.grade){
-      ctx.fillStyle=accent; ctx.shadowColor=accent; ctx.shadowBlur=18;
-      ctx.font='800 64px '+fam('sans-serif'); ctx.textAlign='center';
-      ctx.fillText('GRADE '+data.grade, W/2, 250); ctx.shadowBlur=0;
+      const Gr=T.grade, gc=Gr.useAccent?accent:Gr.color;
+      ctx.fillStyle=gc; ctx.shadowColor=gc; ctx.shadowBlur=Gr.glow;
+      ctx.font=`${Gr.weight} ${Gr.size}px ${fam(Gr.family)}`; ctx.textAlign='center';
+      ctx.fillText('GRADE '+data.grade, Wc/2, Gr.y); ctx.shadowBlur=0;
     }
 
     // metrics
-    let y = data.grade ? 300 : 270;
+    const Mt=T.metrics;
+    let y = data.grade ? Mt.startYGrade : Mt.startYNoGrade;
+    const valCol = Mt.valUseAccent?accent:Mt.valColor;
     ctx.textAlign='left';
     (data.metric||[]).forEach(m=>{
       const keyTxt=String(m.k).toUpperCase();
-      ctx.font='12px '+fam('monospace'); ctx.fillStyle='#9aa3d4'; ctx.textAlign='left';
-      ctx.fillText(keyTxt, 50, y);
+      ctx.font=`${Mt.keySize}px ${fam(Mt.keyFamily)}`; ctx.fillStyle=Mt.keyColor; ctx.textAlign='left';
+      ctx.fillText(keyTxt, Mt.marginX, y);
       const keyW=ctx.measureText(keyTxt).width;
-      ctx.fillStyle=accent; ctx.textAlign='right';
-      const valTxt=fitInline(String(m.v), '700 20px '+fam('monospace'), (W-50)-(50+keyW+14));
-      ctx.fillText(valTxt, W-50, y);
-      ctx.textAlign='left'; y+=38;
+      ctx.fillStyle=valCol; ctx.textAlign='right';
+      const valTxt=fitInline(String(m.v), `${Mt.valWeight} ${Mt.valSize}px ${fam(Mt.valFamily)}`, (Wc-Mt.marginX)-(Mt.marginX+keyW+14));
+      ctx.fillText(valTxt, Wc-Mt.marginX, y);
+      ctx.textAlign='left'; y+=Mt.rowGap;
     });
 
     // designation
     if(data.designation){
-      y+=6;
-      ctx.font='12px '+fam('monospace'); ctx.fillStyle='#9aa3d4'; ctx.textAlign='center';
-      ctx.fillText('DESIGNATION', W/2, y); y+=24;
-      ctx.fillStyle='#ff3df0'; ctx.shadowColor='#ff3df0'; ctx.shadowBlur=10; ctx.textAlign='center';
-      ctx.fillText(fitInline(String(data.designation), '700 18px '+fam('sans-serif'), W-80), W/2, y); ctx.shadowBlur=0; y+=10;
+      const Ds=T.designation; y+=Ds.gapAbove;
+      ctx.font=`${Ds.labelSize}px ${fam(Ds.labelFamily)}`; ctx.fillStyle=Ds.labelColor; ctx.textAlign='center';
+      ctx.fillText('DESIGNATION', Wc/2, y); y+=24;
+      ctx.fillStyle=Ds.valColor; ctx.shadowColor=Ds.valColor; ctx.shadowBlur=Ds.valGlow; ctx.textAlign='center';
+      ctx.fillText(fitInline(String(data.designation), `${Ds.valWeight} ${Ds.valSize}px ${fam(Ds.valFamily)}`, Wc-80), Wc/2, y);
+      ctx.shadowBlur=0; y+=10;
     }
 
     // badge strip
     if(data.badge){
-      ctx.fillStyle='rgba(255,210,61,0.12)'; ctx.fillRect(30, H-128, W-60, 36);
-      ctx.strokeStyle='#ffd23d'; ctx.lineWidth=1; ctx.strokeRect(30, H-128, W-60, 36);
-      ctx.fillStyle='#ffd23d'; ctx.textAlign='center';
-      ctx.fillText(fitInline('★ '+data.badge, '13px '+fam('monospace'), W-72), W/2, H-104);
+      const Bd=T.badge, bx=Bd.marginX, by=Hc-Bd.fromBottom, bw=Wc-Bd.marginX*2, bh=Bd.height;
+      ctx.fillStyle=Bd.fillColor; ctx.fillRect(bx,by,bw,bh);
+      if(Bd.strokeWidth>0){ ctx.strokeStyle=Bd.strokeColor; ctx.lineWidth=Bd.strokeWidth; ctx.strokeRect(bx,by,bw,bh); }
+      ctx.fillStyle=Bd.textColor; ctx.textAlign='center';
+      ctx.fillText(fitInline(Bd.prefix+data.badge, `${Bd.textSize}px ${fam(Bd.textFamily)}`, bw-12), Wc/2, by+bh*0.67);
+    }
+
+    // footer divider
+    if(T.fx.footerDivider){
+      const dy=Hc-T.footer.tagFromBottom-22;
+      ctx.strokeStyle=T.fx.footerDividerColor; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(40,dy); ctx.lineTo(Wc-40,dy); ctx.stroke();
     }
 
     // footer — player + url
-    center('@'+tag, H-64, '700 15px '+fam('sans-serif'), accent, 6, W-80);
-    center('playology · playtools', H-40, '11px '+fam('monospace'), '#9aa3d4');
+    const Ft=T.footer, tc=Ft.tagUseAccent?accent:Ft.tagColor;
+    center('@'+tag, Hc-Ft.tagFromBottom, `${Ft.tagWeight} ${Ft.tagSize}px ${fam(Ft.tagFamily)}`, tc, Ft.tagGlow, Wc-80);
+    center(Ft.urlText, Hc-Ft.urlFromBottom, `${Ft.urlSize}px ${fam(Ft.urlFamily)}`, Ft.urlColor);
+
+    // scanlines overlay — drawn last, on top
+    if(T.fx.scanlines){
+      ctx.fillStyle='rgba(0,0,0,'+T.fx.scanlineOpacity+')';
+      const gap=Math.max(2,T.fx.scanlineGap);
+      for(let yy=0;yy<Hc;yy+=gap){ ctx.fillRect(0,yy,Wc,1); }
+    }
+
+    ctx.restore();
   }
 
   // open a modal showing the rendered card with share/download actions
