@@ -75,6 +75,58 @@ Users can manually declare or import their presence profiles across digital gami
     * **Data Overwrite Policy:** If an import payload matches an existing entry in the user's local Friends List, the system updates the profile with the newer dataset, overwriting old records seamlessly.
 * **Achievement Showcase Engine:** Extracts top milestone tags across imported datasets and lays them out into a pixelated display wall inside the main interface .
 
+##### 3.1.2.1 MVP Implementation Spec (Platform Link) — v1 (Locked)
+This subsection narrows the vision above into a build-ready specification for the first implementation pass. Where it refines an earlier statement (e.g. category aggregation), this locked spec governs the MVP.
+
+**Customer-Facing Name.** The feature ships to users as **Platform Link** (shorthand **"Link"**) — the manual KPI panel (plus any future paste import). To avoid implying live OAuth/account-linking (the feature is deliberately zero-auth per §1.3), the UI pairs the name with expectation-setting subcopy, e.g. *"no login, no account linking, and nothing ever leaves this browser."*
+
+**Architecture — strictly client-only.** The engine runs entirely in-browser. There is no backend, no proxy server, and no API keys; all data is entered/processed locally, consistent with the product's Browser-Only Execution principle (§1.3). (Any future paste import would parse locally via `DOMParser` / `JSON.parse`.)
+
+**MVP Platform Set.** The first release ships four platforms, split into two card archetypes:
+
+| Archetype | Platforms | Emphasis |
+| --- | --- | --- |
+| `game` | **Steam**, **Epic Games** | library + per-title competitive KPIs |
+| `social` | **Discord**, **Twitch** | handle + audience / verification stats |
+
+All four platforms are **manual-entry cards** in v1 (see implementation note below), each shown with its official brand mark (inlined as a transparent single-path SVG so it stays crisp and offline). PlayTools is PC-focused, so the console-only **Nintendo** card was dropped; Xbox Live, PlayStation Network, and Riot Games from the broader vision list (§3.1.2) remain deferred to a later pass.
+
+**Implementation note — Steam auto-import (shipped: manual).** The original v1 plan auto-parsed Steam from its public Community XML (`…/?xml=1`, `…/games/?tab=all&xml=1`). In testing this proved unworkable client-side: Steam has deprecated the community XML and now serves logged-in profile owners the new JavaScript-rendered games page (ignoring `xml=1`), while the profile-summary XML never contained the full library. A true "enter your ID → auto-load" experience (à la gameindustry.eu) requires Steam's Web API behind a server/proxy — which violates the strictly-client-only, no-proxy rule above. v1 therefore ships **manual entry for all platforms**, including Steam. The data model keeps `source: 'parser'` reserved so an optional Web-API-key + proxy path can be added later without migration.
+
+**Data Model (`platforms`, schema `version: 2`).** Each platform entry is keyed by id and carries timestamped snapshots so trend analytics can be layered on later with no migration:
+
+```js
+platforms: {
+  steam:    { type:'game',   source:'parser'|'manual', handle, id, snapshots:[ … ] },
+  epic:     { type:'game',   source:'manual',          handle,     snapshots:[ … ] },
+  nintendo: { type:'game',   source:'manual',          handle, friendCode, snapshots:[ … ] },
+  discord:  { type:'social', source:'manual',          handle,     snapshots:[ … ] },
+  twitch:   { type:'social', source:'manual',          handle,     snapshots:[ … ] }
+}
+// snapshot = { at, identity{}, library{ gamesOwned, totalHours, topGames[] },
+//              kpis[ { game, rank, wins, losses, kd, … } ],
+//              social{ followers, subs, verified }, badges[], custom{ key:val } }
+```
+
+**Snapshot Retention Policy.** Per platform, the engine pulls and retains the **top 50 games ranked by usage (playtime)**, plus rolling summaries. The latest snapshot holds full per-title detail; older snapshots collapse to summary-only records. The 50-game cap keeps the aggregate footprint comfortably under the browser's ~5 MB `localStorage` ceiling even with all platforms populated.
+
+**Field Schema.**
+* *Shared (all cards):* handle · profile URL · region · member-since · verification toggle · free-form custom key→value rows.
+* *`game` cards add:* games owned · total hours · an optional Top-Games list · a repeatable per-title KPI block — title, rank/tier, wins, losses, K/D (auto win-rate), plus an **add/remove list of user-defined custom stat fields** per game (e.g. Headshot %, Level, MMR).
+* *`social` cards add:* followers · subscribers · partner/affiliate or Nitro status · average viewers (Twitch) · server count (Discord).
+
+**Steam (manual in v1).** See the implementation note above — client-only auto-import is blocked by Steam's deprecation of community XML, so Steam is entered by hand like the other `game` platforms (profile name, library size, total hours, top titles, per-game KPIs). A `DOMParser`/JSON paste parser plus Web-API-key option remains a candidate for a later pass.
+
+**Category Bucketing — dropped.** The earlier FPS/RPG/RTS/Sim hour-split fields were removed: with no reliable client-side genre source they were manual busywork. Library shape is captured instead by total hours + the Top-Games list, and any genre/category the user cares about can go in a per-game custom KPI field.
+
+**Gamer DNA surfacing.** The Gamer DNA hub (§3.1) renders each linked platform's **full detail inline** — brand mark, handle, library stats, Top-Games, and every per-game KPI (including custom fields) and custom field — with a button through to manage them on Platform Link.
+
+**Attribute Integration (boundary).** Imported platform statistics **do not** feed the 7 core skill vectors of the Mathematical Attribute Engine (§3.1.3). Because client storage is openly user-editable (§6.2), keeping externally-declared stats out of the Gamer Score preserves the integrity of skill-derived rankings. Platform data instead drives: the Achievement Showcase wall, a library/veteran flair, and the unlock condition for the **Controller Wizard** achievement (§6.2 — "3 platform cards filled"). Each platform card renders through the existing Universal Share Card canvas + email pipeline (§6.1).
+
+**Placement.** Route `#/dna/platforms` hosts the **Platform Link** panel: a list/grid of platform cards leading to a detail view with the **Manual** entry form (all platforms in v1).
+
+**Deferred.** The Gaming Journal feature and trend/analytics visualizations are out of scope for v1; the timestamped-snapshot model preserves the data needed to add analytics later without migration.
+
 #### 3.1.3 Mathematical Attribute Engine
 Every micro-tool execution securely passes performance indicators into a global statistical matrix . The matrix tracks 7 hidden, core vector attributes :
 
