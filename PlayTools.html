@@ -1291,9 +1291,10 @@ const ShareCard = (function(){
     const actions = el('div',{class:'modal-actions'});
     const dl = el('button',{class:'btn primary', html:'⬇ Download PNG'});
     const sh = el('button',{class:'btn', html:'↗ Share'});
+    const mail = el('button',{class:'btn', html:'✉ Email'});
     const cl = el('button',{class:'btn ghost', html:'Close'});
 
-    actions.append(dl, sh, cl);
+    actions.append(dl, sh, mail, cl);
     modal.append(close, h3, canvas, actions);
     backdrop.append(modal); root.append(backdrop);
     // Ensure any web fonts the card uses are decoded before drawing, then keep
@@ -1323,6 +1324,23 @@ const ShareCard = (function(){
           UI.toast('Copied','Share text copied to clipboard');
         }
       }catch(e){ /* user cancelled */ }
+    };
+
+    // Email — a mail client can't be handed an attachment programmatically
+    // (browser security), so download the card first (now ready in Downloads),
+    // then open the user's default mail app with a prefilled message that
+    // reminds them to attach the just-downloaded image.
+    mail.onclick = ()=>{
+      const a=document.createElement('a'); a.download=fname; a.href=canvas.toDataURL('image/png'); a.click();
+      const tag = Store.get().profile.gamerTag || 'A challenger';
+      const subject = '[PlayTools] '+tag+' — '+(data.tool||'Score');
+      const body = shareText
+        + '\n\n(Your card image "'+fname+'" was just downloaded — attach it to this email before sending!)'
+        + '\n\n— Sent from PlayTools';
+      const m=document.createElement('a');
+      m.href = 'mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+      m.style.display='none'; document.body.appendChild(m); m.click(); document.body.removeChild(m);
+      if(window.UI && UI.toast) UI.toast('Card downloaded','Attach the downloaded card to the email that just opened.');
     };
   }
 
