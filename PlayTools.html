@@ -940,6 +940,14 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='spacebar' && c.tps>=9 },
     { id:'content_creator', name:'Content Creator', icon:'✨', desc:'Use every Fun Lab generator at least once.',
       test:(d)=> !!(d.counters && d.counters.genChallenge && d.counters.genUsername && d.counters.genClan && d.counters.genLoadout && d.counters.genRoast) },
+    { id:'snake_charmer', name:'Snake Charmer', icon:'🐍', desc:'Grow to length 30 in Neon Snake.',
+      test:(d,c)=> (c && c.tool==='snake' && c.length>=30) || !!(d.counters && d.counters.snakeLong>=1) },
+    { id:'brick_buster', name:'Brick Buster', icon:'🧱', desc:'Clear an entire wall in Brick Breaker.',
+      test:(d,c)=> (c && c.tool==='bricks' && c.cleared) || !!(d.counters && d.counters.brickClears>=1) },
+    { id:'mole_masher', name:'Mole Masher', icon:'🔨', desc:'Whack 25 moles in a single round.',
+      test:(d,c)=> c && c.tool==='whack' && c.hits>=25 },
+    { id:'sequence_savant', name:'Sequence Savant', icon:'🟦', desc:'Recall a sequence of length 12 in Sequence.',
+      test:(d,c)=> c && c.tool==='sequence' && c.length>=12 },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -1256,7 +1264,15 @@ const CABINETS = [
   { id:'arcade_memory', lab:'Arcade', name:'Memory Match', railName:'Memory', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:'👾', tag:'mvp', route:'#/arcade/dodge',
-    desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' }
+    desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' },
+  { id:'arcade_snake', lab:'Arcade', name:'Neon Snake', railName:'Snake', icon:'🐍', tag:'mvp', route:'#/arcade/snake',
+    desc:'Steer the neon serpent, devour pellets & grow without biting your own tail.', dna:'Control +14 · Focus +6' },
+  { id:'arcade_bricks', lab:'Arcade', name:'Brick Breaker', railName:'Bricks', icon:'🧱', tag:'mvp', route:'#/arcade/bricks',
+    desc:'Bounce the ball, shatter every brick & keep the paddle under it.', dna:'Precision +12 · Reflex +6' },
+  { id:'arcade_whack', lab:'Arcade', name:'Whack-a-Mole', railName:'Whack', icon:'🔨', tag:'mvp', route:'#/arcade/whack',
+    desc:'Thirty seconds, nine holes — smack every mole the instant it pops up.', dna:'Reflex +14 · Speed +6' },
+  { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:'🟦', tag:'mvp', route:'#/arcade/sequence',
+    desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' }
 ];
 
 /* ============================================================================
@@ -4561,6 +4577,537 @@ Views.pixelDodge = function(c){
 };
 
 /* ============================================================================
+   RETRO ARCADE — Volume 2: Neon Snake, Brick Breaker, Whack-a-Mole, Sequence.
+   Shared helpers keep the four cabinets consistent: a mute-aware WebAudio blip,
+   a sound-toggle button bound to a per-game pref, and the standard arcade grade
+   curve. Like the other arcade games these are replayable, so toolsCompleted is
+   credited only on first run (see record* helpers) to keep the Gamer Score honest.
+   ============================================================================ */
+function makeBlip(muteKey){
+  let ac=null;
+  return function(freq, dur, type, vol){
+    if(Store.getPrefs()[muteKey]) return;
+    try{
+      ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime;
+      o.type=type||'square'; o.frequency.value=freq;
+      o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(vol||0.04, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      o.start(t); o.stop(t+dur);
+    }catch(e){}
+  };
+}
+function soundToggle(muteKey){
+  const b=el('button',{class:'btn ghost'});
+  const sync=()=> b.innerHTML = Store.getPrefs()[muteKey] ? '🔇 Sound Off' : '🔊 Sound On';
+  sync(); b.onclick=()=>{ Store.setPref(muteKey, !Store.getPrefs()[muteKey]); sync(); };
+  return b;
+}
+function arcadeGrade(comp){ return comp>=0.92?'S':comp>=0.8?'A':comp>=0.65?'B':comp>=0.45?'C':'F'; }
+
+/* ---- ARCADE.3 Neon Snake ---- */
+Views.snake = function(c){
+  const cab = getCab('arcade_snake');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('snakeMute');
+  const sndEat=()=> blip(740,0.05,'square',0.04);
+  const sndDie=()=> [200,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+
+  const GW=20, GH=20, CELL=18, W=GW*CELL, H=GH*CELL;
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('snakeMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▲ ▼ ▶ or W · A · S · D'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, raf=null, lastT=0, acc=0, stepMs=140;
+  let snake=[], dir={x:1,y:0}, nextDir={x:1,y:0}, food={x:0,y:0}, score=0;
+  const rnd=n=>Math.floor(Math.random()*n);
+
+  function placeFood(){ do{ food={x:rnd(GW), y:rnd(GH)}; } while(snake.some(s=>s.x===food.x && s.y===food.y)); }
+  function reset(){ snake=[{x:9,y:10},{x:8,y:10},{x:7,y:10}]; dir={x:1,y:0}; nextDir={x:1,y:0}; score=0; stepMs=140; acc=0; placeFood(); }
+  function setDir(nx,ny){ if(snake.length>1 && nx===-dir.x && ny===-dir.y) return; nextDir={x:nx,y:ny}; }
+
+  function renderHud(){
+    const best=(Store.get().bests.arcade_snake||{}).value||0;
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Length <b>${snake.length}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    ctx2d.strokeStyle='rgba(124,92,255,0.08)';
+    for(let i=0;i<=GW;i++){ ctx2d.beginPath(); ctx2d.moveTo(i*CELL,0); ctx2d.lineTo(i*CELL,H); ctx2d.stroke(); }
+    for(let j=0;j<=GH;j++){ ctx2d.beginPath(); ctx2d.moveTo(0,j*CELL); ctx2d.lineTo(W,j*CELL); ctx2d.stroke(); }
+    ctx2d.fillStyle='#ff3df0'; ctx2d.fillRect(food.x*CELL+3, food.y*CELL+3, CELL-6, CELL-6);
+    snake.forEach((s,i)=>{ ctx2d.fillStyle = i===0 ? '#16f2c8' : '#0fbf9e'; ctx2d.fillRect(s.x*CELL+1, s.y*CELL+1, CELL-2, CELL-2); });
+  }
+  function step(){
+    dir=nextDir;
+    const head={x:snake[0].x+dir.x, y:snake[0].y+dir.y};
+    if(head.x<0||head.x>=GW||head.y<0||head.y>=GH||snake.some(s=>s.x===head.x&&s.y===head.y)){ gameOver(); return; }
+    snake.unshift(head);
+    if(head.x===food.x && head.y===food.y){ score+=10; placeFood(); sndEat(); stepMs=Math.max(70, 140-snake.length*2); }
+    else snake.pop();
+  }
+  function frame(t){
+    if(!playing) return;
+    const now=t; if(!lastT) lastT=now;
+    acc += now-lastT; lastT=now;
+    while(acc>=stepMs){ acc-=stepMs; step(); if(!playing) return; }
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none';
+    reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=0; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null; sndDie();
+    startBtn.innerHTML='▶ START';
+    const len=snake.length;
+    const comp=clamp01(score/300), g=arcadeGrade(comp);
+    Attr.applyVector({control:14, focus:6, consistency:4}, comp);
+    recordSnakeRun(score, {length:len});
+    Ach.evaluate({tool:'snake', score, length:len});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Length ${len} · Score ${score}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Length</div><div class="v">${len}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_snake.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Neon Snake', glyph:'🐍', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Length', v:String(len)}],
+      designation: g==='S'?'Apex Serpent': g==='A'?'Coil Master': g==='B'?'Steady Slither':'Fresh Hatchling',
+      badge: len>=30?'Snake Charmer':null
+    }));
+  }
+  function onKey(e){
+    const k=e.key;
+    if(k==='ArrowLeft'||k==='a'||k==='A') setDir(-1,0);
+    else if(k==='ArrowRight'||k==='d'||k==='D') setDir(1,0);
+    else if(k==='ArrowUp'||k==='w'||k==='W') setDir(0,-1);
+    else if(k==='ArrowDown'||k==='s'||k==='S') setDir(0,1);
+    else if((k===' '||k==='Enter') && !playing){ startGame(); }
+    else return;
+    if(playing) e.preventDefault();
+  }
+  window.addEventListener('keydown', onKey);
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">NEON SNAKE</div><div class="small">Press START to slither</div>`;
+  return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; window.removeEventListener('keydown', onKey); };
+};
+
+/* ---- ARCADE.4 Brick Breaker ---- */
+Views.brickBreaker = function(c){
+  const cab = getCab('arcade_bricks');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('brickMute');
+  const sndHit=()=> blip(660,0.04,'square',0.04);
+  const sndPad=()=> blip(330,0.04,'triangle',0.04);
+  const sndLose=()=> [200,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+  const sndWin=()=> [523,659,784,1047].forEach((f,i)=> setTimeout(()=>blip(f,0.1,'square',0.05), i*90));
+
+  const W=360, H=300;
+  const COLS=7, ROWS=5, BW=44, BH=14, BGAP=4, BTOP=34, BLEFT=(W-(COLS*(BW+BGAP)-BGAP))/2;
+  const PAD_W=58, PAD_H=10, PAD_Y=H-22, BALL_R=5;
+  const COLORS=['#ff3df0','#ffd23d','#16f2c8','#7c5cff','#37e35b'];
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('brickMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▶ or A · D &nbsp;·&nbsp; move mouse to slide the paddle'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, raf=null, lastT=0;
+  let padX=W/2, keyDir=0, ball, bricks=[], score=0, lives=3, live=0;
+
+  function buildBricks(){
+    bricks=[];
+    for(let r=0;r<ROWS;r++) for(let col=0;col<COLS;col++){
+      bricks.push({ x:BLEFT+col*(BW+BGAP), y:BTOP+r*(BH+BGAP), w:BW, h:BH, alive:true, c:COLORS[r%COLORS.length] });
+    }
+    live=bricks.length;
+  }
+  function launchBall(){ ball={ x:W/2, y:PAD_Y-12, vx:(Math.random()<0.5?-1:1)*120, vy:-210, stuck:false }; }
+  function reset(){ padX=W/2; keyDir=0; score=0; lives=3; buildBricks(); launchBall(); }
+
+  function renderHud(){
+    const best=(Store.get().bests.arcade_bricks||{}).value||0;
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Lives <b>${lives}</b></span>
+      <span class="pill">Bricks <b>${live}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    bricks.forEach(b=>{ if(!b.alive) return;
+      ctx2d.fillStyle=b.c; ctx2d.fillRect(b.x,b.y,b.w,b.h);
+      ctx2d.fillStyle='rgba(255,255,255,0.18)'; ctx2d.fillRect(b.x,b.y,b.w,3);
+    });
+    ctx2d.fillStyle='#16f2c8'; ctx2d.fillRect(padX-PAD_W/2, PAD_Y, PAD_W, PAD_H);
+    ctx2d.fillStyle='#fff'; ctx2d.fillRect(ball.x-BALL_R, ball.y-BALL_R, BALL_R*2, BALL_R*2);
+  }
+  function loseLife(){
+    lives--;
+    if(lives<=0){ gameOver(false); return; }
+    sndLose(); launchBall();
+  }
+  function update(dt){
+    if(keyDir!==0) padX += keyDir*340*dt;
+    padX = Math.max(PAD_W/2, Math.min(W-PAD_W/2, padX));
+    ball.x += ball.vx*dt; ball.y += ball.vy*dt;
+    if(ball.x<BALL_R){ ball.x=BALL_R; ball.vx=Math.abs(ball.vx); }
+    if(ball.x>W-BALL_R){ ball.x=W-BALL_R; ball.vx=-Math.abs(ball.vx); }
+    if(ball.y<BALL_R){ ball.y=BALL_R; ball.vy=Math.abs(ball.vy); }
+    if(ball.y>H+BALL_R){ loseLife(); return; }
+    // paddle
+    if(ball.vy>0 && ball.y+BALL_R>=PAD_Y && ball.y-BALL_R<=PAD_Y+PAD_H && ball.x>=padX-PAD_W/2 && ball.x<=padX+PAD_W/2){
+      ball.y=PAD_Y-BALL_R; ball.vy=-Math.abs(ball.vy);
+      const off=(ball.x-padX)/(PAD_W/2); ball.vx += off*120; sndPad();
+      const sp=Math.min(340, Math.hypot(ball.vx,ball.vy)); const a=Math.atan2(ball.vy,ball.vx);
+      ball.vx=Math.cos(a)*sp; ball.vy=Math.sin(a)*sp;
+    }
+    // bricks
+    for(const b of bricks){
+      if(!b.alive) continue;
+      if(ball.x+BALL_R>b.x && ball.x-BALL_R<b.x+b.w && ball.y+BALL_R>b.y && ball.y-BALL_R<b.y+b.h){
+        b.alive=false; live--; score+=10; sndHit();
+        const fromSide = (ball.x<b.x || ball.x>b.x+b.w);
+        if(fromSide) ball.vx=-ball.vx; else ball.vy=-ball.vy;
+        if(live<=0){ gameOver(true); return; }
+        break;
+      }
+    }
+  }
+  function frame(t){
+    if(!playing) return;
+    const now=t/1000; let dt=now-lastT; lastT=now; if(dt>0.05) dt=0.05;
+    update(dt); if(!playing) return;
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none';
+    reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=performance.now()/1000; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(cleared){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    if(cleared) sndWin(); else sndLose();
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(score/350) * (cleared?1:0.85) + (cleared?0.1:0);
+    const g=arcadeGrade(clamp01(comp));
+    Attr.applyVector({precision:12, reflex:6, consistency:4}, clamp01(comp));
+    recordBrickRun(score, {cleared});
+    Ach.evaluate({tool:'bricks', score, cleared});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">${cleared?'WALL CLEARED':'GAME OVER'}</div><div class="small">Score ${score}${cleared?' · flawless wall!':''}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Bricks Left</div><div class="v">${live}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_bricks.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Brick Breaker', glyph:'🧱', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Bricks Left', v:String(live)}],
+      designation: g==='S'?'Wall Wrecker': g==='A'?'Ricochet Ace': g==='B'?'Steady Volley':'Loose Cannon',
+      badge: cleared?'Brick Buster':null
+    }));
+  }
+  function onKeyDown(e){
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){ keyDir=-1; if(playing) e.preventDefault(); }
+    else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){ keyDir=1; if(playing) e.preventDefault(); }
+    else if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); }
+  }
+  function onKeyUp(e){
+    if((e.key==='ArrowLeft'||e.key==='a'||e.key==='A') && keyDir<0) keyDir=0;
+    else if((e.key==='ArrowRight'||e.key==='d'||e.key==='D') && keyDir>0) keyDir=0;
+  }
+  function onMouse(e){ if(!playing) return; const rc=canvas.getBoundingClientRect(); padX=clamp01((e.clientX-rc.left)/rc.width)*W; keyDir=0; }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('mousemove', onMouse);
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">BRICK BREAKER</div><div class="small">Press START to serve</div>`;
+  return ()=>{
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
+    canvas.removeEventListener('mousemove', onMouse);
+  };
+};
+
+/* ---- ARCADE.5 Whack-a-Mole ---- */
+Views.whackMole = function(c){
+  const cab = getCab('arcade_whack');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('whackMute');
+  const sndHit=()=> blip(880,0.05,'square',0.05);
+  const sndPop=()=> blip(440,0.04,'triangle',0.03);
+  const sndEnd=()=> [523,659,784].forEach((f,i)=> setTimeout(()=>blip(f,0.1,'square',0.05), i*90));
+
+  const W=360, H=360, ROUND=30;
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('whackMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'Tap or click a mole the instant it pops up'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, raf=null, lastT=0, timeLeft=ROUND, spawnTimer=0;
+  let holes=[], hits=0, misses=0;
+  const CW=W/3, CH=H/3;
+
+  function reset(){
+    timeLeft=ROUND; spawnTimer=0.6; hits=0; misses=0;
+    holes=[]; for(let i=0;i<9;i++) holes.push({active:false, ttl:0});
+  }
+  function difficulty(){ return 1 + (ROUND-timeLeft)/ROUND; }   // ramps 1 -> 2
+  function spawn(){
+    const empty=holes.map((h,i)=>i).filter(i=>!holes[i].active);
+    if(!empty.length) return;
+    const idx=empty[Math.floor(Math.random()*empty.length)];
+    holes[idx].active=true; holes[idx].ttl=Math.max(0.45, 1.1/difficulty());
+    sndPop();
+  }
+  function renderHud(){
+    const best=(Store.get().bests.arcade_whack||{}).value||0;
+    hud.innerHTML = `<span class="pill">Time <b>${Math.ceil(timeLeft)}s</b></span>
+      <span class="pill">Hits <b>${hits}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    for(let i=0;i<9;i++){
+      const cx=(i%3)*CW+CW/2, cy=Math.floor(i/3)*CH+CH/2;
+      ctx2d.fillStyle='rgba(124,92,255,0.18)';
+      ctx2d.beginPath(); ctx2d.ellipse(cx, cy+18, CW*0.34, CH*0.18, 0, 0, Math.PI*2); ctx2d.fill();
+      if(holes[i].active){
+        ctx2d.fillStyle='#37e35b';
+        ctx2d.beginPath(); ctx2d.arc(cx, cy, CW*0.26, 0, Math.PI*2); ctx2d.fill();
+        ctx2d.fillStyle='#05030f';
+        ctx2d.beginPath(); ctx2d.arc(cx-9, cy-4, 3, 0, Math.PI*2); ctx2d.fill();
+        ctx2d.beginPath(); ctx2d.arc(cx+9, cy-4, 3, 0, Math.PI*2); ctx2d.fill();
+      }
+    }
+  }
+  function update(dt){
+    timeLeft-=dt;
+    if(timeLeft<=0){ timeLeft=0; gameOver(); return; }
+    spawnTimer-=dt;
+    if(spawnTimer<=0){ spawn(); spawnTimer=Math.max(0.35, 0.9/difficulty()); }
+    holes.forEach(h=>{ if(h.active){ h.ttl-=dt; if(h.ttl<=0){ h.active=false; misses++; } } });
+  }
+  function frame(t){
+    if(!playing) return;
+    const now=t/1000; let dt=now-lastT; lastT=now; if(dt>0.05) dt=0.05;
+    update(dt); if(!playing) return;
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none';
+    reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=performance.now()/1000; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null; sndEnd();
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(hits/30), g=arcadeGrade(comp);
+    Attr.applyVector({reflex:14, speed:6, focus:4}, comp);
+    recordWhackRun(hits, {misses});
+    Ach.evaluate({tool:'whack', hits});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${hits} whacked · ${misses} missed</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Hits</div><div class="v">${hits}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Missed</div><div class="v">${misses}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_whack.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Whack-a-Mole', glyph:'🔨', grade:g,
+      metric:[{k:'Hits', v:String(hits)}, {k:'Missed', v:String(misses)}],
+      designation: g==='S'?'Mallet Maestro': g==='A'?'Quick Hammer': g==='B'?'Steady Swing':'Slow Reflexes',
+      badge: hits>=25?'Mole Masher':null
+    }));
+  }
+  function onClick(e){
+    if(!playing) return;
+    const rc=canvas.getBoundingClientRect();
+    const x=(e.clientX-rc.left)/rc.width*W, y=(e.clientY-rc.top)/rc.height*H;
+    const idx=Math.floor(y/CH)*3 + Math.floor(x/CW);
+    if(idx<0||idx>8) return;
+    if(holes[idx] && holes[idx].active){ holes[idx].active=false; hits++; sndHit(); }
+    else { misses++; }
+  }
+  canvas.addEventListener('click', onClick);
+  function onStartKey(e){ if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); } }
+  window.addEventListener('keydown', onStartKey);
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">WHACK-A-MOLE</div><div class="small">Press START · 30 seconds</div>`;
+  return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
+};
+
+/* ---- ARCADE.6 Sequence (Simon) ---- */
+Views.sequence = function(c){
+  const cab = getCab('arcade_seq');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('seqMute');
+  const TONES=[330,415,494,622];
+  const PAD_COL=['#16f2c8','#ff3df0','#ffd23d','#7c5cff'];
+  const PAD_DIM=['#0c5e51','#5e1659','#5e4f16','#2d2160'];
+  const sndFail=()=> [220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+
+  const W=320, H=320;
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('seqMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'Watch the pattern, then tap it back in order'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, mode='idle', seq=[], inputIdx=0, score=0, active=-1, timers=[];
+  function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
+  const PADS=[ {x:0,y:0}, {x:1,y:0}, {x:0,y:1}, {x:1,y:1} ];
+
+  function renderHud(){
+    const best=(Store.get().bests.arcade_seq||{}).value||0;
+    hud.innerHTML = `<span class="pill">Round <b>${score}</b></span>
+      <span class="pill">Watching <b>${seq.length}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    PADS.forEach((p,i)=>{
+      ctx2d.fillStyle = (i===active) ? PAD_COL[i] : PAD_DIM[i];
+      ctx2d.fillRect(p.x*W/2+4, p.y*H/2+4, W/2-8, H/2-8);
+    });
+  }
+  function tone(i){ blip(TONES[i],0.22,'square',0.05); }
+  function flash(i, done){
+    active=i; draw(); tone(i);
+    const dur=Math.max(220, 480-seq.length*14);
+    timers.push(setTimeout(()=>{ active=-1; draw(); if(done) done(); }, dur));
+  }
+  function addStep(){ seq.push(Math.floor(Math.random()*4)); }
+  function playback(){
+    mode='watch'; renderHud(); let i=0;
+    function showNext(){
+      if(i>=seq.length){ mode='input'; inputIdx=0; draw(); return; }
+      flash(seq[i], ()=>{ i++; timers.push(setTimeout(showNext, 160)); });
+    }
+    timers.push(setTimeout(showNext, 450));
+  }
+  function startGame(){
+    clearTimers(); result.innerHTML=''; overlay.style.display='none';
+    seq=[]; score=0; inputIdx=0; active=-1; playing=true; startBtn.innerHTML='⟳ Restart';
+    addStep(); playback(); renderHud();
+  }
+  function press(i){
+    if(mode!=='input') return;
+    active=i; draw(); tone(i);
+    timers.push(setTimeout(()=>{ active=-1; draw(); }, 150));
+    if(i===seq[inputIdx]){
+      inputIdx++;
+      if(inputIdx===seq.length){
+        score=seq.length; renderHud(); mode='watch';
+        timers.push(setTimeout(()=>{ addStep(); playback(); }, 700));
+      }
+    } else { gameOver(); }
+  }
+  function gameOver(){
+    playing=false; mode='over'; clearTimers(); sndFail();
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(score/12), g=arcadeGrade(comp);
+    Attr.applyVector({focus:14, consistency:6}, comp);
+    recordSimonRun(score, {});
+    Ach.evaluate({tool:'sequence', length:score});
+    active=-1; draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Recalled ${score} step${score===1?'':'s'}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Sequence</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_seq.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Sequence', glyph:'🟦', grade:g,
+      metric:[{k:'Sequence', v:String(score)}],
+      designation: g==='S'?'Total Recall': g==='A'?'Pattern Ace': g==='B'?'Sharp Memory':'Short-Term',
+      badge: score>=12?'Sequence Savant':null
+    }));
+  }
+  function onClick(e){
+    if(mode!=='input') return;
+    const rc=canvas.getBoundingClientRect();
+    const x=(e.clientX-rc.left)/rc.width*W, y=(e.clientY-rc.top)/rc.height*H;
+    press((y<H/2?0:1)*2 + (x<W/2?0:1));
+  }
+  canvas.addEventListener('click', onClick);
+  function onStartKey(e){ if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); } }
+  window.addEventListener('keydown', onStartKey);
+  startBtn.onclick=startGame;
+  draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">SEQUENCE</div><div class="small">Press START to begin</div>`;
+  return ()=>{ playing=false; clearTimers(); canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
+};
+
+/* ============================================================================
    shared helpers for tool views
    ============================================================================ */
 // Defer to the OS "reduce motion" accessibility setting (no in-app toggle).
@@ -4621,6 +5168,46 @@ function recordDodgeRun(score, ctx){
     d.arcadePoints += Math.round(score/40);   // modest metagame contribution — avoids grind-farming the Gamer Score
     d.counters.dodgeRuns=(d.counters.dodgeRuns||0)+1;
     if(ctx && ctx.elapsed>=60) d.counters.dodgeMinute=(d.counters.dodgeMinute||0)+1;
+  });
+}
+// Arcade Vol.2 run recorders — same honest-Gamer-Score contract as Memory/Dodge:
+// toolsCompleted credited once, best metric + modest arcadePoints + counters each run.
+function recordSnakeRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_snake){ d.toolsCompleted++; d.bests.arcade_snake={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_snake.value){ d.bests.arcade_snake.value=score; }
+    d.arcadePoints += Math.round(score/20);
+    d.counters.snakeRuns=(d.counters.snakeRuns||0)+1;
+    if(ctx && ctx.length>=30) d.counters.snakeLong=(d.counters.snakeLong||0)+1;
+  });
+}
+function recordBrickRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_bricks){ d.toolsCompleted++; d.bests.arcade_bricks={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_bricks.value){ d.bests.arcade_bricks.value=score; }
+    d.arcadePoints += Math.round(score/25);
+    d.counters.brickRuns=(d.counters.brickRuns||0)+1;
+    if(ctx && ctx.cleared) d.counters.brickClears=(d.counters.brickClears||0)+1;
+  });
+}
+function recordWhackRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_whack){ d.toolsCompleted++; d.bests.arcade_whack={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_whack.value){ d.bests.arcade_whack.value=score; }
+    d.arcadePoints += Math.round(score/3);
+    d.counters.whackRuns=(d.counters.whackRuns||0)+1;
+  });
+}
+function recordSimonRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_seq){ d.toolsCompleted++; d.bests.arcade_seq={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_seq.value){ d.bests.arcade_seq.value=score; }
+    d.arcadePoints += Math.round(score*2);
+    d.counters.simonRuns=(d.counters.simonRuns||0)+1;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -5346,6 +5933,10 @@ Router.add('#/rpg/initiative', Views.initiative);
 Router.add('#/rpg/quest', Views.questGen);
 Router.add('#/arcade/memory', Views.memoryMatch);
 Router.add('#/arcade/dodge', Views.pixelDodge);
+Router.add('#/arcade/snake', Views.snake);
+Router.add('#/arcade/bricks', Views.brickBreaker);
+Router.add('#/arcade/whack', Views.whackMole);
+Router.add('#/arcade/sequence', Views.sequence);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/report', Views.dnaReport);
 Router.add('#/fun/challenge', Views.genChallenge);
