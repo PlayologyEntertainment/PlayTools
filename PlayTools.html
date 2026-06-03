@@ -1011,7 +1011,7 @@ const ShareCard = (function(){
   const FONTS = {
     'monospace':       { stack:'"DejaVu Sans Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace' },
     'sans-serif':      { stack:'"Trebuchet MS","Segoe UI",system-ui,sans-serif' },
-    'Press Start 2P':  { stack:"'Press Start 2P', monospace" },  /* embedded as base64 @font-face above — no CDN fetch */
+    'Press Start 2P':  { stack:"'Press Start 2P', monospace", embedded:true },  /* base64 @font-face above — no CDN fetch, but still needs explicit load() */
     'VT323':           { stack:"'VT323', monospace",          google:'VT323' },
     'Share Tech Mono': { stack:"'Share Tech Mono', monospace",google:'Share+Tech+Mono' },
     'Orbitron':        { stack:"'Orbitron', sans-serif",      google:'Orbitron:wght@400;700;900' },
@@ -1020,22 +1020,31 @@ const ShareCard = (function(){
   };
   function fam(name){ return (FONTS[name] && FONTS[name].stack) || name; }
 
-  // Lazy-inject the Google Fonts stylesheet(s) for any web fonts in `names`, then
-  // resolve once they're decoded so the canvas draws with the real glyphs (not a
-  // fallback). Degrades gracefully: missing document.fonts or offline -> resolves
-  // anyway and the CSS stack's system fallback is used.
+  // Make sure every non-system font the card uses is actually decoded before we
+  // draw, so the canvas paints real glyphs (not a fallback) on the very first
+  // call. CDN fonts get their stylesheet injected on demand; embedded base64
+  // faces still need an explicit document.fonts.load() — canvas text, unlike DOM
+  // text, does not trigger font loading on its own. Degrades gracefully: missing
+  // document.fonts or offline -> resolves anyway and the CSS stack's system
+  // fallback is used.
   const _fontLinks = {};
   function ensureFonts(names){
     if(!(typeof document!=='undefined' && document.fonts)) return Promise.resolve();
-    const need = [...new Set(names)].filter(n => FONTS[n] && FONTS[n].google);
-    need.forEach(n => {
+    const need = [...new Set(names)].filter(n => FONTS[n] && (FONTS[n].google || FONTS[n].embedded));
+    need.filter(n => FONTS[n].google).forEach(n => {
       if(_fontLinks[n]) return;
       _fontLinks[n] = true;
       const link = document.createElement('link'); link.rel='stylesheet';
       link.href = 'https://fonts.googleapis.com/css2?family='+FONTS[n].google+'&display=swap';
       document.head.appendChild(link);
     });
-    return Promise.all(need.map(n => document.fonts.load("700 16px '"+n+"'").catch(()=>{}))).then(()=>{});
+    // Load each face at the weights the card draws (400 + 700) so it's ready.
+    const jobs = [];
+    need.forEach(n => {
+      jobs.push(document.fonts.load("400 16px '"+n+"'").catch(()=>{}));
+      jobs.push(document.fonts.load("700 16px '"+n+"'").catch(()=>{}));
+    });
+    return Promise.all(jobs).then(()=>{});
   }
 
   // Font families referenced by the active THEME, so ensureFonts() can preload
