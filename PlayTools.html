@@ -623,8 +623,12 @@
   }
 
   @media(max-width:900px){
+    /* Below this width the rail can no longer sit beside the content, so the
+       grid collapses to one column. Hide the rail entirely here (rather than
+       letting it stack full-width on top of the Lobby and push it out of view)
+       — every cabinet is also reachable from the Arcade Lobby. */
     .layout{grid-template-columns:1fr;}
-    nav.rail{position:static;}
+    nav.rail{display:none;}
     .dna-layout{grid-template-columns:1fr;}
   }
 
@@ -641,9 +645,6 @@
       font-size:clamp(9px, 3vw, 12px); letter-spacing:0;
     }
     .score-strip .sep{ margin:0 3px; }
-    /* The arcade shortcut rail is hidden on mobile — every cabinet is already
-       listed in the Arcade Lobby, so we drop the sidebar to save vertical space. */
-    nav.rail{ display:none; }
   }
 </style>
 </head>
