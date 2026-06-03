@@ -940,6 +940,14 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='spacebar' && c.tps>=9 },
     { id:'content_creator', name:'Content Creator', icon:'✨', desc:'Use every Fun Lab generator at least once.',
       test:(d)=> !!(d.counters && d.counters.genChallenge && d.counters.genUsername && d.counters.genClan && d.counters.genLoadout && d.counters.genRoast) },
+    { id:'snake_charmer', name:'Snake Charmer', icon:'🐍', desc:'Grow to length 30 in Neon Snake.',
+      test:(d,c)=> (c && c.tool==='snake' && c.length>=30) || !!(d.counters && d.counters.snakeLong>=1) },
+    { id:'brick_buster', name:'Brick Buster', icon:'🧱', desc:'Clear an entire wall in Brick Breaker.',
+      test:(d,c)=> (c && c.tool==='bricks' && c.cleared) || !!(d.counters && d.counters.brickClears>=1) },
+    { id:'mole_masher', name:'Mole Masher', icon:'🔨', desc:'Whack 25 moles in a single round.',
+      test:(d,c)=> c && c.tool==='whack' && c.hits>=25 },
+    { id:'sequence_savant', name:'Sequence Savant', icon:'🟦', desc:'Recall a sequence of length 12 in Sequence.',
+      test:(d,c)=> c && c.tool==='sequence' && c.length>=12 },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -1247,10 +1255,24 @@ const CABINETS = [
   // Foundation pass: remaining labs are visible but locked (coming soon).
   { id:'dice_lab',   lab:'RPG', name:'Dice Roller', railName:'Dice', icon:'🎲', tag:'mvp', route:'#/dice/roller',
     desc:'Polyhedral dice, modifiers, advantage & notation.', dna:'Strategy +6 · fortune favors' },
+  { id:'rpg_npc',    lab:'RPG', name:'NPC Generator', railName:'NPC', icon:'🧙', tag:'mvp', route:'#/rpg/npc',
+    desc:'Conjure a full NPC — name, race, class, alignment, quirk, secret & rolled stats.', dna:'Strategy +4 · Focus +2' },
+  { id:'rpg_init',   lab:'RPG', name:'Initiative Tracker', railName:'Initiative', icon:'⚔️', tag:'mvp', route:'#/rpg/initiative',
+    desc:'Auto-roll initiative, sort the turn order & track HP through the fight.', dna:'Strategy +3 · runs the table' },
+  { id:'rpg_quest',  lab:'RPG', name:'Quest & Tavern', railName:'Quest', icon:'📜', tag:'mvp', route:'#/rpg/quest',
+    desc:'Improv seeds on demand — quest hooks, taverns, barkeeps & rumours.', dna:'Strategy +4 · spins a yarn' },
   { id:'arcade_memory', lab:'Arcade', name:'Memory Match', railName:'Memory', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:'👾', tag:'mvp', route:'#/arcade/dodge',
-    desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' }
+    desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' },
+  { id:'arcade_snake', lab:'Arcade', name:'Neon Snake', railName:'Snake', icon:'🐍', tag:'mvp', route:'#/arcade/snake',
+    desc:'Steer the neon serpent, devour pellets & grow without biting your own tail.', dna:'Control +14 · Focus +6' },
+  { id:'arcade_bricks', lab:'Arcade', name:'Brick Breaker', railName:'Bricks', icon:'🧱', tag:'mvp', route:'#/arcade/bricks',
+    desc:'Bounce the ball, shatter every brick & keep the paddle under it.', dna:'Precision +12 · Reflex +6' },
+  { id:'arcade_whack', lab:'Arcade', name:'Whack-a-Mole', railName:'Whack', icon:'🔨', tag:'mvp', route:'#/arcade/whack',
+    desc:'Thirty seconds, nine holes — smack every mole the instant it pops up.', dna:'Reflex +14 · Speed +6' },
+  { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:'🟦', tag:'mvp', route:'#/arcade/sequence',
+    desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' }
 ];
 
 /* ============================================================================
@@ -3886,6 +3908,244 @@ Views.diceRoller = function(c){
 };
 
 /* ============================================================================
+   RPG LAB — DM Toolkit: NPC Generator, Initiative Tracker, Quest & Tavern Gen.
+   Generators are replayable (one click), so — like the Dice Roller — they credit
+   toolsCompleted only on first use to keep the Gamer Score honest, while still
+   tracking runs + counters every time and nudging the Strategy attribute.
+   ============================================================================ */
+
+const RPG_DATA = {
+  given:  ['Aldric','Bryn','Cassia','Dorn','Elowen','Fendrel','Greta','Halvard','Isolde','Joss','Kethra','Lorne','Mirabel','Nox','Orrin','Pell','Quill','Rhea','Sorrel','Thane','Ulia','Varrick','Wren','Yorath','Zara','Brannock','Sable','Tamsin','Garrick','Maelis'],
+  epithet:['the Bold','the Quiet','Ironhand','Quickfinger','the Grey','Stormborn','of the Hollow','Brightblade','the Cunning','Ashweaver','Thorne','the Lost','Embereye','the Unbroken'],
+  race:   ['Human','Elf','Half-Elf','Dwarf','Halfling','Half-Orc','Gnome','Tiefling','Dragonborn','Goblin','Aasimar','Firbolg'],
+  cls:    ['Fighter','Wizard','Rogue','Cleric','Bard','Ranger','Paladin','Barbarian','Druid','Sorcerer','Warlock','Monk'],
+  align:  ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral','True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil'],
+  quirk:  ['never breaks eye contact','hums an old war ballad','collects pressed flowers','speaks of themselves in the third person','flinches at loud noises','always smells faintly of cloves','counts their coins obsessively','refuses to sit with their back to a door','laughs at the wrong moments','keeps a pet raven named Sorrow','quotes scripture they half-remember','has mismatched eyes','taps a nervous rhythm','wears a dead rival’s ring'],
+  secret: ['is secretly nobility in hiding','owes a debt to a devil','is the long-lost heir to the throne','spies for a rival city','murdered their mentor years ago','carries a cursed relic they cannot discard','is not who they claim to be','knows where the dragon’s hoard lies','is dying and hides the sickness','smuggles contraband through the docks','can hear the dead whispering','betrayed the party once before'],
+  quest:  {
+    patron:['a desperate village elder','a hooded stranger in the tavern','the local magistrate','a frightened merchant','a dying knight','the temple’s high priestess','a talking raven','a guild of thieves','an exiled prince','a grieving widow'],
+    verb:  ['recover','escort','destroy','investigate','protect','deliver','sabotage','retrieve','rescue','hunt down'],
+    target:['a stolen relic from the sunken crypt','a caravan through the haunted pass','the nest of a rampaging chimera','strange lights seen over the old mill','a witness before assassins find them','a sealed letter to a rival lord','the supply lines of a marauding warband','an heirloom blade lost in the marsh','a child taken by goblins','the beast terrorising the northern farms'],
+    twist: ['the patron is lying about the reward','a rival party hunts the same prize','the target is cursed','time runs out at the next full moon','someone in the party is being watched','the quest-giver will betray you at the end','the truth is far worse than promised','a storm is closing the only road'],
+    reward:['200 gold and a noble’s favour','a minor magic item of your choice','safe lodging for a year','the deed to a small plot of land','word of your true enemy','a seat at the lord’s table','a trained warhorse','a vial of rare elixir']
+  },
+  tavern: {
+    adj:  ['Gilded','Rusty','Prancing','Drunken','Silver','Black','Laughing','Salty','Crooked','Sleeping','Roaring','Broken'],
+    noun: ['Tankard','Griffon','Anchor','Lantern','Boar','Mermaid','Crown','Dagger','Barrel','Dragon','Stag','Wheel'],
+    keep: ['a one-eyed ex-pirate','a motherly half-orc','a nervous gnome','a retired adventurer','a sharp-tongued elf','twin halfling brothers','a brooding former knight','a cheerful dwarf'],
+    rumor:['the old mine reopened, and no one who enters returns','the baron hasn’t been seen in a fortnight','a dragon was spotted circling the eastern peaks','the river ran red for three days last spring','there’s a price on a stranger matching your description','the graveyard has been disturbed again','a fortune lies in the ship that sank offshore','the woods have grown quiet — too quiet']
+  }
+};
+function rpgPick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+function recordNpc(){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.rpg_npc){ d.toolsCompleted++; d.bests.rpg_npc={value:1, mode:'max'}; }
+    d.counters.npcsRolled=(d.counters.npcsRolled||0)+1;
+  });
+}
+function recordQuest(){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.rpg_quest){ d.toolsCompleted++; d.bests.rpg_quest={value:1, mode:'max'}; }
+    d.counters.questsRolled=(d.counters.questsRolled||0)+1;
+  });
+}
+// Initiative Tracker is a utility, not a scored run: credit toolsCompleted once on
+// first use and count the encounter — but don't inflate the run counter per combatant.
+function recordInitiative(){
+  Store.update(d=>{
+    if(!d.bests.rpg_init){ d.toolsCompleted++; d.bests.rpg_init={value:1, mode:'max'}; }
+    d.counters.combatsTracked=(d.counters.combatsTracked||0)+1;
+  });
+}
+
+/* ---- RPG.1 NPC Generator ---- */
+Views.npcGen = function(c){
+  const cab = getCab('rpg_npc');
+  const panel = toolShell(c, cab);
+  const ABIL = ['STR','DEX','CON','INT','WIS','CHA'];
+
+  const ctrls = el('div',{class:'controls-row'});
+  const genBtn = el('button',{class:'btn primary', html:'🧙 Generate NPC'});
+  ctrls.append(genBtn);
+  const card = el('div',{style:'margin-top:14px; padding:16px; border:1px solid var(--line); border-radius:12px; background:rgba(124,92,255,0.06)'});
+  const shareHolder = el('div',{});
+  panel.append(ctrls, card, shareHolder);
+
+  function gen(){
+    const name  = rpgPick(RPG_DATA.given) + (Math.random()<0.5 ? ' '+rpgPick(RPG_DATA.epithet) : '');
+    const race  = rpgPick(RPG_DATA.race), cls = rpgPick(RPG_DATA.cls), align = rpgPick(RPG_DATA.align);
+    const quirk = rpgPick(RPG_DATA.quirk), secret = rpgPick(RPG_DATA.secret);
+    const scores = ABIL.map(()=> DiceEngine.roll({n:4,sides:6,op:'kh',k:3,mod:0}).total);
+
+    card.innerHTML='';
+    card.append(
+      el('div',{style:'font-size:26px; font-weight:800; color:var(--neon); letter-spacing:.5px', text:name}),
+      el('div',{class:'muted', style:'margin:2px 0 12px', text:`${align} · ${race} · ${cls}`})
+    );
+    const grid = el('div',{class:'results', style:'margin:0'});
+    ABIL.forEach((k,i)=>{ const t=el('div',{class:'result-tile'}); t.innerHTML=`<div class="k">${k}</div><div class="v">${scores[i]}</div>`; grid.append(t); });
+    card.append(grid,
+      el('div',{style:'margin-top:12px', html:`<strong style="color:var(--neon-3)">Quirk:</strong> ${quirk}.`}),
+      el('div',{style:'margin-top:4px', html:`<strong style="color:var(--neon-2)">Secret:</strong> ${secret}.`})
+    );
+
+    recordNpc();
+    Attr.applyVector({strategy:4, focus:2}, 0.55);
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'TABLETOP / RPG', tool:'NPC Generator', glyph:'🧙',
+      metric:[{k:'Name', v:name}, {k:'Build', v:`${race} ${cls}`}, {k:'Align', v:align}],
+      designation: cls, badge:null
+    }));
+  }
+
+  genBtn.onclick = gen;
+  gen();
+  return ()=>{};
+};
+
+/* ---- RPG.2 Initiative Tracker ---- */
+Views.initiative = function(c){
+  const cab = getCab('rpg_init');
+  const panel = toolShell(c, cab);
+  const KEY = 'pt_initiative';
+  let credited = false;
+
+  function load(){ try{ const o=JSON.parse(localStorage.getItem(KEY)||'null'); if(o && Array.isArray(o.list)) return o; }catch(e){} return {list:[], turn:0, round:1}; }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+  let state = load();
+
+  // add form
+  const form  = el('div',{class:'dice-row', style:'gap:8px; flex-wrap:wrap; align-items:flex-end'});
+  const nameF = el('div',{class:'field', style:'flex:2; min-width:160px', html:'<label>Combatant</label>'});
+  const nameI = el('input',{type:'text', placeholder:'Goblin Archer'}); nameF.append(nameI);
+  const modF  = el('div',{class:'field', style:'width:90px', html:'<label>Init Mod</label>'});
+  const modI  = el('input',{type:'number', value:'0', step:'1'}); modF.append(modI);
+  const hpF   = el('div',{class:'field', style:'width:90px', html:'<label>HP</label>'});
+  const hpI   = el('input',{type:'number', value:'10', min:'1', step:'1'}); hpF.append(hpI);
+  const addB  = el('button',{class:'btn', html:'+ Add', style:'align-self:flex-end'});
+  form.append(nameF, modF, hpF, addB);
+
+  const actions = el('div',{class:'controls-row'});
+  const rollB  = el('button',{class:'btn primary', html:'🎲 Roll Initiative'});
+  const nextB  = el('button',{class:'btn', html:'⏭ Next Turn'});
+  const resetB = el('button',{class:'btn ghost', html:'♻ Reset'});
+  actions.append(rollB, nextB, resetB);
+
+  const status  = el('div',{class:'muted', style:'margin:8px 0'});
+  const listBox = el('div',{});
+  panel.append(form, actions, status, listBox);
+
+  function add(){
+    const name=(nameI.value||'').trim();
+    if(!name){ UI.toast('Name needed','Enter a combatant name first.'); return; }
+    const mod=parseInt(modI.value,10)||0, hp=Math.max(1, parseInt(hpI.value,10)||1);
+    state.list.push({name, mod, init:null, hp, maxHp:hp});
+    nameI.value=''; modI.value='0'; hpI.value='10';
+    if(!credited){ recordInitiative(); credited=true; Attr.applyVector({strategy:3}, 0.5); }
+    save(); render(); nameI.focus();
+  }
+  function rollInit(){
+    if(!state.list.length){ UI.toast('No combatants','Add some fighters first.'); return; }
+    state.list.forEach(x=> x.init = DiceEngine.roll({n:1,sides:20,op:null,k:null,mod:x.mod}).total);
+    state.list.sort((a,b)=> b.init-a.init);
+    state.turn=0; state.round=1; save(); render();
+  }
+  function next(){
+    if(!state.list.length) return;
+    state.turn++;
+    if(state.turn>=state.list.length){ state.turn=0; state.round++; }
+    save(); render();
+  }
+  function reset(){ state={list:[], turn:0, round:1}; save(); render(); }
+  function adjHp(i, delta){ const x=state.list[i]; if(!x) return; x.hp=Math.max(0, x.hp+delta); save(); render(); }
+  function remove(i){ state.list.splice(i,1); if(state.turn>=state.list.length) state.turn=0; save(); render(); }
+
+  function render(){
+    const rolled = state.list.some(x=>x.init!=null);
+    const active = state.list[state.turn] || {};
+    status.innerHTML = state.list.length
+      ? `Round <strong style="color:var(--neon)">${state.round}</strong> · ${state.list.length} combatant${state.list.length>1?'s':''}${rolled?` · <strong>${active.name||''}</strong>’s turn`:''}`
+      : 'Add combatants, then roll initiative.';
+    listBox.innerHTML='';
+    if(!state.list.length){ listBox.append(el('div',{class:'empty', html:'No combatants yet.'})); return; }
+    state.list.forEach((x,i)=>{
+      const on = rolled && i===state.turn, dead = x.hp<=0;
+      const row = el('div',{style:`display:flex; align-items:center; gap:10px; padding:8px 10px; margin:4px 0; border-radius:8px; border:1px solid ${on?'var(--neon)':'var(--line)'}; background:${on?'rgba(22,242,200,0.08)':'rgba(124,92,255,0.04)'}`});
+      row.append(
+        el('div',{style:'min-width:34px; text-align:center; font-weight:800; color:var(--neon-3)', text: x.init!=null?String(x.init):'—'}),
+        el('div',{style:`flex:1; font-weight:600${dead?'; text-decoration:line-through; opacity:.6':''}`, text:x.name}),
+        el('div',{style:`min-width:74px; text-align:right; color:${dead?'var(--danger)':'var(--ink-dim)'}`, html:`❤ ${x.hp}/${x.maxHp}`}),
+        el('button',{class:'btn ghost', style:'padding:2px 9px', html:'−', onclick:()=>adjHp(i,-1)}),
+        el('button',{class:'btn ghost', style:'padding:2px 9px', html:'+', onclick:()=>adjHp(i,1)}),
+        el('button',{class:'btn ghost', style:'padding:2px 9px', html:'✕', onclick:()=>remove(i)})
+      );
+      listBox.append(row);
+    });
+  }
+
+  addB.onclick=add; rollB.onclick=rollInit; nextB.onclick=next; resetB.onclick=reset;
+  nameI.addEventListener('keydown', e=>{ if(e.key==='Enter') add(); });
+  render();
+  return ()=>{};
+};
+
+/* ---- RPG.3 Quest & Tavern Generator ---- */
+Views.questGen = function(c){
+  const cab = getCab('rpg_quest');
+  const panel = toolShell(c, cab);
+  const Q = RPG_DATA.quest, T = RPG_DATA.tavern;
+  function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+  function stripArticle(s){ return s.replace(/^(a |an |the )/i,''); }
+
+  const ctrls = el('div',{class:'controls-row'});
+  const qBtn = el('button',{class:'btn primary', html:'📜 New Quest'});
+  const tBtn = el('button',{class:'btn', html:'🍺 New Tavern'});
+  ctrls.append(qBtn, tBtn);
+  const out = el('div',{style:'margin-top:14px; padding:16px; border:1px solid var(--line); border-radius:12px; background:rgba(124,92,255,0.06); min-height:60px; line-height:1.6'});
+  const shareHolder = el('div',{});
+  panel.append(ctrls, out, shareHolder);
+
+  function quest(){
+    const patron=rpgPick(Q.patron), verb=rpgPick(Q.verb), target=rpgPick(Q.target), twist=rpgPick(Q.twist), reward=rpgPick(Q.reward);
+    out.innerHTML = `<div style="font-size:13px; color:var(--neon); letter-spacing:1px; font-weight:700">QUEST HOOK</div>
+      <p style="margin:8px 0 0">${cap(patron)} needs you to <strong style="color:var(--neon-3)">${verb}</strong> ${target}.</p>
+      <p style="margin:8px 0 0"><strong style="color:var(--neon-2)">Complication:</strong> ${cap(twist)}.</p>
+      <p style="margin:8px 0 0"><strong style="color:var(--neon-5)">Reward:</strong> ${cap(reward)}.</p>`;
+    recordQuest();
+    Attr.applyVector({strategy:4}, 0.55);
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'TABLETOP / RPG', tool:'Quest Generator', glyph:'📜',
+      metric:[{k:'Objective', v:cap(verb)+' '+stripArticle(target)}, {k:'Reward', v:cap(reward)}],
+      designation:'Quest Giver', badge:null
+    }));
+  }
+  function tavern(){
+    const name=`The ${rpgPick(T.adj)} ${rpgPick(T.noun)}`, keep=rpgPick(T.keep), rumor=rpgPick(T.rumor);
+    out.innerHTML = `<div style="font-size:13px; color:var(--neon); letter-spacing:1px; font-weight:700">TAVERN</div>
+      <p style="margin:8px 0 0; font-size:22px; font-weight:800; color:var(--neon-3)">${name}</p>
+      <p style="margin:6px 0 0">Run by ${keep}.</p>
+      <p style="margin:8px 0 0"><strong style="color:var(--neon-2)">Overheard:</strong> “…${rumor}.”</p>`;
+    recordQuest();
+    Attr.applyVector({strategy:2, focus:2}, 0.5);
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'TABLETOP / RPG', tool:'Tavern Generator', glyph:'🍺',
+      metric:[{k:'Tavern', v:name}, {k:'Barkeep', v:cap(keep)}],
+      designation:'Barfly', badge:null
+    }));
+  }
+
+  qBtn.onclick=quest; tBtn.onclick=tavern;
+  quest();
+  return ()=>{};
+};
+
+/* ============================================================================
    RETRO ARCADE — Memory Match (DD §5.5)
    Classic flip-and-match pairs on a retro grid. Selectable difficulty that
    escalates (Easy→Medium→Hard); evaluates visual memory recall. Feeds Focus
@@ -4317,6 +4577,537 @@ Views.pixelDodge = function(c){
 };
 
 /* ============================================================================
+   RETRO ARCADE — Volume 2: Neon Snake, Brick Breaker, Whack-a-Mole, Sequence.
+   Shared helpers keep the four cabinets consistent: a mute-aware WebAudio blip,
+   a sound-toggle button bound to a per-game pref, and the standard arcade grade
+   curve. Like the other arcade games these are replayable, so toolsCompleted is
+   credited only on first run (see record* helpers) to keep the Gamer Score honest.
+   ============================================================================ */
+function makeBlip(muteKey){
+  let ac=null;
+  return function(freq, dur, type, vol){
+    if(Store.getPrefs()[muteKey]) return;
+    try{
+      ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime;
+      o.type=type||'square'; o.frequency.value=freq;
+      o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(vol||0.04, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      o.start(t); o.stop(t+dur);
+    }catch(e){}
+  };
+}
+function soundToggle(muteKey){
+  const b=el('button',{class:'btn ghost'});
+  const sync=()=> b.innerHTML = Store.getPrefs()[muteKey] ? '🔇 Sound Off' : '🔊 Sound On';
+  sync(); b.onclick=()=>{ Store.setPref(muteKey, !Store.getPrefs()[muteKey]); sync(); };
+  return b;
+}
+function arcadeGrade(comp){ return comp>=0.92?'S':comp>=0.8?'A':comp>=0.65?'B':comp>=0.45?'C':'F'; }
+
+/* ---- ARCADE.3 Neon Snake ---- */
+Views.snake = function(c){
+  const cab = getCab('arcade_snake');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('snakeMute');
+  const sndEat=()=> blip(740,0.05,'square',0.04);
+  const sndDie=()=> [200,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+
+  const GW=20, GH=20, CELL=18, W=GW*CELL, H=GH*CELL;
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('snakeMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▲ ▼ ▶ or W · A · S · D'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, raf=null, lastT=0, acc=0, stepMs=140;
+  let snake=[], dir={x:1,y:0}, nextDir={x:1,y:0}, food={x:0,y:0}, score=0;
+  const rnd=n=>Math.floor(Math.random()*n);
+
+  function placeFood(){ do{ food={x:rnd(GW), y:rnd(GH)}; } while(snake.some(s=>s.x===food.x && s.y===food.y)); }
+  function reset(){ snake=[{x:9,y:10},{x:8,y:10},{x:7,y:10}]; dir={x:1,y:0}; nextDir={x:1,y:0}; score=0; stepMs=140; acc=0; placeFood(); }
+  function setDir(nx,ny){ if(snake.length>1 && nx===-dir.x && ny===-dir.y) return; nextDir={x:nx,y:ny}; }
+
+  function renderHud(){
+    const best=(Store.get().bests.arcade_snake||{}).value||0;
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Length <b>${snake.length}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    ctx2d.strokeStyle='rgba(124,92,255,0.08)';
+    for(let i=0;i<=GW;i++){ ctx2d.beginPath(); ctx2d.moveTo(i*CELL,0); ctx2d.lineTo(i*CELL,H); ctx2d.stroke(); }
+    for(let j=0;j<=GH;j++){ ctx2d.beginPath(); ctx2d.moveTo(0,j*CELL); ctx2d.lineTo(W,j*CELL); ctx2d.stroke(); }
+    ctx2d.fillStyle='#ff3df0'; ctx2d.fillRect(food.x*CELL+3, food.y*CELL+3, CELL-6, CELL-6);
+    snake.forEach((s,i)=>{ ctx2d.fillStyle = i===0 ? '#16f2c8' : '#0fbf9e'; ctx2d.fillRect(s.x*CELL+1, s.y*CELL+1, CELL-2, CELL-2); });
+  }
+  function step(){
+    dir=nextDir;
+    const head={x:snake[0].x+dir.x, y:snake[0].y+dir.y};
+    if(head.x<0||head.x>=GW||head.y<0||head.y>=GH||snake.some(s=>s.x===head.x&&s.y===head.y)){ gameOver(); return; }
+    snake.unshift(head);
+    if(head.x===food.x && head.y===food.y){ score+=10; placeFood(); sndEat(); stepMs=Math.max(70, 140-snake.length*2); }
+    else snake.pop();
+  }
+  function frame(t){
+    if(!playing) return;
+    const now=t; if(!lastT) lastT=now;
+    acc += now-lastT; lastT=now;
+    while(acc>=stepMs){ acc-=stepMs; step(); if(!playing) return; }
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none';
+    reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=0; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null; sndDie();
+    startBtn.innerHTML='▶ START';
+    const len=snake.length;
+    const comp=clamp01(score/300), g=arcadeGrade(comp);
+    Attr.applyVector({control:14, focus:6, consistency:4}, comp);
+    recordSnakeRun(score, {length:len});
+    Ach.evaluate({tool:'snake', score, length:len});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Length ${len} · Score ${score}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Length</div><div class="v">${len}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_snake.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Neon Snake', glyph:'🐍', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Length', v:String(len)}],
+      designation: g==='S'?'Apex Serpent': g==='A'?'Coil Master': g==='B'?'Steady Slither':'Fresh Hatchling',
+      badge: len>=30?'Snake Charmer':null
+    }));
+  }
+  function onKey(e){
+    const k=e.key;
+    if(k==='ArrowLeft'||k==='a'||k==='A') setDir(-1,0);
+    else if(k==='ArrowRight'||k==='d'||k==='D') setDir(1,0);
+    else if(k==='ArrowUp'||k==='w'||k==='W') setDir(0,-1);
+    else if(k==='ArrowDown'||k==='s'||k==='S') setDir(0,1);
+    else if((k===' '||k==='Enter') && !playing){ startGame(); }
+    else return;
+    if(playing) e.preventDefault();
+  }
+  window.addEventListener('keydown', onKey);
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">NEON SNAKE</div><div class="small">Press START to slither</div>`;
+  return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; window.removeEventListener('keydown', onKey); };
+};
+
+/* ---- ARCADE.4 Brick Breaker ---- */
+Views.brickBreaker = function(c){
+  const cab = getCab('arcade_bricks');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('brickMute');
+  const sndHit=()=> blip(660,0.04,'square',0.04);
+  const sndPad=()=> blip(330,0.04,'triangle',0.04);
+  const sndLose=()=> [200,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+  const sndWin=()=> [523,659,784,1047].forEach((f,i)=> setTimeout(()=>blip(f,0.1,'square',0.05), i*90));
+
+  const W=360, H=300;
+  const COLS=7, ROWS=5, BW=44, BH=14, BGAP=4, BTOP=34, BLEFT=(W-(COLS*(BW+BGAP)-BGAP))/2;
+  const PAD_W=58, PAD_H=10, PAD_Y=H-22, BALL_R=5;
+  const COLORS=['#ff3df0','#ffd23d','#16f2c8','#7c5cff','#37e35b'];
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('brickMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▶ or A · D &nbsp;·&nbsp; move mouse to slide the paddle'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, raf=null, lastT=0;
+  let padX=W/2, keyDir=0, ball, bricks=[], score=0, lives=3, live=0;
+
+  function buildBricks(){
+    bricks=[];
+    for(let r=0;r<ROWS;r++) for(let col=0;col<COLS;col++){
+      bricks.push({ x:BLEFT+col*(BW+BGAP), y:BTOP+r*(BH+BGAP), w:BW, h:BH, alive:true, c:COLORS[r%COLORS.length] });
+    }
+    live=bricks.length;
+  }
+  function launchBall(){ ball={ x:W/2, y:PAD_Y-12, vx:(Math.random()<0.5?-1:1)*120, vy:-210, stuck:false }; }
+  function reset(){ padX=W/2; keyDir=0; score=0; lives=3; buildBricks(); launchBall(); }
+
+  function renderHud(){
+    const best=(Store.get().bests.arcade_bricks||{}).value||0;
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Lives <b>${lives}</b></span>
+      <span class="pill">Bricks <b>${live}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    bricks.forEach(b=>{ if(!b.alive) return;
+      ctx2d.fillStyle=b.c; ctx2d.fillRect(b.x,b.y,b.w,b.h);
+      ctx2d.fillStyle='rgba(255,255,255,0.18)'; ctx2d.fillRect(b.x,b.y,b.w,3);
+    });
+    ctx2d.fillStyle='#16f2c8'; ctx2d.fillRect(padX-PAD_W/2, PAD_Y, PAD_W, PAD_H);
+    ctx2d.fillStyle='#fff'; ctx2d.fillRect(ball.x-BALL_R, ball.y-BALL_R, BALL_R*2, BALL_R*2);
+  }
+  function loseLife(){
+    lives--;
+    if(lives<=0){ gameOver(false); return; }
+    sndLose(); launchBall();
+  }
+  function update(dt){
+    if(keyDir!==0) padX += keyDir*340*dt;
+    padX = Math.max(PAD_W/2, Math.min(W-PAD_W/2, padX));
+    ball.x += ball.vx*dt; ball.y += ball.vy*dt;
+    if(ball.x<BALL_R){ ball.x=BALL_R; ball.vx=Math.abs(ball.vx); }
+    if(ball.x>W-BALL_R){ ball.x=W-BALL_R; ball.vx=-Math.abs(ball.vx); }
+    if(ball.y<BALL_R){ ball.y=BALL_R; ball.vy=Math.abs(ball.vy); }
+    if(ball.y>H+BALL_R){ loseLife(); return; }
+    // paddle
+    if(ball.vy>0 && ball.y+BALL_R>=PAD_Y && ball.y-BALL_R<=PAD_Y+PAD_H && ball.x>=padX-PAD_W/2 && ball.x<=padX+PAD_W/2){
+      ball.y=PAD_Y-BALL_R; ball.vy=-Math.abs(ball.vy);
+      const off=(ball.x-padX)/(PAD_W/2); ball.vx += off*120; sndPad();
+      const sp=Math.min(340, Math.hypot(ball.vx,ball.vy)); const a=Math.atan2(ball.vy,ball.vx);
+      ball.vx=Math.cos(a)*sp; ball.vy=Math.sin(a)*sp;
+    }
+    // bricks
+    for(const b of bricks){
+      if(!b.alive) continue;
+      if(ball.x+BALL_R>b.x && ball.x-BALL_R<b.x+b.w && ball.y+BALL_R>b.y && ball.y-BALL_R<b.y+b.h){
+        b.alive=false; live--; score+=10; sndHit();
+        const fromSide = (ball.x<b.x || ball.x>b.x+b.w);
+        if(fromSide) ball.vx=-ball.vx; else ball.vy=-ball.vy;
+        if(live<=0){ gameOver(true); return; }
+        break;
+      }
+    }
+  }
+  function frame(t){
+    if(!playing) return;
+    const now=t/1000; let dt=now-lastT; lastT=now; if(dt>0.05) dt=0.05;
+    update(dt); if(!playing) return;
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none';
+    reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=performance.now()/1000; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(cleared){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    if(cleared) sndWin(); else sndLose();
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(score/350) * (cleared?1:0.85) + (cleared?0.1:0);
+    const g=arcadeGrade(clamp01(comp));
+    Attr.applyVector({precision:12, reflex:6, consistency:4}, clamp01(comp));
+    recordBrickRun(score, {cleared});
+    Ach.evaluate({tool:'bricks', score, cleared});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">${cleared?'WALL CLEARED':'GAME OVER'}</div><div class="small">Score ${score}${cleared?' · flawless wall!':''}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Bricks Left</div><div class="v">${live}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_bricks.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Brick Breaker', glyph:'🧱', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Bricks Left', v:String(live)}],
+      designation: g==='S'?'Wall Wrecker': g==='A'?'Ricochet Ace': g==='B'?'Steady Volley':'Loose Cannon',
+      badge: cleared?'Brick Buster':null
+    }));
+  }
+  function onKeyDown(e){
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){ keyDir=-1; if(playing) e.preventDefault(); }
+    else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){ keyDir=1; if(playing) e.preventDefault(); }
+    else if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); }
+  }
+  function onKeyUp(e){
+    if((e.key==='ArrowLeft'||e.key==='a'||e.key==='A') && keyDir<0) keyDir=0;
+    else if((e.key==='ArrowRight'||e.key==='d'||e.key==='D') && keyDir>0) keyDir=0;
+  }
+  function onMouse(e){ if(!playing) return; const rc=canvas.getBoundingClientRect(); padX=clamp01((e.clientX-rc.left)/rc.width)*W; keyDir=0; }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('mousemove', onMouse);
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">BRICK BREAKER</div><div class="small">Press START to serve</div>`;
+  return ()=>{
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
+    canvas.removeEventListener('mousemove', onMouse);
+  };
+};
+
+/* ---- ARCADE.5 Whack-a-Mole ---- */
+Views.whackMole = function(c){
+  const cab = getCab('arcade_whack');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('whackMute');
+  const sndHit=()=> blip(880,0.05,'square',0.05);
+  const sndPop=()=> blip(440,0.04,'triangle',0.03);
+  const sndEnd=()=> [523,659,784].forEach((f,i)=> setTimeout(()=>blip(f,0.1,'square',0.05), i*90));
+
+  const W=360, H=360, ROUND=30;
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('whackMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'Tap or click a mole the instant it pops up'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, raf=null, lastT=0, timeLeft=ROUND, spawnTimer=0;
+  let holes=[], hits=0, misses=0;
+  const CW=W/3, CH=H/3;
+
+  function reset(){
+    timeLeft=ROUND; spawnTimer=0.6; hits=0; misses=0;
+    holes=[]; for(let i=0;i<9;i++) holes.push({active:false, ttl:0});
+  }
+  function difficulty(){ return 1 + (ROUND-timeLeft)/ROUND; }   // ramps 1 -> 2
+  function spawn(){
+    const empty=holes.map((h,i)=>i).filter(i=>!holes[i].active);
+    if(!empty.length) return;
+    const idx=empty[Math.floor(Math.random()*empty.length)];
+    holes[idx].active=true; holes[idx].ttl=Math.max(0.45, 1.1/difficulty());
+    sndPop();
+  }
+  function renderHud(){
+    const best=(Store.get().bests.arcade_whack||{}).value||0;
+    hud.innerHTML = `<span class="pill">Time <b>${Math.ceil(timeLeft)}s</b></span>
+      <span class="pill">Hits <b>${hits}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    for(let i=0;i<9;i++){
+      const cx=(i%3)*CW+CW/2, cy=Math.floor(i/3)*CH+CH/2;
+      ctx2d.fillStyle='rgba(124,92,255,0.18)';
+      ctx2d.beginPath(); ctx2d.ellipse(cx, cy+18, CW*0.34, CH*0.18, 0, 0, Math.PI*2); ctx2d.fill();
+      if(holes[i].active){
+        ctx2d.fillStyle='#37e35b';
+        ctx2d.beginPath(); ctx2d.arc(cx, cy, CW*0.26, 0, Math.PI*2); ctx2d.fill();
+        ctx2d.fillStyle='#05030f';
+        ctx2d.beginPath(); ctx2d.arc(cx-9, cy-4, 3, 0, Math.PI*2); ctx2d.fill();
+        ctx2d.beginPath(); ctx2d.arc(cx+9, cy-4, 3, 0, Math.PI*2); ctx2d.fill();
+      }
+    }
+  }
+  function update(dt){
+    timeLeft-=dt;
+    if(timeLeft<=0){ timeLeft=0; gameOver(); return; }
+    spawnTimer-=dt;
+    if(spawnTimer<=0){ spawn(); spawnTimer=Math.max(0.35, 0.9/difficulty()); }
+    holes.forEach(h=>{ if(h.active){ h.ttl-=dt; if(h.ttl<=0){ h.active=false; misses++; } } });
+  }
+  function frame(t){
+    if(!playing) return;
+    const now=t/1000; let dt=now-lastT; lastT=now; if(dt>0.05) dt=0.05;
+    update(dt); if(!playing) return;
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none';
+    reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=performance.now()/1000; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null; sndEnd();
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(hits/30), g=arcadeGrade(comp);
+    Attr.applyVector({reflex:14, speed:6, focus:4}, comp);
+    recordWhackRun(hits, {misses});
+    Ach.evaluate({tool:'whack', hits});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${hits} whacked · ${misses} missed</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Hits</div><div class="v">${hits}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Missed</div><div class="v">${misses}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_whack.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Whack-a-Mole', glyph:'🔨', grade:g,
+      metric:[{k:'Hits', v:String(hits)}, {k:'Missed', v:String(misses)}],
+      designation: g==='S'?'Mallet Maestro': g==='A'?'Quick Hammer': g==='B'?'Steady Swing':'Slow Reflexes',
+      badge: hits>=25?'Mole Masher':null
+    }));
+  }
+  function onClick(e){
+    if(!playing) return;
+    const rc=canvas.getBoundingClientRect();
+    const x=(e.clientX-rc.left)/rc.width*W, y=(e.clientY-rc.top)/rc.height*H;
+    const idx=Math.floor(y/CH)*3 + Math.floor(x/CW);
+    if(idx<0||idx>8) return;
+    if(holes[idx] && holes[idx].active){ holes[idx].active=false; hits++; sndHit(); }
+    else { misses++; }
+  }
+  canvas.addEventListener('click', onClick);
+  function onStartKey(e){ if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); } }
+  window.addEventListener('keydown', onStartKey);
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">WHACK-A-MOLE</div><div class="small">Press START · 30 seconds</div>`;
+  return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
+};
+
+/* ---- ARCADE.6 Sequence (Simon) ---- */
+Views.sequence = function(c){
+  const cab = getCab('arcade_seq');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('seqMute');
+  const TONES=[330,415,494,622];
+  const PAD_COL=['#16f2c8','#ff3df0','#ffd23d','#7c5cff'];
+  const PAD_DIM=['#0c5e51','#5e1659','#5e4f16','#2d2160'];
+  const sndFail=()=> [220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+
+  const W=320, H=320;
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('seqMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'Watch the pattern, then tap it back in order'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stage, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  let playing=false, mode='idle', seq=[], inputIdx=0, score=0, active=-1, timers=[];
+  function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
+  const PADS=[ {x:0,y:0}, {x:1,y:0}, {x:0,y:1}, {x:1,y:1} ];
+
+  function renderHud(){
+    const best=(Store.get().bests.arcade_seq||{}).value||0;
+    hud.innerHTML = `<span class="pill">Round <b>${score}</b></span>
+      <span class="pill">Watching <b>${seq.length}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+  function draw(){
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    PADS.forEach((p,i)=>{
+      ctx2d.fillStyle = (i===active) ? PAD_COL[i] : PAD_DIM[i];
+      ctx2d.fillRect(p.x*W/2+4, p.y*H/2+4, W/2-8, H/2-8);
+    });
+  }
+  function tone(i){ blip(TONES[i],0.22,'square',0.05); }
+  function flash(i, done){
+    active=i; draw(); tone(i);
+    const dur=Math.max(220, 480-seq.length*14);
+    timers.push(setTimeout(()=>{ active=-1; draw(); if(done) done(); }, dur));
+  }
+  function addStep(){ seq.push(Math.floor(Math.random()*4)); }
+  function playback(){
+    mode='watch'; renderHud(); let i=0;
+    function showNext(){
+      if(i>=seq.length){ mode='input'; inputIdx=0; draw(); return; }
+      flash(seq[i], ()=>{ i++; timers.push(setTimeout(showNext, 160)); });
+    }
+    timers.push(setTimeout(showNext, 450));
+  }
+  function startGame(){
+    clearTimers(); result.innerHTML=''; overlay.style.display='none';
+    seq=[]; score=0; inputIdx=0; active=-1; playing=true; startBtn.innerHTML='⟳ Restart';
+    addStep(); playback(); renderHud();
+  }
+  function press(i){
+    if(mode!=='input') return;
+    active=i; draw(); tone(i);
+    timers.push(setTimeout(()=>{ active=-1; draw(); }, 150));
+    if(i===seq[inputIdx]){
+      inputIdx++;
+      if(inputIdx===seq.length){
+        score=seq.length; renderHud(); mode='watch';
+        timers.push(setTimeout(()=>{ addStep(); playback(); }, 700));
+      }
+    } else { gameOver(); }
+  }
+  function gameOver(){
+    playing=false; mode='over'; clearTimers(); sndFail();
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(score/12), g=arcadeGrade(comp);
+    Attr.applyVector({focus:14, consistency:6}, comp);
+    recordSimonRun(score, {});
+    Ach.evaluate({tool:'sequence', length:score});
+    active=-1; draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Recalled ${score} step${score===1?'':'s'}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Sequence</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_seq.value}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Sequence', glyph:'🟦', grade:g,
+      metric:[{k:'Sequence', v:String(score)}],
+      designation: g==='S'?'Total Recall': g==='A'?'Pattern Ace': g==='B'?'Sharp Memory':'Short-Term',
+      badge: score>=12?'Sequence Savant':null
+    }));
+  }
+  function onClick(e){
+    if(mode!=='input') return;
+    const rc=canvas.getBoundingClientRect();
+    const x=(e.clientX-rc.left)/rc.width*W, y=(e.clientY-rc.top)/rc.height*H;
+    press((y<H/2?0:1)*2 + (x<W/2?0:1));
+  }
+  canvas.addEventListener('click', onClick);
+  function onStartKey(e){ if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); } }
+  window.addEventListener('keydown', onStartKey);
+  startBtn.onclick=startGame;
+  draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">SEQUENCE</div><div class="small">Press START to begin</div>`;
+  return ()=>{ playing=false; clearTimers(); canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
+};
+
+/* ============================================================================
    shared helpers for tool views
    ============================================================================ */
 // Defer to the OS "reduce motion" accessibility setting (no in-app toggle).
@@ -4377,6 +5168,46 @@ function recordDodgeRun(score, ctx){
     d.arcadePoints += Math.round(score/40);   // modest metagame contribution — avoids grind-farming the Gamer Score
     d.counters.dodgeRuns=(d.counters.dodgeRuns||0)+1;
     if(ctx && ctx.elapsed>=60) d.counters.dodgeMinute=(d.counters.dodgeMinute||0)+1;
+  });
+}
+// Arcade Vol.2 run recorders — same honest-Gamer-Score contract as Memory/Dodge:
+// toolsCompleted credited once, best metric + modest arcadePoints + counters each run.
+function recordSnakeRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_snake){ d.toolsCompleted++; d.bests.arcade_snake={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_snake.value){ d.bests.arcade_snake.value=score; }
+    d.arcadePoints += Math.round(score/20);
+    d.counters.snakeRuns=(d.counters.snakeRuns||0)+1;
+    if(ctx && ctx.length>=30) d.counters.snakeLong=(d.counters.snakeLong||0)+1;
+  });
+}
+function recordBrickRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_bricks){ d.toolsCompleted++; d.bests.arcade_bricks={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_bricks.value){ d.bests.arcade_bricks.value=score; }
+    d.arcadePoints += Math.round(score/25);
+    d.counters.brickRuns=(d.counters.brickRuns||0)+1;
+    if(ctx && ctx.cleared) d.counters.brickClears=(d.counters.brickClears||0)+1;
+  });
+}
+function recordWhackRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_whack){ d.toolsCompleted++; d.bests.arcade_whack={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_whack.value){ d.bests.arcade_whack.value=score; }
+    d.arcadePoints += Math.round(score/3);
+    d.counters.whackRuns=(d.counters.whackRuns||0)+1;
+  });
+}
+function recordSimonRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_seq){ d.toolsCompleted++; d.bests.arcade_seq={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_seq.value){ d.bests.arcade_seq.value=score; }
+    d.arcadePoints += Math.round(score*2);
+    d.counters.simonRuns=(d.counters.simonRuns||0)+1;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -5097,8 +5928,15 @@ Router.add('#/setup/aspect', Views.aspect);
 Router.add('#/setup/refresh', Views.refresh);
 Router.add('#/setup/session', Views.session);
 Router.add('#/dice/roller', Views.diceRoller);
+Router.add('#/rpg/npc', Views.npcGen);
+Router.add('#/rpg/initiative', Views.initiative);
+Router.add('#/rpg/quest', Views.questGen);
 Router.add('#/arcade/memory', Views.memoryMatch);
 Router.add('#/arcade/dodge', Views.pixelDodge);
+Router.add('#/arcade/snake', Views.snake);
+Router.add('#/arcade/bricks', Views.brickBreaker);
+Router.add('#/arcade/whack', Views.whackMole);
+Router.add('#/arcade/sequence', Views.sequence);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/report', Views.dnaReport);
 Router.add('#/fun/challenge', Views.genChallenge);
