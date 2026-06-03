@@ -1675,7 +1675,7 @@ Views.dna = function(c){
 
   const actions = el('div',{class:'controls-row'});
   const saveBtn = el('button',{class:'btn primary', html:'💾 Save Profile'});
-  const dummyBtn = el('button',{class:'btn ghost', html:'⚙ Manual Stat Entry'});
+  const dummyBtn = el('button',{class:'btn ghost', html:'🔗 Platform Link'});
   const resetBtn = el('button',{class:'btn danger ghost', html:'⟲ Reset Gamer DNA'});
   actions.append(saveBtn, dummyBtn, resetBtn);
   panel.append(actions);
@@ -1701,7 +1701,7 @@ Views.dna = function(c){
     UI.applyAccent(Store.get().profile.accent);
     UI.toast('Saved','Gamer DNA profile updated.');
   };
-  dummyBtn.onclick = ()=> UI.toast('Coming Soon','Manual KPI entry & platform parser arrive in a later build.');
+  dummyBtn.onclick = ()=> UI.toast('Coming Soon','Platform Link — paste your public profile, no login required — arrives in a later build.');
   resetBtn.onclick = ()=>{
     if(confirm('Reset your entire Gamer DNA profile? This clears attributes, achievements and identity. Cannot be undone.')){
       Store.reset(); UI.applyAccent(Store.get().profile.accent); Router.go('#/dna'); UI.toast('Reset','Fresh profile created.');

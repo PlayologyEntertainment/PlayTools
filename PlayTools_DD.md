@@ -75,8 +75,10 @@ Users can manually declare or import their presence profiles across digital gami
     * **Data Overwrite Policy:** If an import payload matches an existing entry in the user's local Friends List, the system updates the profile with the newer dataset, overwriting old records seamlessly.
 * **Achievement Showcase Engine:** Extracts top milestone tags across imported datasets and lays them out into a pixelated display wall inside the main interface .
 
-##### 3.1.2.1 MVP Implementation Spec (Platform Parser + Manual KPI Panel) — v1 (Locked)
+##### 3.1.2.1 MVP Implementation Spec (Platform Link) — v1 (Locked)
 This subsection narrows the vision above into a build-ready specification for the first implementation pass. Where it refines an earlier statement (e.g. category aggregation), this locked spec governs the MVP.
+
+**Customer-Facing Name.** The feature ships to users as **Platform Link** (shorthand **"Link"**) — covering both the paste parser and the manual KPI panel. To avoid implying live OAuth/account-linking (the feature is deliberately paste-based and zero-auth per §1.3), the UI pairs the name with expectation-setting subcopy, e.g. *"Paste your public profile — no login, no account linking."*
 
 **Architecture — strictly client-only.** The parser is a paste-driven, in-browser engine. There is no backend, no proxy server, and no API keys. All parsing executes locally via `DOMParser` (XML/HTML) and `JSON.parse` (JSON), consistent with the product's Browser-Only Execution principle (§1.3).
 
@@ -117,7 +119,7 @@ platforms: {
 
 **Attribute Integration (boundary).** Imported platform statistics **do not** feed the 7 core skill vectors of the Mathematical Attribute Engine (§3.1.3). Because client storage is openly user-editable (§6.2), keeping externally-declared stats out of the Gamer Score preserves the integrity of skill-derived rankings. Platform data instead drives: the Achievement Showcase wall, a library/veteran flair, and the unlock condition for the **Controller Wizard** achievement (§6.2 — "3 platform cards filled"). Each platform card renders through the existing Universal Share Card canvas + email pipeline (§6.1).
 
-**Placement.** Route `#/dna/platforms` hosts the panel: a list/grid of platform cards leading to a detail view with an **Import** tab (Steam only) and a **Manual** tab (all platforms).
+**Placement.** Route `#/dna/platforms` hosts the **Platform Link** panel: a list/grid of platform cards leading to a detail view with an **Import** tab (Steam only) and a **Manual** tab (all platforms).
 
 **Deferred.** The Gaming Journal feature and trend/analytics visualizations are out of scope for v1; the timestamped-snapshot model preserves the data needed to add analytics later without migration.
 
