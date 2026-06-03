@@ -112,12 +112,14 @@ platforms: {
 
 **Field Schema.**
 * *Shared (all cards):* handle · profile URL · region · member-since · verification toggle · free-form custom key→value rows.
-* *`game` cards add:* games owned · total hours · optional category buckets (see below) · a repeatable per-title block (title, rank/tier, peak, wins, losses, K/D, auto win-rate).
+* *`game` cards add:* games owned · total hours · an optional Top-Games list · a repeatable per-title KPI block — title, rank/tier, wins, losses, K/D (auto win-rate), plus an **add/remove list of user-defined custom stat fields** per game (e.g. Headshot %, Level, MMR).
 * *`social` cards add:* followers · subscribers · partner/affiliate or Nitro status · average viewers (Twitch) · server count (Discord).
 
 **Steam (manual in v1).** See the implementation note above — client-only auto-import is blocked by Steam's deprecation of community XML, so Steam is entered by hand like the other `game` platforms (profile name, library size, total hours, top titles, per-game KPIs). A `DOMParser`/JSON paste parser plus Web-API-key option remains a candidate for a later pass.
 
-**Category Bucketing (refines §3.1.2 aggregation).** The engine auto-computes and displays **accurate total hours + top games** from parsed data. The FPS/RPG/RTS/Sim genre split is an **optional manual field**, not auto-derived — no reliable genre source exists client-side, and curated genre maps decay over time. This supersedes the earlier implication that category playtime is auto-aggregated.
+**Category Bucketing — dropped.** The earlier FPS/RPG/RTS/Sim hour-split fields were removed: with no reliable client-side genre source they were manual busywork. Library shape is captured instead by total hours + the Top-Games list, and any genre/category the user cares about can go in a per-game custom KPI field.
+
+**Gamer DNA surfacing.** The Gamer DNA hub (§3.1) renders each linked platform's **full detail inline** — brand mark, handle, library stats, Top-Games, and every per-game KPI (including custom fields) and custom field — with a button through to manage them on Platform Link.
 
 **Attribute Integration (boundary).** Imported platform statistics **do not** feed the 7 core skill vectors of the Mathematical Attribute Engine (§3.1.3). Because client storage is openly user-editable (§6.2), keeping externally-declared stats out of the Gamer Score preserves the integrity of skill-derived rankings. Platform data instead drives: the Achievement Showcase wall, a library/veteran flair, and the unlock condition for the **Controller Wizard** achievement (§6.2 — "3 platform cards filled"). Each platform card renders through the existing Universal Share Card canvas + email pipeline (§6.1).
 

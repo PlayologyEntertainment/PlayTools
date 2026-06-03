@@ -259,8 +259,8 @@
   .pl-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:16px 0;}
   .pl-card{display:block; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:16px; cursor:pointer; transition:.15s; position:relative;}
   .pl-card:hover{border-color:var(--neon); box-shadow:0 0 16px rgba(22,242,200,0.18); transform:translateY(-2px);}
-  .pl-card .pl-ico{line-height:0; display:inline-flex;}
-  .pl-card .pl-ico svg{display:block;}
+  .pl-ico{line-height:0; display:inline-flex;}
+  .pl-ico svg{display:block;}
   .pl-title-ico{display:inline-flex; vertical-align:-0.14em; margin-right:2px;}
   .pl-card .pl-name{font-family:var(--pixel); color:#fff; font-size:15px; margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
   .pl-card .pl-status{font-size:12px; margin-top:9px; color:var(--ink-dim); line-height:1.5;}
@@ -282,6 +282,11 @@
   .pl-games li{display:flex; justify-content:space-between; gap:12px; padding:4px 0; border-bottom:1px solid rgba(124,92,255,0.12);}
   .pl-games li span:last-child{color:var(--neon); font-family:var(--mono); flex:0 0 auto;}
   .pl-check{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-dim); margin:4px 0;}
+  .pl-kpi-card{background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:10px;}
+  .pl-kpi-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .pl-wr{flex:0 0 auto; align-self:center; font-family:var(--mono); font-size:12px; color:var(--neon); white-space:nowrap;}
+  .pl-dna-plat{margin:10px 0;}
+  .pl-dna-plat > .pl-name{display:flex; align-items:center; gap:8px; font-family:var(--pixel); color:#fff; font-size:14px;}
 
   /* ---- Attribute radar / bars ---- */
   .dna-layout{display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:start;}
@@ -1809,6 +1814,26 @@ Views.dna = function(c){
   shareRow.append(expBtn, mailBtn, friendsBtn);
   panel.append(shareRow);
 
+  // ---- linked platforms (DD §3.1.2.1) ----
+  panel.append(el('h2',{class:'sub', text:'Linked Platforms'}));
+  const plats = Store.getPlatforms();
+  const platIds = Object.keys(plats);
+  if(!platIds.length){
+    panel.append(el('p',{class:'muted', html:'No platforms linked yet. Add Steam, Epic, Discord or Twitch on <strong>Platform Link</strong>.'}));
+  } else {
+    panel.append(el('p',{class:'muted', html:`Your ${platIds.length} linked platform${platIds.length>1?'s':''}, pulled from <strong>Platform Link</strong>.`}));
+    platIds.forEach(pid=>{
+      const plat = getPlat(pid); if(!plat) return;   // skip platforms no longer offered
+      const block = el('div',{class:'pl-dna-plat'});
+      const head = el('div',{class:'pl-name'});
+      head.append(el('span',{class:'pl-ico', html:platLogo(plat,22)}), el('span',{text:plat.name}),
+        el('span',{class:'pl-badge '+plat.type, text:plat.type}));
+      block.append(head, plSummaryEl(plats[pid].current||{}, plat, true));
+      panel.append(block);
+    });
+  }
+  panel.append(el('button',{class:'btn', style:'margin-top:6px;', html:'🔗 Manage Platform Link', onclick:()=> Router.go('#/dna/platforms')}));
+
   // ---- achievements ----
   panel.append(el('h2',{class:'sub', text:'Achievements'}));
   const ag = el('div',{class:'ach-grid'});
@@ -2321,11 +2346,79 @@ function plRowGroup(cols, initial, addLabel){
   return { el: wrap, collect };
 }
 
-/* ---- snapshot → read-only summary element (used for preview + linked state) ---- */
-function plSummaryEl(snap, plat){
+/* ---- Per-game KPI editor: structured stats (Game/Rank/W/L/K-D + auto win-rate)
+        plus an add/remove list of custom stat fields per game. ---- */
+function plKpiEditor(initial){
+  const list = el('div',{});
+  function addGame(v){
+    v = v||{};
+    const card = el('div',{class:'pl-kpi-card'});
+
+    const head = el('div',{class:'pl-kpi-head'});
+    const rm = el('button',{class:'btn ghost pl-x', html:'✕ Remove game', onclick:()=> card.remove()});
+    head.append(el('span',{class:'muted', style:'font-size:11px;letter-spacing:1px;text-transform:uppercase;', text:'Game'}), rm);
+    card.append(head);
+
+    const gRow = el('div',{class:'pl-row'});
+    const gameI = plInput('text', v.game, 'Game title'); gameI.setAttribute('data-k','game'); gameI.style.flex='2';
+    const rankI = plInput('text', v.rank, 'Rank / Tier'); rankI.setAttribute('data-k','rank');
+    gRow.append(gameI, rankI);
+    card.append(gRow);
+
+    const sRow = el('div',{class:'pl-row'});
+    const winsI = plInput('number', v.wins, 'Wins'); winsI.setAttribute('data-k','wins');
+    const lossI = plInput('number', v.losses, 'Losses'); lossI.setAttribute('data-k','losses');
+    const kdI = plInput('number', v.kd, 'K/D'); kdI.setAttribute('data-k','kd');
+    const wr = el('span',{class:'pl-wr'});
+    function updWr(){
+      const w=parseFloat(winsI.value), l=parseFloat(lossI.value);
+      wr.textContent = (!isNaN(w) && !isNaN(l) && (w+l)>0) ? Math.round(w/(w+l)*100)+'% WR' : '';
+    }
+    winsI.addEventListener('input',updWr); lossI.addEventListener('input',updWr); updWr();
+    sRow.append(winsI, lossI, kdI, wr);
+    card.append(sRow);
+
+    const fieldsList = el('div',{});
+    function addField(f){
+      f=f||{};
+      const fr = el('div',{class:'pl-row pl-field-row'});
+      const lbl = plInput('text', f.label, 'Field (e.g. Headshot %)'); lbl.setAttribute('data-fk','label');
+      const val = plInput('text', f.value, 'Value'); val.setAttribute('data-fk','value');
+      const fx = el('button',{class:'btn ghost pl-x', html:'✕', title:'Remove field', onclick:()=> fr.remove()});
+      fr.append(lbl, val, fx);
+      fieldsList.append(fr);
+    }
+    (v.fields||[]).forEach(addField);
+    card.append(fieldsList);
+    card.append(el('button',{class:'btn ghost', style:'font-size:12px;margin-top:2px;', html:'+ Add field', onclick:()=> addField({})}));
+
+    list.append(card);
+  }
+  (initial||[]).forEach(addGame);
+  const add = el('button',{class:'btn ghost', style:'margin-top:8px;', html:'+ Add a game', onclick:()=> addGame({})});
+  const wrap = el('div',{}); wrap.append(list, add);
+  function collect(){
+    return [].slice.call(list.children).map(card=>{
+      const o = { fields:[] };
+      card.querySelectorAll('input[data-k]').forEach(i=> o[i.getAttribute('data-k')] = i.value.trim());
+      card.querySelectorAll('.pl-field-row').forEach(fr=>{
+        const lbl=(fr.querySelector('[data-fk="label"]')||{}).value || '';
+        const val=(fr.querySelector('[data-fk="value"]')||{}).value || '';
+        if(lbl.trim() || val.trim()) o.fields.push({ label:lbl.trim(), value:val.trim() });
+      });
+      return o;
+    }).filter(o=> o.game || o.rank || o.wins || o.losses || o.kd || o.fields.length);
+  }
+  return { el: wrap, collect };
+}
+
+/* ---- snapshot → read-only summary element (used for preview, linked state,
+        and the Gamer DNA page). `full` shows more games + custom fields. ---- */
+function plSummaryEl(snap, plat, full){
   const box = el('div',{class:'pl-summary'});
   const id = snap.identity||{}, lib = snap.library||{};
   if(id.handle) box.append(el('div',{class:'pl-name', style:'font-size:16px;color:#fff;', text:'@'+id.handle}));
+  if(id.profileUrl) box.append(el('div',{class:'muted', style:'font-size:11px;word-break:break-all;margin-top:2px;', text:id.profileUrl}));
   const row = el('div',{class:'pl-stat-row'});
   function stat(k,v){
     const s = el('span'); s.append(el('span',{class:'k', text:k}), el('br'), el('b',{text:String(v)}));
@@ -2340,14 +2433,17 @@ function plSummaryEl(snap, plat){
     if(s.followers!=null && s.followers!=='') stat('Followers', Number(s.followers).toLocaleString());
     if(s.subs!=null && s.subs!=='') stat('Subs', Number(s.subs).toLocaleString());
     if(s.status) stat('Status', s.status);
+    if(s.avgViewers!=null && s.avgViewers!=='') stat('Avg Viewers', Number(s.avgViewers).toLocaleString());
+    if(s.serverCount!=null && s.serverCount!=='') stat('Servers', Number(s.serverCount).toLocaleString());
   }
   if(id.region) stat('Region', id.region);
+  if(id.memberSince) stat('Member Since', id.memberSince);
   if(id.verified) stat('Verified', '✔ clean');
   if(row.children.length) box.append(row);
   if(lib.topGames && lib.topGames.length){
     box.append(el('div',{class:'k', style:'margin-top:12px;', text:'Top games'}));
     const ul = el('ul',{class:'pl-games'});
-    lib.topGames.slice(0,5).forEach(g=>{
+    lib.topGames.slice(0, full?15:5).forEach(g=>{
       const li = el('li'); li.append(el('span',{text:g.name}), el('span',{text:(g.hours?g.hours+'h':'—')}));
       ul.append(li);
     });
@@ -2362,7 +2458,17 @@ function plSummaryEl(snap, plat){
       if(k.losses!=null && k.losses!=='') bits.push(k.losses+'L');
       if(k.kd) bits.push('K/D '+k.kd);
       if(k.winRate!=null) bits.push(k.winRate+'%');
+      (k.fields||[]).forEach(f=>{ if(f.label||f.value) bits.push((f.label?f.label+': ':'')+(f.value||'')); });
       const li=el('li'); li.append(el('span',{text:k.game||'—'}), el('span',{text:bits.join(' · ')||'—'}));
+      ul.append(li);
+    });
+    box.append(ul);
+  }
+  if(snap.custom && snap.custom.length){
+    box.append(el('div',{class:'k', style:'margin-top:12px;', text:'Custom fields'}));
+    const ul = el('ul',{class:'pl-games'});
+    snap.custom.forEach(c=>{
+      const li=el('li'); li.append(el('span',{text:c.key||'—'}), el('span',{text:c.value||'—'}));
       ul.append(li);
     });
     box.append(ul);
@@ -2482,16 +2588,11 @@ Views.platforms = function(c){
     });
 
     // type-specific blocks
-    let fGames, fHours, catInputs={}, socialInputs={};
+    let fGames, fHours, socialInputs={};
     if(plat.type==='game'){
       fGames = plInput('number', lib.gamesOwned, 'e.g. 142');
       fHours = plInput('number', lib.totalHours, 'e.g. 2300');
       grid.append(plField('Games Owned', fGames), plField('Total Hours', fHours));
-      const cats = (lib.categories)||{};
-      [['fps','FPS'],['rpg','RPG'],['rts','RTS'],['sim','Sim']].forEach(([k,lbl])=>{
-        const i = plInput('number', cats[k], 'hours'); catInputs[k]=i;
-        grid.append(plField(lbl+' Hours', i, 'optional'));
-      });
     } else {
       const sf = [['followers','Followers','number','e.g. 1200'],['subs','Subscribers','number','e.g. 50']]
         .concat((plat.social||[]).map(([k,l,t,p])=>[k,l,t||'text',p]));
@@ -2508,12 +2609,8 @@ Views.platforms = function(c){
     let kpiGroup=null;
     if(plat.type==='game'){
       pane.append(el('h2',{class:'sub', text:'Per-Game KPIs'}));
-      pane.append(el('p',{class:'muted', style:'font-size:12px;', text:'Track rank, record and K/D per title. Win-rate is computed from wins & losses.'}));
-      kpiGroup = plRowGroup(
-        [{key:'game',label:'Game',flex:'2'},{key:'rank',label:'Rank/Tier'},{key:'wins',label:'Wins',type:'number'},{key:'losses',label:'Losses',type:'number'},{key:'kd',label:'K/D',type:'number'}],
-        (cur.kpis||[]).map(k=>({game:k.game,rank:k.rank,wins:k.wins,losses:k.losses,kd:k.kd})),
-        'Add a game'
-      );
+      pane.append(el('p',{class:'muted', style:'font-size:12px;', text:'Track rank, record and K/D per title — win-rate auto-computes from wins & losses. Add your own stat fields (Headshot %, Level, MMR…) to any game.'}));
+      kpiGroup = plKpiEditor(cur.kpis||[]);
       pane.append(kpiGroup.el);
 
       pane.append(el('h2',{class:'sub', text:'Top Games (optional)'}));
@@ -2556,13 +2653,10 @@ Views.platforms = function(c){
       if(plat.type==='game'){
         snap.library.gamesOwned = plNum(fGames.value);
         snap.library.totalHours = plNum(fHours.value);
-        const cats={}; let anyCat=false;
-        Object.keys(catInputs).forEach(k=>{ const v=plNum(catInputs[k].value); if(v){cats[k]=v; anyCat=true;} });
-        if(anyCat) snap.library.categories = cats;
         snap.library.topGames = topGroup.collect().map(o=>({name:o.name, hours:plNum(o.hours)}));
         snap.kpis = kpiGroup.collect().map(o=>{
           const wins=o.wins!==''?plNum(o.wins):null, losses=o.losses!==''?plNum(o.losses):null;
-          const k = { game:o.game, rank:o.rank, wins:o.wins, losses:o.losses, kd:o.kd };
+          const k = { game:o.game, rank:o.rank, wins:o.wins, losses:o.losses, kd:o.kd, fields:o.fields };
           if(wins!=null && losses!=null && (wins+losses)>0) k.winRate = Math.round(wins/(wins+losses)*100);
           return k;
         });
