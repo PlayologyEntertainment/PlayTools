@@ -267,15 +267,11 @@
   .pl-badge{font-size:8px; letter-spacing:1px; padding:2px 6px; border-radius:3px; text-transform:uppercase; font-weight:700;}
   .pl-badge.game{background:var(--neon-5); color:#04120a;}
   .pl-badge.social{background:var(--neon-3); color:#1a1400;}
-  .pl-tabs{display:flex; gap:8px; margin:16px 0 4px;}
-  .pl-tab{font-family:var(--pixel); font-size:12px; padding:8px 14px; border:1px solid var(--line); border-radius:4px; background:var(--panel-2); color:var(--ink-dim); cursor:pointer;}
-  .pl-tab.active{color:var(--neon); border-color:var(--neon); background:rgba(22,242,200,0.08);}
-  .pl-input, .pl-row input, textarea.pl-paste{font-family:var(--mono); font-size:14px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:9px 11px; width:100%;}
-  .pl-input:focus, .pl-row input:focus, textarea.pl-paste:focus{outline:none; border-color:var(--neon); box-shadow:0 0 10px rgba(22,242,200,0.2);}
+  .pl-input, .pl-row input{font-family:var(--mono); font-size:14px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:9px 11px; width:100%;}
+  .pl-input:focus, .pl-row input:focus{outline:none; border-color:var(--neon); box-shadow:0 0 10px rgba(22,242,200,0.2);}
   .pl-row{display:flex; gap:6px; align-items:center; margin-bottom:6px;}
   .pl-row input{flex:1; min-width:0;}
   .pl-row .pl-x{flex:0 0 auto;}
-  textarea.pl-paste{min-height:150px; resize:vertical;}
   .pl-summary{background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:14px 16px; margin:12px 0;}
   .pl-summary .k{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--neon-3);}
   .pl-summary .pl-stat-row{display:flex; flex-wrap:wrap; gap:18px; margin-top:6px;}
@@ -2264,8 +2260,8 @@ function openCompare(friend){
    (handle + audience/verification).
    ============================================================================ */
 const PLATFORMS = [
-  { id:'steam',    name:'Steam',      type:'game',   icon:'🎮', parser:true,
-    note:'Paste your <strong>public</strong> Steam profile XML — no login. Open your Steam Community profile in a browser and add <code>?xml=1</code> to the URL (e.g. <code>steamcommunity.com/id/you/?xml=1</code>). For your full library use <code>/games/?tab=all&amp;xml=1</code>. Copy the whole page and paste it below.' },
+  { id:'steam',    name:'Steam',      type:'game',   icon:'🎮', parser:false,
+    note:'Enter your Steam presence by hand — profile name, library size, total hours, and any standout titles or per-game KPIs. (Steam has deprecated client-only library export, so there is no paste import.)' },
   { id:'epic',     name:'Epic Games', type:'game',   icon:'🛒', parser:false,
     note:'Epic has no public export, so enter your stats by hand — display name, library size, and any per-game KPIs (Fortnite wins, K/D, level…).' },
   { id:'nintendo', name:'Nintendo',   type:'game',   icon:'🔴', parser:false,
@@ -2279,102 +2275,6 @@ const PLATFORMS = [
     social:[['avgViewers','Avg Viewers','number','Average concurrent'],['status','Partner / Affiliate','text','e.g. Affiliate']] }
 ];
 function getPlat(id){ return PLATFORMS.find(p=>p.id===id); }
-
-/* ---- Steam public-profile parser: XML (preferred) or JSON fallback ---- */
-const SteamParser = (function(){
-  function txt(node, sel){ if(!node) return ''; const n=node.querySelector(sel); return n ? (n.textContent||'').trim() : ''; }
-  // Steam formats hours with thousands-commas (e.g. "1,234.5") — strip them before parsing.
-  function hoursOf(str){ const n = parseFloat(String(str||'').replace(/,/g,'')); return isNaN(n) ? 0 : n; }
-  function emptySnap(){ return { identity:{}, library:{ gamesOwned:0, totalHours:0, topGames:[] }, kpis:[], social:{}, badges:[], custom:[] }; }
-
-  function parse(raw){
-    raw = (raw||'').trim();
-    if(!raw) throw new Error('Paste your Steam profile XML first.');
-    if(raw[0]==='{' || raw[0]==='[') return parseJSON(raw);
-
-    const doc = new DOMParser().parseFromString(raw, 'text/xml');
-    if(doc.querySelector('parsererror')) throw new Error('That isn’t valid XML — copy the entire ?xml=1 page, including the first line.');
-    const profile = doc.querySelector('profile');
-    const gamesList = doc.querySelector('gamesList');
-    if(!profile && !gamesList) throw new Error('No <profile> or <gamesList> found. Paste a Steam Community ?xml=1 page.');
-
-    const snap = emptySnap();
-    const src = profile || gamesList;
-    snap.identity.id = txt(src,'steamID64');
-    snap.identity.handle = txt(src,'steamID');
-
-    if(profile){
-      const loc = txt(profile,'location'); if(loc) snap.identity.region = loc;
-      const since = txt(profile,'memberSince'); if(since) snap.identity.memberSince = since;
-      const url = txt(profile,'customURL'); if(url) snap.identity.profileUrl = 'https://steamcommunity.com/id/'+url;
-      const vac = txt(profile,'vacBanned');
-      snap.identity.verified = vac==='0';
-      if(vac && vac!=='0') snap.badges.push('VAC banned');
-      // most-played games are the only library signal on the summary page
-      const mpg = [].slice.call(profile.querySelectorAll('mostPlayedGame')).map(g=>({
-        name: txt(g,'gameName'),
-        hours: hoursOf(txt(g,'hoursOnRecord') || txt(g,'hoursPlayed'))
-      })).filter(g=>g.name);
-      if(mpg.length) snap.library.topGames = mpg;
-    }
-    if(gamesList){
-      const games = [].slice.call(gamesList.querySelectorAll('games > game')).map(g=>({
-        name: txt(g,'name'),
-        hours: hoursOf(txt(g,'hoursOnRecord'))
-      })).filter(g=>g.name);
-      snap.library.gamesOwned = games.length;
-      snap.library.totalHours = Math.round(games.reduce((s,g)=>s+g.hours,0));
-      if(games.length) snap.library.topGames = games;   // savePlatform caps to top 50
-    } else if(snap.library.topGames.length){
-      snap.library.totalHours = Math.round(snap.library.topGames.reduce((s,g)=>s+g.hours,0));
-    }
-    if(!snap.identity.handle && !snap.library.topGames.length && !snap.library.gamesOwned)
-      throw new Error('Parsed the XML, but found nothing — is the profile set to public?');
-    return snap;
-  }
-
-  function parseJSON(raw){
-    let j; try{ j = JSON.parse(raw); }catch(e){ throw new Error('That isn’t valid JSON.'); }
-    const snap = emptySnap();
-    snap.identity.handle = j.steamID || j.personaname || j.handle || '';
-    snap.identity.id = j.steamID64 || j.steamid || j.id || '';
-    let games = j.games || (j.response && j.response.games) || [];
-    games = (Array.isArray(games)?games:[]).map(g=>({
-      name: g.name || g.gameName || ('App '+(g.appid||g.appID||'')),
-      hours: g.hoursOnRecord!=null ? hoursOf(g.hoursOnRecord)
-           : g.playtime_forever!=null ? Math.round(g.playtime_forever/60*10)/10
-           : hoursOf(g.hours)
-    })).filter(g=>g.name);
-    if(games.length){
-      snap.library.gamesOwned = games.length;
-      snap.library.totalHours = Math.round(games.reduce((s,g)=>s+g.hours,0));
-      snap.library.topGames = games;
-    }
-    if(!snap.identity.handle && !games.length) throw new Error('No recognizable Steam fields in that JSON.');
-    return snap;
-  }
-  return { parse };
-})();
-
-/* Build Steam Community XML URLs from a SteamID64, vanity name, or full profile
-   URL. We can't fetch them in-browser (Steam sends no CORS headers), so these
-   are opened in a new tab for the user to copy & paste back — keeping Platform
-   Link strictly client-only with no proxy. */
-function steamUrls(input){
-  input = (input||'').trim();
-  if(!input) return null;
-  let seg = null;
-  const m = input.match(/steamcommunity\.com\/(id|profiles)\/([^\/?#]+)/i);
-  if(m) seg = m[1].toLowerCase()+'/'+m[2];
-  else if(/^\d{17}$/.test(input)) seg = 'profiles/'+input;
-  else if(/^[A-Za-z0-9_.\-]{2,64}$/.test(input)) seg = 'id/'+input;
-  else return null;
-  const base = 'https://steamcommunity.com/'+seg;
-  // NOTE: the trailing slash before ?tab matters — Steam 301-redirects
-  // /games?… to /games/… and drops the query string (incl. xml=1) on the way,
-  // landing you on the normal HTML library instead of the XML.
-  return { base, gamesUrl: base+'/games/?tab=all&xml=1', summaryUrl: base+'/?xml=1' };
-}
 
 /* ---- small DOM helpers for the Platform Link forms ---- */
 function plInput(type, val, ph){ const i=el('input',{type:type||'text', class:'pl-input'}); if(val!=null && val!=='') i.value=val; if(ph) i.placeholder=ph; return i; }
@@ -2472,20 +2372,15 @@ Views.platforms = function(c){
     state.pid ? renderDetail(panel) : renderList(panel);
     window.scrollTo({top:0, behavior:'auto'});
   }
-  function open(pid){
-    const plat = getPlat(pid);
-    state.pid = pid;
-    state.tab = (plat.parser && !Store.getPlatform(pid)) ? 'import' : 'manual';
-    mount();
-  }
-  function back(){ state.pid=null; state.tab=null; mount(); }
+  function open(pid){ state.pid = pid; mount(); }
+  function back(){ state.pid=null; mount(); }
 
   /* ---------- LIST ---------- */
   function renderList(panel){
     panel.append(
       el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
       el('h1',{class:'title', html:'🔗 Platform Link'}),
-      el('p',{class:'view-desc', html:'Connect your gaming platforms to your Gamer DNA. Paste a public profile or enter your stats by hand — <strong>no login, no account linking</strong>, and nothing ever leaves this browser.'})
+      el('p',{class:'view-desc', html:'Connect your gaming platforms to your Gamer DNA — handle, library and per-game stats — <strong>no login, no account linking</strong>, and nothing ever leaves this browser.'})
     );
     const linked = Store.platformCount();
     const cw = Math.min(3, linked);
@@ -2513,7 +2408,7 @@ Views.platforms = function(c){
         }
         status = '✓ Linked · '+(bits.join(' · ')||'saved');
       } else {
-        status = plat.parser ? 'Not linked — paste or enter by hand' : 'Not linked — enter by hand';
+        status = 'Not linked — tap to add your stats';
       }
       card.append(el('div',{class:'pl-status', text:status}));
       grid.append(card);
@@ -2547,90 +2442,10 @@ Views.platforms = function(c){
       }}));
     }
 
-    // tabs (Import only exists for parser-capable platforms)
+    panel.append(el('h2',{class:'sub', text:'Manual Entry'}));
     const pane = el('div',{});
-    if(plat.parser){
-      const tabs = el('div',{class:'pl-tabs'});
-      const tImport = el('div',{class:'pl-tab'+(state.tab==='import'?' active':''), text:'📋 Import (paste)', onclick:()=>{ state.tab='import'; mount(); }});
-      const tManual = el('div',{class:'pl-tab'+(state.tab==='manual'?' active':''), text:'✎ Manual', onclick:()=>{ state.tab='manual'; mount(); }});
-      tabs.append(tImport, tManual);
-      panel.append(tabs);
-    } else {
-      panel.append(el('h2',{class:'sub', text:'Manual Entry'}));
-      state.tab = 'manual';
-    }
     panel.append(pane);
-    (state.tab==='import') ? buildImport(plat, pane) : buildManual(plat, pane, saved);
-  }
-
-  /* ---------- IMPORT (Steam) ---------- */
-  function buildImport(plat, pane){
-    // Step 1 — enter Steam ID, we build the exact XML link to open.
-    pane.append(el('p',{class:'muted', style:'font-size:12px;margin-top:4px;',
-      html:'<strong>1.</strong> Enter your Steam ID &nbsp;·&nbsp; <strong>2.</strong> Open your library XML &nbsp;·&nbsp; <strong>3.</strong> Select-all, copy &amp; paste it back &nbsp;·&nbsp; <strong>4.</strong> Parse &amp; Save. Nothing is fetched for you — your data goes straight from Steam to this browser.'}));
-
-    const idField = el('div',{class:'field'});
-    const idInput = plInput('text', '', 'e.g. 76561197960287930, your vanity name, or profile URL');
-    idField.append(
-      el('label',{text:'Steam ID, vanity name, or profile URL'}),
-      idInput,
-      el('span',{class:'hint', text:'Your profile — and Game Details — must be set to Public for the XML to contain your library.'})
-    );
-    pane.append(idField);
-
-    const openRow = el('div',{class:'controls-row', style:'margin-top:8px;'});
-    const libBtn = el('button',{class:'btn primary', html:'📂 Open Library XML', disabled:'disabled'});
-    const sumBtn = el('button',{class:'btn', html:'👤 Open Profile XML', disabled:'disabled'});
-    openRow.append(libBtn, sumBtn);
-    pane.append(openRow);
-    const urlNote = el('p',{class:'muted', style:'font-size:11px;word-break:break-all;margin:6px 0 0;'});
-    pane.append(urlNote);
-
-    function refresh(){
-      const u = steamUrls(idInput.value);
-      libBtn.disabled = !u; sumBtn.disabled = !u;
-      urlNote.textContent = u ? u.gamesUrl : (idInput.value.trim() ? 'Hmm — that doesn’t look like a Steam ID, vanity name, or profile URL.' : '');
-    }
-    idInput.addEventListener('input', refresh);
-    libBtn.onclick = ()=>{ const u=steamUrls(idInput.value); if(u) window.open(u.gamesUrl,'_blank','noopener'); };
-    sumBtn.onclick = ()=>{ const u=steamUrls(idInput.value); if(u) window.open(u.summaryUrl,'_blank','noopener'); };
-
-    pane.append(el('p',{class:'muted', style:'font-size:12px;margin-top:14px;',
-      html:'In the tab that opens, select all (Ctrl/⌘ + A), copy (Ctrl/⌘ + C), then paste it below. <strong>📂 Library XML is the one you want</strong> — it holds your full game list &amp; hours (requires <em>Game Details = Public</em>). 👤 Profile XML only carries identity + a usually-empty "most-played" list.'}));
-
-    const ta = el('textarea',{class:'pl-paste', placeholder:'Paste the full Steam XML page here…'});
-    pane.append(ta);
-    const row = el('div',{class:'controls-row', style:'margin-top:10px;'});
-    const parseBtn = el('button',{class:'btn primary', html:'⮕ Parse & Preview'});
-    const clearBtn = el('button',{class:'btn ghost', html:'Clear'});
-    row.append(parseBtn, clearBtn);
-    pane.append(row);
-    const preview = el('div',{}); pane.append(preview);
-
-    clearBtn.onclick = ()=>{ ta.value=''; preview.innerHTML=''; };
-    parseBtn.onclick = ()=>{
-      preview.innerHTML='';
-      let snap;
-      try{ snap = SteamParser.parse(ta.value); }
-      catch(e){ UI.toast('Parse failed', e.message||'Could not read that.'); return; }
-      preview.append(el('h2',{class:'sub', text:'Preview'}));
-      const lib = snap.library||{};
-      const hasGames = (lib.topGames && lib.topGames.length) || lib.gamesOwned;
-      if(!hasGames){
-        preview.append(el('div',{class:'pl-summary', style:'border-color:var(--neon-3);',
-          html:'⚠️ <strong>No games found in this paste.</strong><br><span class="muted" style="font-size:12px;">You likely pasted the <strong>Profile XML</strong>, which only carries identity + a "most-played" section that\'s empty for most accounts. For your full library, use <strong>📂 Open Library XML</strong> above — and make sure <em>Edit Profile → Privacy → Game Details</em> is set to <strong>Public</strong>, or even a public profile returns an empty list.'}));
-      } else {
-        preview.append(el('p',{class:'muted', style:'font-size:12px;', text:'Check this looks right, then save it to your Gamer DNA. Only the top 50 games by playtime are kept.'}));
-      }
-      preview.append(plSummaryEl(snap, plat));
-      const saveBtn = el('button',{class:'btn primary', html: hasGames?'💾 Save to Gamer DNA':'💾 Save identity anyway', onclick:()=>{
-        Store.savePlatform(plat.id, plat.type, 'parser', snap);
-        Ach.evaluate({tool:'platform', platform:plat.id});
-        UI.toast('Linked', plat.name+' imported into your Gamer DNA.');
-        open(plat.id);
-      }});
-      preview.append(saveBtn);
-    };
+    buildManual(plat, pane, saved);
   }
 
   /* ---------- MANUAL ENTRY ---------- */
