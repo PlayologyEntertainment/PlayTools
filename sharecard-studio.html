@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share Card Studio — PlayTools</title>
+<!--
+  ============================================================================
+  SHARE CARD STUDIO
+  ----------------------------------------------------------------------------
+  A design tool for redesigning the PlayTools Share Card. It contains a faithful,
+  fully-parameterized MIRROR of the production ShareCard.draw() renderer
+  (PlayTools.html, ~line 993). Every value that is hardcoded in production is
+  exposed here as a live control via the THEME object.
+
+  WORKFLOW
+   1. Tweak controls on the left; the card re-renders live on the right.
+   2. Pick a sample dataset to preview different tools/states.
+   3. Hit "Copy Theme JSON" (or Download) and hand the JSON back to Claude.
+   4. Claude refactors production draw() to consume the THEME object — what you
+      design here maps 1:1 to the shipped card. Zero translation loss.
+
+  Everything is self-contained: open this file directly in a browser. No build,
+  no dependencies, no network.
+  ============================================================================
+-->
+<style>
+  :root{
+    --bg:#070912; --panel:#101736; --panel-2:#0a0e22;
+    --ink:#e8ecff; --ink-dim:#9aa3d4; --line:rgba(124,92,255,0.30);
+    --neon:#16f2c8; --neon-2:#ff3df0; --neon-3:#ffd23d;
+    --mono:"DejaVu Sans Mono",ui-monospace,Menlo,Consolas,monospace;
+    --ui:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:linear-gradient(180deg,#070912,#04060d);
+    color:var(--ink); font-family:var(--ui); min-height:100vh;
+  }
+  header.app{
+    padding:14px 20px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  header.app h1{font-size:16px; margin:0; letter-spacing:1px;}
+  header.app h1 b{color:var(--neon-3);}
+  header.app .sub{color:var(--ink-dim); font-size:12px; font-family:var(--mono);}
+  .layout{display:flex; gap:20px; padding:20px; align-items:flex-start; flex-wrap:wrap;}
+  .controls{flex:1 1 520px; min-width:340px;}
+  .stage{
+    flex:0 0 auto; position:sticky; top:20px; display:flex; flex-direction:column;
+    gap:12px; align-items:center;
+  }
+  .stage canvas{
+    border-radius:8px; box-shadow:0 0 40px rgba(22,242,200,0.18);
+    background:#000;
+  }
+  .stage .stage-actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:center;}
+
+  /* control groups */
+  .group{
+    border:1px solid var(--line); border-radius:10px; margin-bottom:12px;
+    background:var(--panel-2); overflow:hidden;
+  }
+  .group>summary{
+    cursor:pointer; padding:11px 14px; font-weight:700; font-size:13px;
+    letter-spacing:.5px; list-style:none; user-select:none;
+    display:flex; align-items:center; gap:8px;
+  }
+  .group>summary::-webkit-details-marker{display:none;}
+  .group>summary::before{content:"▸"; color:var(--neon); transition:transform .15s;}
+  .group[open]>summary::before{transform:rotate(90deg);}
+  .group .body{padding:6px 14px 14px;}
+  .group .desc{color:var(--ink-dim); font-size:11px; margin:-2px 0 10px; font-family:var(--mono);}
+
+  .row{display:flex; align-items:center; gap:10px; padding:5px 0;}
+  .row label{flex:0 0 150px; font-size:12px; color:var(--ink);}
+  .row .ctl{flex:1 1 auto; display:flex; align-items:center; gap:8px; min-width:0;}
+  .row input[type=range]{flex:1 1 auto; accent-color:var(--neon); min-width:80px;}
+  .row input[type=number]{
+    width:74px; background:#0b0f24; border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; padding:5px 7px; font-family:var(--mono); font-size:12px;
+  }
+  .row input[type=text]{
+    flex:1 1 auto; background:#0b0f24; border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; padding:6px 8px; font-family:var(--mono); font-size:12px; min-width:0;
+  }
+  .row input[type=color]{
+    width:38px; height:28px; padding:0; border:1px solid var(--line);
+    border-radius:6px; background:#0b0f24; cursor:pointer;
+  }
+  .row select{
+    flex:1 1 auto; background:#0b0f24; border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; padding:6px 8px; font-family:var(--mono); font-size:12px;
+  }
+  .row .val{flex:0 0 46px; text-align:right; font-family:var(--mono); font-size:11px; color:var(--neon);}
+  .row.toggle label{flex:1 1 auto;}
+  .row input[type=checkbox]{width:18px; height:18px; accent-color:var(--neon); cursor:pointer;}
+  .swatchpair{display:flex; align-items:center; gap:6px;}
+  .swatchpair input[type=text]{width:90px; flex:0 0 auto;}
+
+  .btn{
+    background:#0b0f24; color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:9px 14px; font-size:13px; cursor:pointer;
+    font-family:var(--ui); transition:.12s;
+  }
+  .btn:hover{border-color:var(--neon); box-shadow:0 0 12px rgba(22,242,200,0.2);}
+  .btn.primary{background:var(--neon); color:#04221c; border-color:var(--neon); font-weight:700;}
+  .btn.ghost{background:transparent;}
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center;}
+  .toolbar .spacer{flex:1 1 auto;}
+  .toolbar select{
+    background:#0b0f24; border:1px solid var(--line); color:var(--ink);
+    border-radius:8px; padding:8px 10px; font-family:var(--mono); font-size:12px;
+  }
+  .export{
+    margin-top:14px; border:1px solid var(--line); border-radius:10px;
+    background:var(--panel-2); padding:14px;
+  }
+  .export h3{margin:0 0 8px; font-size:13px; letter-spacing:.5px;}
+  .export textarea{
+    width:100%; height:200px; background:#06091a; color:#bfe9df; border:1px solid var(--line);
+    border-radius:8px; padding:10px; font-family:var(--mono); font-size:11px; resize:vertical;
+    white-space:pre;
+  }
+  .hint{color:var(--ink-dim); font-size:11px; font-family:var(--mono); margin-top:6px;}
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--neon); color:#04221c; font-weight:700; padding:10px 18px;
+    border-radius:8px; font-size:13px; opacity:0; pointer-events:none; transition:.2s;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<header class="app">
+  <h1>▶ SHARE CARD <b>STUDIO</b></h1>
+  <span class="sub">faithful mirror of ShareCard.draw() — design here, export THEME JSON, hand back to Claude</span>
+</header>
+
+<div class="layout">
+  <!-- LEFT: controls -->
+  <div class="controls">
+    <div class="toolbar">
+      <span style="font-size:12px;color:var(--ink-dim)">Preview data:</span>
+      <select id="sampleSel"></select>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="resetBtn">↺ Reset to current production look</button>
+    </div>
+    <div id="controlRoot"></div>
+
+    <div class="export">
+      <h3>Export — paste this back to Claude</h3>
+      <div class="toolbar" style="margin-bottom:8px">
+        <button class="btn primary" id="copyBtn">⧉ Copy Theme JSON</button>
+        <button class="btn" id="downloadJson">⬇ Download theme.json</button>
+        <button class="btn" id="downloadPng">⬇ Download preview PNG</button>
+      </div>
+      <textarea id="jsonOut" readonly spellcheck="false"></textarea>
+      <div class="hint">This object holds every visual value. Claude will refactor the production draw() to read from it, so the shipped card matches this exactly.</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: live preview -->
+  <div class="stage">
+    <canvas id="card" width="440" height="560"></canvas>
+    <div class="stage-actions">
+      <span class="sub" style="font-family:var(--mono);font-size:11px;color:var(--ink-dim)">440 × 560 · live</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================================================================
+   DEFAULT THEME  — mirrors the hardcoded values in production ShareCard.draw()
+   Every field here corresponds to a value that is currently baked into the
+   renderer. Grouped for clarity. `accent` and `gamerTag` are normally pulled
+   from the user profile; exposed here so you can preview different personas.
+   ============================================================================ */
+function defaultTheme(){
+  return {
+    canvas:   { w:440, h:560 },
+    persona:  { accent:'#16f2c8', gamerTag:'PLAYER ONE' },
+
+    background:{
+      gradTop:'#0a1c75', gradBottom:'#05070f',
+      gridShow:false, gridColor:'rgba(124,92,255,0.12)', gridSpacing:60,
+      borderUseAccent:true, borderColor:'#6f18f2', borderWidth:0, borderInset:10
+    },
+
+    header:{
+      brand:'PLAYTOOLS', brandY:55, brandSize:30, brandWeight:400,
+      brandFamily:'Press Start 2P', brandColor:'#3dcfff', brandGlow:0,
+      subY:86, subSize:14, subFamily:'Press Start 2P', subColor:'#9aa3d4'
+    },
+
+    glyph:{ y:184, size:90, family:'monospace', color:'#ffffff',
+            quadY:90, quadSize:84, quadGap:7 },
+
+    grade:{ y:261, size:36, weight:400, family:'Press Start 2P',
+            useAccent:true, color:'#16f2c8', glow:0 },
+
+    metrics:{
+      startYGrade:301, startYNoGrade:271, marginX:72, rowGap:27,
+      keySize:10, keyFamily:'Press Start 2P', keyColor:'#9aa3d4',
+      valSize:18, valWeight:700, valFamily:'Press Start 2P', valUseAccent:true, valColor:'#16f2c8'
+    },
+
+    designation:{
+      gapAbove:18, labelSize:11, labelFamily:'Press Start 2P', labelColor:'#9aa3d4',
+      valSize:13, valWeight:400, valFamily:'Press Start 2P', valColor:'#ff3df0', valGlow:10
+    },
+
+    badge:{
+      fromBottom:129, height:28, marginX:55,
+      fillColor:'rgba(255,210,61,0.1)', strokeColor:'#a08222', strokeWidth:0,
+      textColor:'#ffef3d', textSize:11, textFamily:'Press Start 2P', prefix:''
+    },
+
+    footer:{
+      tagFromBottom:47, tagSize:15, tagWeight:400, tagFamily:'Press Start 2P',
+      tagUseAccent:true, tagColor:'#16f2c8', tagGlow:13,
+      urlText:'PLAYOLOGY ENTERTAINMENT', urlFromBottom:20, urlSize:13,
+      urlFamily:'Press Start 2P', urlColor:'#1a224c'
+    },
+
+    /* NEW visual elements (FX) */
+    fx:{
+      roundedCorners:false, cornerRadius:6,
+      cornerBrackets:true, bracketColor:'#f2a218', bracketLen:10, bracketWidth:1, bracketInset:8,
+      scanlines:true, scanlineOpacity:0.16, scanlineGap:5,
+      vignette:true, vignetteStrength:0.71,
+      footerDivider:false, footerDividerColor:'rgba(124,92,255,0.30)',
+      avatar:false, avatarSize:36, avatarX:30, avatarY:30, avatarUseAccent:true, avatarColor:'#16f2c8'
+    }
+  };
+}
+
+let THEME = defaultTheme();
+
+/* ============================================================================
+   SAMPLE DATA — representative cards from real tools (PlayTools.html)
+   ============================================================================ */
+const SAMPLES = {
+  'Reaction Time (Grade S)':{
+    lab:'REFLEX LAB', tool:'Reaction Time', glyph:'⚡', grade:'S',
+    metric:[{k:'Reaction', v:'162 ms'},{k:'Faster than', v:'94%'}],
+    designation:'Reaction Master', badge:'Lightning Reflexes'
+  },
+  'Memory Match (Grade A)':{
+    lab:'ARCADE', tool:'Memory Match', glyph:'🧠', grade:'A',
+    metric:[{k:'Efficiency', v:'92%'},{k:'Moves', v:'14'}],
+    designation:'Sharp Mind', badge:'Photographic'
+  },
+  'Sequence (quad glyph)':{
+    lab:'ARCADE', tool:'Sequence', grade:'B',
+    glyphQuads:['#16f2c8','#ff3df0','#ffd23d','#7c5cff'],
+    metric:[{k:'Level', v:'12'},{k:'Best streak', v:'12'}],
+    designation:'Pattern Reader'
+  },
+  'Dice Roller (no grade)':{
+    lab:'RPG LAB', tool:'Dice Roller', glyph:'🎲',
+    metric:[{k:'Roll', v:'2d6+3'},{k:'Total', v:'14'}],
+    designation:'High Roller', badge:'Natural 20'
+  },
+  'DNA Report (long text)':{
+    lab:'FUN LAB', tool:'Gamer DNA Report', glyph:'📊', grade:'A',
+    metric:[{k:'Overall', v:'A'},{k:'Percentile rank', v:'Top 8%'}],
+    designation:'The Precision Tactician', badge:'Well-Rounded Operator'
+  },
+  'Minimal (no extras)':{
+    lab:'SETUP LAB', tool:'eDPI Calculator', glyph:'🎯',
+    metric:[{k:'eDPI', v:'800'}]
+  }
+};
+let sampleData = SAMPLES[Object.keys(SAMPLES)[0]];
+
+/* ============================================================================
+   RENDERER — parameterized mirror of ShareCard.draw(canvas, data).
+   Reads ALL visual values from THEME (T). Logic/flow matches production.
+   ============================================================================ */
+/* ----------------------------------------------------------------------------
+   FONT REGISTRY — shared with production (keep these two definitions in sync).
+   Keys are the values stored in THEME. `stack` is the CSS font-family used on
+   canvas (web font first, system fallback last). `google` (optional) is the
+   family spec for the Google Fonts CSS2 API; entries without it are offline
+   system stacks. The two system entries preserve the original look.
+   -------------------------------------------------------------------------- */
+const FONT_REGISTRY = {
+  'monospace':       { label:'System Mono',            stack:'"DejaVu Sans Mono",ui-monospace,Menlo,Consolas,monospace' },
+  'sans-serif':      { label:'System Sans',            stack:'"Trebuchet MS","Segoe UI",system-ui,sans-serif' },
+  'Press Start 2P':  { label:'Press Start 2P · pixel', stack:"'Press Start 2P', monospace", google:'Press+Start+2P' },
+  'VT323':           { label:'VT323 · CRT terminal',   stack:"'VT323', monospace",          google:'VT323' },
+  'Share Tech Mono': { label:'Share Tech Mono · techy',stack:"'Share Tech Mono', monospace",google:'Share+Tech+Mono' },
+  'Orbitron':        { label:'Orbitron · futurist',    stack:"'Orbitron', sans-serif",      google:'Orbitron:wght@400;700;900' },
+  'Rajdhani':        { label:'Rajdhani · condensed',   stack:"'Rajdhani', sans-serif",      google:'Rajdhani:wght@400;600;700' },
+  'Audiowide':       { label:'Audiowide · display',    stack:"'Audiowide', sans-serif",     google:'Audiowide' }
+};
+function fam(name){ return (FONT_REGISTRY[name] && FONT_REGISTRY[name].stack) || name; }
+
+/* Studio eagerly loads every web font so all dropdown options preview live. */
+function injectGoogleFonts(){
+  const specs = Object.values(FONT_REGISTRY).filter(f=>f.google).map(f=>'family='+f.google);
+  if(!specs.length) return;
+  const link=document.createElement('link'); link.rel='stylesheet';
+  link.href='https://fonts.googleapis.com/css2?'+specs.join('&')+'&display=swap';
+  document.head.appendChild(link);
+}
+function preloadFonts(){
+  if(!document.fonts) return Promise.resolve();
+  const names=Object.keys(FONT_REGISTRY).filter(n=>FONT_REGISTRY[n].google);
+  return Promise.all(names.map(n=>document.fonts.load("700 16px '"+n+"'").catch(()=>{}))).then(()=>{});
+}
+function roundRectPath(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function draw(canvas, data, T){
+  const ctx = canvas.getContext('2d');
+  const W = T.canvas.w, H = T.canvas.h;
+  const accent = T.persona.accent || '#16f2c8';
+  const tag = T.persona.gamerTag || 'PLAYER ONE';
+  canvas.width=W; canvas.height=H;
+  ctx.clearRect(0,0,W,H);
+
+  // optional rounded-corner clip
+  ctx.save();
+  if(T.fx.roundedCorners){ roundRectPath(ctx,0,0,W,H,T.fx.cornerRadius); ctx.clip(); }
+
+  // --- background gradient
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,T.background.gradTop); g.addColorStop(1,T.background.gradBottom);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // --- grid
+  if(T.background.gridShow){
+    ctx.strokeStyle=T.background.gridColor; ctx.lineWidth=1;
+    const sp=Math.max(4,T.background.gridSpacing);
+    for(let x=0;x<W;x+=sp){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<H;y+=sp){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  }
+
+  // --- vignette (fx)
+  if(T.fx.vignette){
+    const r=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.25, W/2,H/2,Math.max(W,H)*0.62);
+    r.addColorStop(0,'rgba(0,0,0,0)');
+    r.addColorStop(1,'rgba(0,0,0,'+T.fx.vignetteStrength+')');
+    ctx.fillStyle=r; ctx.fillRect(0,0,W,H);
+  }
+
+  // --- border
+  const bc = T.background.borderUseAccent ? accent : T.background.borderColor;
+  const bi = T.background.borderInset;
+  ctx.strokeStyle=bc; ctx.lineWidth=T.background.borderWidth;
+  if(T.fx.roundedCorners){
+    roundRectPath(ctx,bi,bi,W-bi*2,H-bi*2,Math.max(0,T.fx.cornerRadius-bi));
+    ctx.stroke();
+  } else {
+    ctx.strokeRect(bi,bi,W-bi*2,H-bi*2);
+  }
+
+  // --- corner brackets (fx)
+  if(T.fx.cornerBrackets){
+    const L=T.fx.bracketLen, m=T.fx.bracketInset;
+    ctx.strokeStyle=T.fx.bracketColor; ctx.lineWidth=T.fx.bracketWidth; ctx.lineCap='round';
+    const corners=[[m,m,1,1],[W-m,m,-1,1],[m,H-m,1,-1],[W-m,H-m,-1,-1]];
+    corners.forEach(([x,y,sx,sy])=>{
+      ctx.beginPath(); ctx.moveTo(x+sx*L,y); ctx.lineTo(x,y); ctx.lineTo(x,y+sy*L); ctx.stroke();
+    });
+    ctx.lineCap='butt';
+  }
+
+  // ---- text helpers (mirrors production fitInline/center) ----
+  function fitInline(text, font, maxW){
+    const m = font.match(/^(.*?)(\d+)px(.*)$/);
+    if(!m){ ctx.font=font; return text; }
+    const pre=m[1], famStr=m[3]; let px=parseInt(m[2],10);
+    ctx.font = font;
+    while(px>9 && ctx.measureText(text).width>maxW){ px--; ctx.font=`${pre}${px}px${famStr}`; }
+    if(ctx.measureText(text).width>maxW){
+      let s=text; while(s.length>1 && ctx.measureText(s+'…').width>maxW) s=s.slice(0,-1);
+      text=s+'…';
+    }
+    return text;
+  }
+  function center(text,y,font,color,glow,maxW){
+    ctx.fillStyle=color; ctx.textAlign='center';
+    text = maxW ? fitInline(text, font, maxW) : (ctx.font=font, text);
+    if(glow){ ctx.shadowColor=color; ctx.shadowBlur=glow; } else ctx.shadowBlur=0;
+    ctx.fillText(text, W/2, y); ctx.shadowBlur=0;
+  }
+
+  // --- header
+  const Hd=T.header;
+  center(Hd.brand, Hd.brandY, `${Hd.brandWeight} ${Hd.brandSize}px ${fam(Hd.brandFamily)}`, Hd.brandColor, Hd.brandGlow);
+  center((data.lab||'ARCADE')+' · '+(data.tool||''), Hd.subY, `${Hd.subSize}px ${fam(Hd.subFamily)}`, Hd.subColor, 0, W-60);
+
+  // --- avatar chip (fx)
+  if(T.fx.avatar){
+    const a=T.fx, col=a.avatarUseAccent?accent:a.avatarColor, r=a.avatarSize/2;
+    ctx.beginPath(); ctx.arc(a.avatarX+r,a.avatarY+r,r,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fill();
+    ctx.lineWidth=2; ctx.strokeStyle=col; ctx.stroke();
+    ctx.fillStyle=col; ctx.textAlign='center'; ctx.font=`700 ${Math.round(a.avatarSize*0.5)}px ${fam('sans-serif')}`;
+    ctx.fillText((tag[0]||'P').toUpperCase(), a.avatarX+r, a.avatarY+r+a.avatarSize*0.18);
+  }
+
+  // --- glyph (emoji or quad pads)
+  const Gl=T.glyph;
+  if(data.glyphQuads){
+    const cols=data.glyphQuads, S=Gl.quadSize, gap=Gl.quadGap, half=(S-gap)/2, x0=W/2-S/2, y0=Gl.quadY;
+    [[0,0],[1,0],[0,1],[1,1]].forEach((p,i)=>{
+      ctx.fillStyle=cols[i];
+      ctx.fillRect(x0+p[0]*(half+gap), y0+p[1]*(half+gap), half, half);
+    });
+  } else {
+    center(data.glyph||'🕹️', Gl.y, `${Gl.size}px ${fam(Gl.family)}`, Gl.color, 0);
+  }
+
+  // --- grade badge
+  if(data.grade){
+    const Gr=T.grade, gc=Gr.useAccent?accent:Gr.color;
+    ctx.fillStyle=gc; ctx.shadowColor=gc; ctx.shadowBlur=Gr.glow;
+    ctx.font=`${Gr.weight} ${Gr.size}px ${fam(Gr.family)}`; ctx.textAlign='center';
+    ctx.fillText('GRADE '+data.grade, W/2, Gr.y); ctx.shadowBlur=0;
+  }
+
+  // --- metrics
+  const Mt=T.metrics;
+  let y = data.grade ? Mt.startYGrade : Mt.startYNoGrade;
+  const valCol = Mt.valUseAccent?accent:Mt.valColor;
+  ctx.textAlign='left';
+  (data.metric||[]).forEach(m=>{
+    const keyTxt=String(m.k).toUpperCase();
+    ctx.font=`${Mt.keySize}px ${fam(Mt.keyFamily)}`; ctx.fillStyle=Mt.keyColor; ctx.textAlign='left';
+    ctx.fillText(keyTxt, Mt.marginX, y);
+    const keyW=ctx.measureText(keyTxt).width;
+    ctx.fillStyle=valCol; ctx.textAlign='right';
+    const valTxt=fitInline(String(m.v), `${Mt.valWeight} ${Mt.valSize}px ${fam(Mt.valFamily)}`, (W-Mt.marginX)-(Mt.marginX+keyW+14));
+    ctx.fillText(valTxt, W-Mt.marginX, y);
+    ctx.textAlign='left'; y+=Mt.rowGap;
+  });
+
+  // --- designation
+  if(data.designation){
+    const Ds=T.designation; y+=Ds.gapAbove;
+    ctx.font=`${Ds.labelSize}px ${fam(Ds.labelFamily)}`; ctx.fillStyle=Ds.labelColor; ctx.textAlign='center';
+    ctx.fillText('DESIGNATION', W/2, y); y+=24;
+    ctx.fillStyle=Ds.valColor; ctx.shadowColor=Ds.valColor; ctx.shadowBlur=Ds.valGlow; ctx.textAlign='center';
+    ctx.fillText(fitInline(String(data.designation), `${Ds.valWeight} ${Ds.valSize}px ${fam(Ds.valFamily)}`, W-80), W/2, y);
+    ctx.shadowBlur=0; y+=10;
+  }
+
+  // --- badge strip
+  if(data.badge){
+    const Bd=T.badge, bx=Bd.marginX, by=H-Bd.fromBottom, bw=W-Bd.marginX*2, bh=Bd.height;
+    ctx.fillStyle=Bd.fillColor; ctx.fillRect(bx,by,bw,bh);
+    ctx.strokeStyle=Bd.strokeColor; ctx.lineWidth=Bd.strokeWidth; ctx.strokeRect(bx,by,bw,bh);
+    ctx.fillStyle=Bd.textColor; ctx.textAlign='center';
+    ctx.fillText(fitInline(Bd.prefix+data.badge, `${Bd.textSize}px ${fam(Bd.textFamily)}`, bw-12), W/2, by+bh*0.67);
+  }
+
+  // --- footer divider (fx)
+  if(T.fx.footerDivider){
+    const dy=H-T.footer.tagFromBottom-22;
+    ctx.strokeStyle=T.fx.footerDividerColor; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(40,dy); ctx.lineTo(W-40,dy); ctx.stroke();
+  }
+
+  // --- footer (player tag + url)
+  const Ft=T.footer, tc=Ft.tagUseAccent?accent:Ft.tagColor;
+  center('@'+tag, H-Ft.tagFromBottom, `${Ft.tagWeight} ${Ft.tagSize}px ${fam(Ft.tagFamily)}`, tc, Ft.tagGlow, W-80);
+  center(Ft.urlText, H-Ft.urlFromBottom, `${Ft.urlSize}px ${fam(Ft.urlFamily)}`, Ft.urlColor);
+
+  // --- scanlines overlay (fx) — drawn last, on top
+  if(T.fx.scanlines){
+    ctx.fillStyle='rgba(0,0,0,'+T.fx.scanlineOpacity+')';
+    const gap=Math.max(2,T.fx.scanlineGap);
+    for(let yy=0;yy<H;yy+=gap){ ctx.fillRect(0,yy,W,1); }
+  }
+
+  ctx.restore();
+}
+
+/* ============================================================================
+   CONTROL SCHEMA — declarative; drives the UI. Each entry maps to a THEME path.
+   types: color | accentColor | rgba | range | number | text | check | select | font
+   ============================================================================ */
+const SCHEMA=[
+  {title:'Canvas & Persona', desc:'Card size and the profile values normally pulled from the logged-in user.', ctrls:[
+    {p:'canvas.w', l:'Width', t:'number'},
+    {p:'canvas.h', l:'Height', t:'number'},
+    {p:'persona.accent', l:'Accent (persona)', t:'color'},
+    {p:'persona.gamerTag', l:'Gamer tag', t:'text'},
+  ]},
+  {title:'Background', desc:'Gradient, CRT grid, and the neon border frame.', ctrls:[
+    {p:'background.gradTop', l:'Gradient top', t:'color'},
+    {p:'background.gradBottom', l:'Gradient bottom', t:'color'},
+    {p:'background.gridShow', l:'Show grid', t:'check'},
+    {p:'background.gridColor', l:'Grid color', t:'rgba'},
+    {p:'background.gridSpacing', l:'Grid spacing', t:'range', min:8, max:60, step:1},
+    {p:'background.borderUseAccent', l:'Border = accent', t:'check'},
+    {p:'background.borderColor', l:'Border color', t:'color'},
+    {p:'background.borderWidth', l:'Border width', t:'range', min:0, max:10, step:1},
+    {p:'background.borderInset', l:'Border inset', t:'range', min:0, max:30, step:1},
+  ]},
+  {title:'Header', desc:'Brand wordmark and the "LAB · Tool" subtitle.', ctrls:[
+    {p:'header.brand', l:'Brand text', t:'text'},
+    {p:'header.brandY', l:'Brand Y', t:'range', min:20, max:120, step:1},
+    {p:'header.brandSize', l:'Brand size', t:'range', min:8, max:40, step:1},
+    {p:'header.brandWeight', l:'Brand weight', t:'select', opts:[400,500,600,700,800,900]},
+    {p:'header.brandFamily', l:'Brand font', t:'font'},
+    {p:'header.brandColor', l:'Brand color', t:'color'},
+    {p:'header.brandGlow', l:'Brand glow', t:'range', min:0, max:40, step:1},
+    {p:'header.subY', l:'Subtitle Y', t:'range', min:30, max:140, step:1},
+    {p:'header.subSize', l:'Subtitle size', t:'range', min:8, max:24, step:1},
+    {p:'header.subFamily', l:'Subtitle font', t:'font'},
+    {p:'header.subColor', l:'Subtitle color', t:'color'},
+  ]},
+  {title:'Glyph', desc:'The big emoji/character — or 4-color quad pads when a tool supplies them.', ctrls:[
+    {p:'glyph.y', l:'Emoji Y', t:'range', min:80, max:240, step:1},
+    {p:'glyph.size', l:'Emoji size', t:'range', min:30, max:160, step:1},
+    {p:'glyph.family', l:'Emoji font', t:'font'},
+    {p:'glyph.color', l:'Emoji color', t:'color'},
+    {p:'glyph.quadY', l:'Quad Y', t:'range', min:40, max:200, step:1},
+    {p:'glyph.quadSize', l:'Quad size', t:'range', min:40, max:160, step:1},
+    {p:'glyph.quadGap', l:'Quad gap', t:'range', min:0, max:20, step:1},
+  ]},
+  {title:'Grade badge', desc:'Big "GRADE S" line (shown only when a grade exists).', ctrls:[
+    {p:'grade.y', l:'Y', t:'range', min:180, max:340, step:1},
+    {p:'grade.size', l:'Size', t:'range', min:30, max:100, step:1},
+    {p:'grade.weight', l:'Weight', t:'select', opts:[400,600,700,800,900]},
+    {p:'grade.family', l:'Font', t:'font'},
+    {p:'grade.useAccent', l:'Use accent', t:'check'},
+    {p:'grade.color', l:'Color', t:'color'},
+    {p:'grade.glow', l:'Glow', t:'range', min:0, max:40, step:1},
+  ]},
+  {title:'Metrics', desc:'Key/value stat rows.', ctrls:[
+    {p:'metrics.startYGrade', l:'Start Y (w/ grade)', t:'range', min:200, max:380, step:1},
+    {p:'metrics.startYNoGrade', l:'Start Y (no grade)', t:'range', min:200, max:380, step:1},
+    {p:'metrics.marginX', l:'Side margin', t:'range', min:20, max:90, step:1},
+    {p:'metrics.rowGap', l:'Row gap', t:'range', min:24, max:60, step:1},
+    {p:'metrics.keySize', l:'Key size', t:'range', min:8, max:20, step:1},
+    {p:'metrics.keyFamily', l:'Key font', t:'font'},
+    {p:'metrics.keyColor', l:'Key color', t:'color'},
+    {p:'metrics.valSize', l:'Value size', t:'range', min:12, max:34, step:1},
+    {p:'metrics.valWeight', l:'Value weight', t:'select', opts:[400,600,700,800,900]},
+    {p:'metrics.valFamily', l:'Value font', t:'font'},
+    {p:'metrics.valUseAccent', l:'Value = accent', t:'check'},
+    {p:'metrics.valColor', l:'Value color', t:'color'},
+  ]},
+  {title:'Designation', desc:'The archetype/title block.', ctrls:[
+    {p:'designation.gapAbove', l:'Gap above', t:'range', min:0, max:40, step:1},
+    {p:'designation.labelSize', l:'Label size', t:'range', min:8, max:20, step:1},
+    {p:'designation.labelFamily', l:'Label font', t:'font'},
+    {p:'designation.labelColor', l:'Label color', t:'color'},
+    {p:'designation.valSize', l:'Title size', t:'range', min:12, max:30, step:1},
+    {p:'designation.valWeight', l:'Title weight', t:'select', opts:[400,600,700,800,900]},
+    {p:'designation.valFamily', l:'Title font', t:'font'},
+    {p:'designation.valColor', l:'Title color', t:'color'},
+    {p:'designation.valGlow', l:'Title glow', t:'range', min:0, max:30, step:1},
+  ]},
+  {title:'Badge strip', desc:'Achievement strip near the bottom.', ctrls:[
+    {p:'badge.fromBottom', l:'From bottom', t:'range', min:80, max:200, step:1},
+    {p:'badge.height', l:'Height', t:'range', min:20, max:60, step:1},
+    {p:'badge.marginX', l:'Side margin', t:'range', min:10, max:80, step:1},
+    {p:'badge.fillColor', l:'Fill', t:'rgba'},
+    {p:'badge.strokeColor', l:'Stroke', t:'color'},
+    {p:'badge.strokeWidth', l:'Stroke width', t:'range', min:0, max:6, step:1},
+    {p:'badge.textColor', l:'Text color', t:'color'},
+    {p:'badge.textSize', l:'Text size', t:'range', min:8, max:22, step:1},
+    {p:'badge.textFamily', l:'Text font', t:'font'},
+    {p:'badge.prefix', l:'Prefix', t:'text'},
+  ]},
+  {title:'Footer', desc:'Player tag and the URL/branding line.', ctrls:[
+    {p:'footer.tagFromBottom', l:'Tag from bottom', t:'range', min:30, max:120, step:1},
+    {p:'footer.tagSize', l:'Tag size', t:'range', min:10, max:28, step:1},
+    {p:'footer.tagWeight', l:'Tag weight', t:'select', opts:[400,600,700,800,900]},
+    {p:'footer.tagFamily', l:'Tag font', t:'font'},
+    {p:'footer.tagUseAccent', l:'Tag = accent', t:'check'},
+    {p:'footer.tagColor', l:'Tag color', t:'color'},
+    {p:'footer.tagGlow', l:'Tag glow', t:'range', min:0, max:30, step:1},
+    {p:'footer.urlText', l:'URL text', t:'text'},
+    {p:'footer.urlFromBottom', l:'URL from bottom', t:'range', min:20, max:90, step:1},
+    {p:'footer.urlSize', l:'URL size', t:'range', min:8, max:20, step:1},
+    {p:'footer.urlFamily', l:'URL font', t:'font'},
+    {p:'footer.urlColor', l:'URL color', t:'color'},
+  ]},
+  {title:'✦ New elements (FX)', desc:'Optional extras layered onto the card (brackets, scanlines, vignette, etc.).', open:true, ctrls:[
+    {p:'fx.roundedCorners', l:'Rounded corners', t:'check'},
+    {p:'fx.cornerRadius', l:'Corner radius', t:'range', min:0, max:40, step:1},
+    {p:'fx.cornerBrackets', l:'Corner brackets', t:'check'},
+    {p:'fx.bracketColor', l:'Bracket color', t:'color'},
+    {p:'fx.bracketLen', l:'Bracket length', t:'range', min:8, max:60, step:1},
+    {p:'fx.bracketWidth', l:'Bracket width', t:'range', min:1, max:8, step:1},
+    {p:'fx.bracketInset', l:'Bracket inset', t:'range', min:6, max:40, step:1},
+    {p:'fx.scanlines', l:'CRT scanlines', t:'check'},
+    {p:'fx.scanlineOpacity', l:'Scanline opacity', t:'range', min:0, max:0.3, step:0.01},
+    {p:'fx.scanlineGap', l:'Scanline gap', t:'range', min:2, max:8, step:1},
+    {p:'fx.vignette', l:'Vignette', t:'check'},
+    {p:'fx.vignetteStrength', l:'Vignette strength', t:'range', min:0, max:0.8, step:0.01},
+    {p:'fx.footerDivider', l:'Footer divider', t:'check'},
+    {p:'fx.footerDividerColor', l:'Divider color', t:'rgba'},
+    {p:'fx.avatar', l:'Avatar chip', t:'check'},
+    {p:'fx.avatarSize', l:'Avatar size', t:'range', min:20, max:60, step:1},
+    {p:'fx.avatarX', l:'Avatar X', t:'range', min:8, max:120, step:1},
+    {p:'fx.avatarY', l:'Avatar Y', t:'range', min:8, max:120, step:1},
+    {p:'fx.avatarUseAccent', l:'Avatar = accent', t:'check'},
+    {p:'fx.avatarColor', l:'Avatar color', t:'color'},
+  ]},
+];
+
+/* ----- nested get/set by dot path ----- */
+function getPath(o,p){ return p.split('.').reduce((a,k)=>a&&a[k],o); }
+function setPath(o,p,v){ const ks=p.split('.'); const last=ks.pop(); let t=o; ks.forEach(k=>t=t[k]); t[last]=v; }
+
+/* ----- build UI ----- */
+const controlRoot=document.getElementById('controlRoot');
+function buildUI(){
+  controlRoot.innerHTML='';
+  SCHEMA.forEach(group=>{
+    const d=document.createElement('details'); d.className='group'; if(group.open) d.open=true;
+    const s=document.createElement('summary'); s.textContent=group.title; d.appendChild(s);
+    const body=document.createElement('div'); body.className='body';
+    if(group.desc){ const dd=document.createElement('div'); dd.className='desc'; dd.textContent=group.desc; body.appendChild(dd); }
+    group.ctrls.forEach(c=> body.appendChild(makeRow(c)) );
+    d.appendChild(body); controlRoot.appendChild(d);
+  });
+}
+function makeRow(c){
+  const row=document.createElement('div'); row.className='row'+(c.t==='check'?' toggle':'');
+  const lab=document.createElement('label'); lab.textContent=c.l; row.appendChild(lab);
+  const ctl=document.createElement('div'); ctl.className='ctl';
+  const val=getPath(THEME,c.p);
+
+  if(c.t==='color'){
+    const i=document.createElement('input'); i.type='color'; i.value=normHex(val);
+    i.oninput=()=>{ setPath(THEME,c.p,i.value); render(); };
+    ctl.appendChild(i);
+  } else if(c.t==='rgba'){
+    const i=document.createElement('input'); i.type='text'; i.value=val; i.spellcheck=false;
+    i.oninput=()=>{ setPath(THEME,c.p,i.value); render(); };
+    ctl.appendChild(i);
+  } else if(c.t==='range'){
+    const i=document.createElement('input'); i.type='range'; i.min=c.min; i.max=c.max; i.step=c.step; i.value=val;
+    const out=document.createElement('span'); out.className='val'; out.textContent=val;
+    i.oninput=()=>{ const v=parseFloat(i.value); setPath(THEME,c.p,v); out.textContent=v; render(); };
+    ctl.appendChild(i); ctl.appendChild(out);
+  } else if(c.t==='number'){
+    const i=document.createElement('input'); i.type='number'; i.value=val;
+    i.oninput=()=>{ setPath(THEME,c.p,parseFloat(i.value)||0); render(); };
+    ctl.appendChild(i);
+  } else if(c.t==='text'){
+    const i=document.createElement('input'); i.type='text'; i.value=val; i.spellcheck=false;
+    i.oninput=()=>{ setPath(THEME,c.p,i.value); render(); };
+    ctl.appendChild(i);
+  } else if(c.t==='check'){
+    const i=document.createElement('input'); i.type='checkbox'; i.checked=!!val;
+    i.onchange=()=>{ setPath(THEME,c.p,i.checked); render(); };
+    ctl.appendChild(i);
+  } else if(c.t==='font'){
+    const sel=document.createElement('select');
+    Object.keys(FONT_REGISTRY).forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=FONT_REGISTRY[f].label||f; if(f===val)o.selected=true; sel.appendChild(o); });
+    sel.onchange=()=>{ setPath(THEME,c.p,sel.value); render(); };
+    ctl.appendChild(sel);
+  } else if(c.t==='select'){
+    const sel=document.createElement('select');
+    c.opts.forEach(o=>{ const op=document.createElement('option'); op.value=o; op.textContent=o; if(o===val)op.selected=true; sel.appendChild(op); });
+    sel.onchange=()=>{ const v=isNaN(+sel.value)?sel.value:+sel.value; setPath(THEME,c.p,v); render(); };
+    ctl.appendChild(sel);
+  }
+  row.appendChild(ctl);
+  return row;
+}
+function normHex(v){
+  if(typeof v==='string' && /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(v)) return v;
+  return '#16f2c8';
+}
+
+/* ----- render + export ----- */
+const cardCanvas=document.getElementById('card');
+const jsonOut=document.getElementById('jsonOut');
+function render(){
+  draw(cardCanvas, sampleData, THEME);
+  jsonOut.value = JSON.stringify(THEME, null, 2);
+}
+
+/* ----- sample selector ----- */
+const sampleSel=document.getElementById('sampleSel');
+Object.keys(SAMPLES).forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=k; sampleSel.appendChild(o); });
+sampleSel.onchange=()=>{ sampleData=SAMPLES[sampleSel.value]; render(); };
+
+/* ----- toolbar actions ----- */
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1400); }
+document.getElementById('resetBtn').onclick=()=>{ THEME=defaultTheme(); buildUI(); render(); toast('Reset to production look'); };
+document.getElementById('copyBtn').onclick=async()=>{
+  try{ await navigator.clipboard.writeText(jsonOut.value); toast('Theme JSON copied'); }
+  catch(e){ jsonOut.select(); document.execCommand('copy'); toast('Theme JSON copied'); }
+};
+document.getElementById('downloadJson').onclick=()=>{
+  const a=document.createElement('a'); a.download='sharecard-theme.json';
+  a.href=URL.createObjectURL(new Blob([jsonOut.value],{type:'application/json'})); a.click();
+};
+document.getElementById('downloadPng').onclick=()=>{
+  const a=document.createElement('a'); a.download='sharecard-preview.png'; a.href=cardCanvas.toDataURL('image/png'); a.click();
+};
+
+/* ----- boot ----- */
+injectGoogleFonts();
+buildUI();
+render();
+preloadFonts().then(render);            // re-render once web fonts are ready
+if(document.fonts) document.fonts.ready.then(render);
+</script>
+</body>
+</html>
