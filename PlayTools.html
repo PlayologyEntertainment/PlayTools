@@ -1331,16 +1331,19 @@ const ShareCard = (function(){
     // then open the user's default mail app with a prefilled message that
     // reminds them to attach the just-downloaded image.
     mail.onclick = ()=>{
+      // Download the card first (within the click gesture) so it's ready to attach.
       const a=document.createElement('a'); a.download=fname; a.href=canvas.toDataURL('image/png'); a.click();
       const tag = Store.get().profile.gamerTag || 'A challenger';
       const subject = '[PlayTools] '+tag+' — '+(data.tool||'Score');
       const body = shareText
         + '\n\n(Your card image "'+fname+'" was just downloaded — attach it to this email before sending!)'
         + '\n\n— Sent from PlayTools';
-      const m=document.createElement('a');
-      m.href = 'mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-      m.style.display='none'; document.body.appendChild(m); m.click(); document.body.removeChild(m);
-      if(window.UI && UI.toast) UI.toast('Card downloaded','Attach the downloaded card to the email that just opened.');
+      const mailto = 'mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+      // Hand off to the mail client on the next tick: firing the download click and
+      // the mailto navigation in the same gesture makes the browser swallow the
+      // mailto, so the email never opens. Deferring it makes it a separate action.
+      setTimeout(()=>{ window.location.href = mailto; }, 300);
+      if(window.UI && UI.toast) UI.toast('Card downloaded','Attach the downloaded card, then send the email that just opened.');
     };
   }
 
