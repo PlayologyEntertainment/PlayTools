@@ -255,6 +255,32 @@
   .field.invalid input{border-color:var(--danger);}
   .field.invalid .hint{color:var(--danger);}
 
+  /* ---- Platform Link (DD §3.1.2.1) ---- */
+  .pl-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:16px 0;}
+  .pl-card{display:block; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:16px; cursor:pointer; transition:.15s; position:relative;}
+  .pl-card:hover{border-color:var(--neon); box-shadow:0 0 16px rgba(22,242,200,0.18); transform:translateY(-2px);}
+  .pl-card .pl-ico{font-size:26px; line-height:1;}
+  .pl-card .pl-name{font-family:var(--pixel); color:#fff; font-size:15px; margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .pl-card .pl-status{font-size:12px; margin-top:9px; color:var(--ink-dim); line-height:1.5;}
+  .pl-card.linked{border-color:var(--neon-5);}
+  .pl-card.linked .pl-status{color:var(--neon);}
+  .pl-badge{font-size:8px; letter-spacing:1px; padding:2px 6px; border-radius:3px; text-transform:uppercase; font-weight:700;}
+  .pl-badge.game{background:var(--neon-5); color:#04120a;}
+  .pl-badge.social{background:var(--neon-3); color:#1a1400;}
+  .pl-input, .pl-row input{font-family:var(--mono); font-size:14px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:9px 11px; width:100%;}
+  .pl-input:focus, .pl-row input:focus{outline:none; border-color:var(--neon); box-shadow:0 0 10px rgba(22,242,200,0.2);}
+  .pl-row{display:flex; gap:6px; align-items:center; margin-bottom:6px;}
+  .pl-row input{flex:1; min-width:0;}
+  .pl-row .pl-x{flex:0 0 auto;}
+  .pl-summary{background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:14px 16px; margin:12px 0;}
+  .pl-summary .k{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--neon-3);}
+  .pl-summary .pl-stat-row{display:flex; flex-wrap:wrap; gap:18px; margin-top:6px;}
+  .pl-summary .pl-stat-row b{color:#fff; font-family:var(--mono);}
+  .pl-games{list-style:none; padding:0; margin:10px 0 0; font-size:13px;}
+  .pl-games li{display:flex; justify-content:space-between; gap:12px; padding:4px 0; border-bottom:1px solid rgba(124,92,255,0.12);}
+  .pl-games li span:last-child{color:var(--neon); font-family:var(--mono); flex:0 0 auto;}
+  .pl-check{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-dim); margin:4px 0;}
+
   /* ---- Attribute radar / bars ---- */
   .dna-layout{display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:start;}
   .radar-wrap{display:flex; flex-direction:column; align-items:center; gap:10px;}
@@ -739,7 +765,7 @@ const Store = (function(){
 
   function defaultDNA(){
     return {
-      version: 1,
+      version: 2,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       profile: {
@@ -759,7 +785,8 @@ const Store = (function(){
       achievements: [],        // unlocked achievement ids
       calibration: null,       // measured system latency t_link (ms)
       sensitivity: null,       // Setup Lab sensitivity profile {dpi,inGame,edpi,cohort}
-      friends: []              // imported peer Gamer DNA snapshots (DD §3.2) — local only
+      friends: [],             // imported peer Gamer DNA snapshots (DD §3.2) — local only
+      platforms: {}            // Platform Link cards keyed by id (DD §3.1.2.1) — local only
     };
   }
 
@@ -776,7 +803,8 @@ const Store = (function(){
         profile: Object.assign(defaultDNA().profile, parsed.profile||{}),
         attributes: Object.assign(defaultDNA().attributes, parsed.attributes||{}),
         bests: parsed.bests||{}, counters: parsed.counters||{}, achievements: parsed.achievements||[],
-        friends: Array.isArray(parsed.friends) ? parsed.friends : []
+        friends: Array.isArray(parsed.friends) ? parsed.friends : [],
+        platforms: (parsed.platforms && typeof parsed.platforms==='object') ? parsed.platforms : {}
       });
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
   }
@@ -825,8 +853,62 @@ const Store = (function(){
       const key=(tag||'').toLowerCase();
       const f = dna.friends.find(x=> (x.tag||'').toLowerCase()===key);
       if(f){ f.note = note; save(); }
-    }
+    },
+
+    /* ---- Platform Link (DD §3.1.2.1) — cards keyed by platform id ---- */
+    getPlatforms(){ return dna.platforms || (dna.platforms={}); },
+    getPlatform(id){ return (dna.platforms||{})[id] || null; },
+    // Commit a fresh full snapshot for a platform. The previous full snapshot is
+    // collapsed to a lightweight summary; only the latest holds full detail, and
+    // top-games are capped to the 50 most-played to stay under the storage ceiling.
+    savePlatform(id, type, source, snapshot){
+      if(!dna.platforms) dna.platforms={};
+      const TOP = 50;
+      if(snapshot && snapshot.library && Array.isArray(snapshot.library.topGames)){
+        snapshot.library.topGames = snapshot.library.topGames
+          .slice().sort((a,b)=> (b.hours||0)-(a.hours||0)).slice(0, TOP);
+      }
+      snapshot.at = Date.now();
+      const existing = dna.platforms[id];
+      const history = (existing && Array.isArray(existing.history)) ? existing.history.slice(0,11) : [];
+      if(existing && existing.current){ history.unshift(summarize(existing.current)); }  // collapse prior full → summary
+      dna.platforms[id] = {
+        type, source,
+        handle: (snapshot.identity && snapshot.identity.handle) || '',
+        id: (snapshot.identity && snapshot.identity.id) || '',
+        current: snapshot,
+        history,             // newest-first summaries of past snapshots
+        updatedAt: snapshot.at
+      };
+      bumpPlatformAchievements();
+      save();
+    },
+    removePlatform(id){
+      if(!dna.platforms) return;
+      delete dna.platforms[id];
+      bumpPlatformAchievements();
+      save();
+    },
+    platformCount(){ return Object.keys(dna.platforms||{}).length; }
   };
+
+  // Lightweight summary kept for older snapshots (analytics-ready, tiny footprint).
+  function summarize(snap){
+    snap = snap || {};
+    const lib = snap.library || {};
+    return {
+      at: snap.at || Date.now(),
+      gamesOwned: lib.gamesOwned || 0,
+      totalHours: lib.totalHours || 0,
+      topGame: (lib.topGames && lib.topGames[0] && lib.topGames[0].name) || '',
+      kpiCount: (snap.kpis && snap.kpis.length) || 0
+    };
+  }
+  // Mirror the linked-platform tally into counters so the achievement engine can read it.
+  function bumpPlatformAchievements(){
+    dna.counters = dna.counters || {};
+    dna.counters.platformsLinked = Object.keys(dna.platforms||{}).length;
+  }
 })();
 
 /* ============================================================================
@@ -972,6 +1054,8 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='whack' && c.hits>=25 },
     { id:'sequence_savant', name:'Sequence Savant', icon:SEQ_ICON, desc:'Recall a sequence of length 12 in Sequence.',
       test:(d,c)=> c && c.tool==='sequence' && c.length>=12 },
+    { id:'controller_wizard', name:'Controller Wizard', icon:'🎮', desc:'Link 3 platforms in Platform Link.',
+      test:(d)=> !!(d.counters && d.counters.platformsLinked>=3) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -1436,6 +1520,8 @@ const CABINETS = [
     desc:'Your profile, 7 attributes, class & rank.' },
   { id:'friends',    lab:'Gamer DNA', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
+  { id:'platforms',  lab:'Gamer DNA', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
+    desc:'Link your Steam, Epic, Nintendo, Discord & Twitch profiles — paste or enter by hand.', dna:'Paste import · Manual KPIs' },
 
   { id:'calibration',lab:'Reflex', name:'Latency Calibration', railName:'Latency', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
     desc:'3-click baseline to factor out system latency.', dna:'Calibrates t_link' },
@@ -1701,7 +1787,7 @@ Views.dna = function(c){
     UI.applyAccent(Store.get().profile.accent);
     UI.toast('Saved','Gamer DNA profile updated.');
   };
-  dummyBtn.onclick = ()=> UI.toast('Coming Soon','Platform Link — paste your public profile, no login required — arrives in a later build.');
+  dummyBtn.onclick = ()=> Router.go('#/dna/platforms');
   resetBtn.onclick = ()=>{
     if(confirm('Reset your entire Gamer DNA profile? This clears attributes, achievements and identity. Cannot be undone.')){
       Store.reset(); UI.applyAccent(Store.get().profile.accent); Router.go('#/dna'); UI.toast('Reset','Fresh profile created.');
@@ -2165,6 +2251,330 @@ function openCompare(friend){
   close.onclick = dismiss; cl.onclick = dismiss;
   backdrop.onclick = e=>{ if(e.target===backdrop) dismiss(); };
 }
+
+/* ============================================================================
+   PLATFORM LINK (DD §3.1.2.1) — paste parser + manual KPI panel
+   Strictly client-only: parsing runs in-browser via DOMParser / JSON.parse,
+   no backend, no API keys. Steam auto-parses public Community XML; the rest
+   are manual cards. Two archetypes — `game` (library + KPIs) and `social`
+   (handle + audience/verification).
+   ============================================================================ */
+const PLATFORMS = [
+  { id:'steam',    name:'Steam',      type:'game',   icon:'🎮', parser:false,
+    note:'Enter your Steam presence by hand — profile name, library size, total hours, and any standout titles or per-game KPIs. (Steam has deprecated client-only library export, so there is no paste import.)' },
+  { id:'epic',     name:'Epic Games', type:'game',   icon:'🛒', parser:false,
+    note:'Epic has no public export, so enter your stats by hand — display name, library size, and any per-game KPIs (Fortnite wins, K/D, level…).' },
+  { id:'nintendo', name:'Nintendo',   type:'game',   icon:'🔴', parser:false,
+    note:'Add your Nintendo presence by hand — friend code, NSO games, and per-title ranks (Smash GSP, Splatoon rank…).',
+    extra:[['friendCode','Friend Code','text','SW-0000-0000-0000']] },
+  { id:'discord',  name:'Discord',    type:'social', icon:'💬', parser:false,
+    note:'A social/identity card — your handle, servers, and Nitro status.',
+    social:[['serverCount','Servers','number','How many servers'],['status','Nitro / Boost','text','e.g. Nitro Classic']] },
+  { id:'twitch',   name:'Twitch',     type:'social', icon:'📺', parser:false,
+    note:'A streamer card — channel, followers, subs and partner/affiliate status.',
+    social:[['avgViewers','Avg Viewers','number','Average concurrent'],['status','Partner / Affiliate','text','e.g. Affiliate']] }
+];
+function getPlat(id){ return PLATFORMS.find(p=>p.id===id); }
+
+/* ---- small DOM helpers for the Platform Link forms ---- */
+function plInput(type, val, ph){ const i=el('input',{type:type||'text', class:'pl-input'}); if(val!=null && val!=='') i.value=val; if(ph) i.placeholder=ph; return i; }
+function plField(label, input, hint){
+  const f = el('div',{class:'field'});
+  f.append(el('label',{text:label}), input);
+  if(hint) f.append(el('span',{class:'hint', text:hint}));
+  return f;
+}
+function plNum(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
+// Repeatable add/remove row group; returns { el, collect() }.
+function plRowGroup(cols, initial, addLabel){
+  const list = el('div',{});
+  function addRow(vals){
+    vals = vals||{};
+    const row = el('div',{class:'pl-row'});
+    cols.forEach(col=>{
+      const i = plInput(col.type, vals[col.key], col.label);
+      i.setAttribute('data-key', col.key);
+      if(col.flex) i.style.flex = col.flex;
+      row.append(i);
+    });
+    const x = el('button',{class:'btn ghost pl-x', html:'✕', title:'Remove', onclick:()=> row.remove()});
+    row.append(x);
+    list.append(row);
+  }
+  (initial||[]).forEach(addRow);
+  const add = el('button',{class:'btn ghost', style:'margin-top:2px;', html:'+ '+(addLabel||'Add row'), onclick:()=> addRow({})});
+  const wrap = el('div',{}); wrap.append(list, add);
+  function collect(){
+    return [].slice.call(list.children).map(row=>{
+      const o={}; row.querySelectorAll('input').forEach(i=> o[i.getAttribute('data-key')] = i.value.trim());
+      return o;
+    }).filter(o=> Object.keys(o).some(k=> o[k]!==''));
+  }
+  return { el: wrap, collect };
+}
+
+/* ---- snapshot → read-only summary element (used for preview + linked state) ---- */
+function plSummaryEl(snap, plat){
+  const box = el('div',{class:'pl-summary'});
+  const id = snap.identity||{}, lib = snap.library||{};
+  if(id.handle) box.append(el('div',{class:'pl-name', style:'font-size:16px;color:#fff;', text:'@'+id.handle}));
+  const row = el('div',{class:'pl-stat-row'});
+  function stat(k,v){
+    const s = el('span'); s.append(el('span',{class:'k', text:k}), el('br'), el('b',{text:String(v)}));
+    row.append(s);
+  }
+  if(plat.type==='game'){
+    if(lib.gamesOwned) stat('Games', lib.gamesOwned.toLocaleString());
+    if(lib.totalHours) stat('Hours', lib.totalHours.toLocaleString());
+    if(snap.kpis && snap.kpis.length) stat('KPIs tracked', snap.kpis.length);
+  } else {
+    const s = snap.social||{};
+    if(s.followers!=null && s.followers!=='') stat('Followers', Number(s.followers).toLocaleString());
+    if(s.subs!=null && s.subs!=='') stat('Subs', Number(s.subs).toLocaleString());
+    if(s.status) stat('Status', s.status);
+  }
+  if(id.region) stat('Region', id.region);
+  if(id.verified) stat('Verified', '✔ clean');
+  if(row.children.length) box.append(row);
+  if(lib.topGames && lib.topGames.length){
+    box.append(el('div',{class:'k', style:'margin-top:12px;', text:'Top games'}));
+    const ul = el('ul',{class:'pl-games'});
+    lib.topGames.slice(0,5).forEach(g=>{
+      const li = el('li'); li.append(el('span',{text:g.name}), el('span',{text:(g.hours?g.hours+'h':'—')}));
+      ul.append(li);
+    });
+    box.append(ul);
+  }
+  if(snap.kpis && snap.kpis.length){
+    box.append(el('div',{class:'k', style:'margin-top:12px;', text:'Per-game KPIs'}));
+    const ul = el('ul',{class:'pl-games'});
+    snap.kpis.forEach(k=>{
+      const bits=[]; if(k.rank) bits.push(k.rank);
+      if(k.wins!=null && k.wins!=='') bits.push(k.wins+'W');
+      if(k.losses!=null && k.losses!=='') bits.push(k.losses+'L');
+      if(k.kd) bits.push('K/D '+k.kd);
+      if(k.winRate!=null) bits.push(k.winRate+'%');
+      const li=el('li'); li.append(el('span',{text:k.game||'—'}), el('span',{text:bits.join(' · ')||'—'}));
+      ul.append(li);
+    });
+    box.append(ul);
+  }
+  return box;
+}
+
+Views.platforms = function(c){
+  const state = { pid:null, tab:null };
+
+  function mount(){
+    c.innerHTML='';
+    const panel = el('div',{class:'panel'});
+    c.append(panel);
+    state.pid ? renderDetail(panel) : renderList(panel);
+    window.scrollTo({top:0, behavior:'auto'});
+  }
+  function open(pid){ state.pid = pid; mount(); }
+  function back(){ state.pid=null; mount(); }
+
+  /* ---------- LIST ---------- */
+  function renderList(panel){
+    panel.append(
+      el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
+      el('h1',{class:'title', html:'🔗 Platform Link'}),
+      el('p',{class:'view-desc', html:'Connect your gaming platforms to your Gamer DNA — handle, library and per-game stats — <strong>no login, no account linking</strong>, and nothing ever leaves this browser.'})
+    );
+    const linked = Store.platformCount();
+    const cw = Math.min(3, linked);
+    panel.append(el('p',{class:'muted', html:`Linked <strong>${linked}</strong> / ${PLATFORMS.length} platforms · <span style="color:var(--neon)">Controller Wizard</span> ${linked>=3?'unlocked 🎮':`progress ${cw}/3`}`}));
+
+    const grid = el('div',{class:'pl-grid'});
+    PLATFORMS.forEach(plat=>{
+      const saved = Store.getPlatform(plat.id);
+      const card = el('div',{class:'pl-card'+(saved?' linked':''), onclick:()=> open(plat.id)});
+      const name = el('div',{class:'pl-name'});
+      name.append(el('span',{class:'pl-ico', text:plat.icon}), el('span',{text:plat.name}),
+        el('span',{class:'pl-badge '+plat.type, text:plat.type}));
+      card.append(name);
+      let status;
+      if(saved){
+        const snap = saved.current||{}, id=snap.identity||{}, lib=snap.library||{};
+        const bits=[];
+        if(id.handle) bits.push('@'+id.handle);
+        if(plat.type==='game'){
+          if(lib.gamesOwned) bits.push(lib.gamesOwned+' games');
+          if(lib.totalHours) bits.push(lib.totalHours.toLocaleString()+'h');
+        } else {
+          const s=snap.social||{};
+          if(s.followers!=null && s.followers!=='') bits.push(Number(s.followers).toLocaleString()+' followers');
+        }
+        status = '✓ Linked · '+(bits.join(' · ')||'saved');
+      } else {
+        status = 'Not linked — tap to add your stats';
+      }
+      card.append(el('div',{class:'pl-status', text:status}));
+      grid.append(card);
+    });
+    panel.append(grid);
+
+    panel.append(el('p',{class:'muted', style:'margin-top:18px;font-size:12px;',
+      html:'Platform stats power your Achievement Showcase and library flair — they do <em>not</em> feed your 7 skill attributes, keeping your Gamer Score earned in the labs.'}));
+  }
+
+  /* ---------- DETAIL ---------- */
+  function renderDetail(panel){
+    const plat = getPlat(state.pid);
+    const saved = Store.getPlatform(plat.id);
+
+    panel.append(el('button',{class:'btn ghost', style:'margin-bottom:12px;', html:'← All platforms', onclick:back}));
+    panel.append(
+      el('div',{class:'view-head', html:`<span class="lab-tag">Platform Link · ${plat.type}</span>`}),
+      el('h1',{class:'title', html:`${plat.icon} ${plat.name}`}),
+      el('p',{class:'view-desc', html:plat.note||''})
+    );
+
+    if(saved){
+      const when = new Date(saved.updatedAt||Date.now()).toLocaleString();
+      panel.append(el('p',{class:'muted', html:`✓ Linked via <strong>${saved.source==='parser'?'paste import':'manual entry'}</strong> · updated ${when}` + (saved.history&&saved.history.length?` · ${saved.history.length} past snapshot${saved.history.length>1?'s':''} retained`:'')}));
+      panel.append(plSummaryEl(saved.current||{}, plat));
+      panel.append(el('button',{class:'btn danger ghost', style:'margin-bottom:8px;', html:'⟲ Unlink '+plat.name, onclick:()=>{
+        if(confirm('Unlink '+plat.name+'? This removes its card and snapshots from your profile.')){
+          Store.removePlatform(plat.id); UI.toast('Unlinked', plat.name+' removed from Platform Link.'); back();
+        }
+      }}));
+    }
+
+    panel.append(el('h2',{class:'sub', text:'Manual Entry'}));
+    const pane = el('div',{});
+    panel.append(pane);
+    buildManual(plat, pane, saved);
+  }
+
+  /* ---------- MANUAL ENTRY ---------- */
+  function buildManual(plat, pane, saved){
+    const cur = (saved && saved.current) || {};
+    const id = cur.identity||{}, lib = cur.library||{}, soc = cur.social||{};
+
+    // identity + core fields
+    const grid = el('div',{class:'form-grid'});
+    const fHandle = plInput('text', id.handle, 'Your handle / display name');
+    const fUrl    = plInput('url',  id.profileUrl, 'https://…');
+    const fRegion = plInput('text', id.region, 'Country / region');
+    const fSince  = plInput('text', id.memberSince, 'Member since');
+    grid.append(
+      plField(plat.name+' Handle', fHandle),
+      plField('Profile URL', fUrl),
+      plField('Region', fRegion),
+      plField('Member Since', fSince)
+    );
+    // platform-specific identity extras (e.g. Nintendo friend code)
+    const extraInputs = {};
+    (plat.extra||[]).forEach(([key,label,type,ph])=>{
+      const i = plInput(type, (cur.custom||[]).reduce((a,c)=> c.key===label?c.value:a, ''), ph);
+      extraInputs[key] = { input:i, label };
+      grid.append(plField(label, i));
+    });
+
+    // type-specific blocks
+    let fGames, fHours, catInputs={}, socialInputs={};
+    if(plat.type==='game'){
+      fGames = plInput('number', lib.gamesOwned, 'e.g. 142');
+      fHours = plInput('number', lib.totalHours, 'e.g. 2300');
+      grid.append(plField('Games Owned', fGames), plField('Total Hours', fHours));
+      const cats = (lib.categories)||{};
+      [['fps','FPS'],['rpg','RPG'],['rts','RTS'],['sim','Sim']].forEach(([k,lbl])=>{
+        const i = plInput('number', cats[k], 'hours'); catInputs[k]=i;
+        grid.append(plField(lbl+' Hours', i, 'optional'));
+      });
+    } else {
+      const sf = [['followers','Followers','number','e.g. 1200'],['subs','Subscribers','number','e.g. 50']]
+        .concat((plat.social||[]).map(([k,l,t,p])=>[k,l,t||'text',p]));
+      sf.forEach(([k,l,t,p])=>{ const i=plInput(t, soc[k], p); socialInputs[k]=i; grid.append(plField(l, i)); });
+    }
+    pane.append(grid);
+
+    // verified toggle
+    const verChk = el('input',{type:'checkbox'}); verChk.checked = !!id.verified;
+    const verWrap = el('label',{class:'pl-check'}); verWrap.append(verChk, el('span',{text:'Verified / clean account'}));
+    pane.append(verWrap);
+
+    // per-game KPIs (game platforms only)
+    let kpiGroup=null;
+    if(plat.type==='game'){
+      pane.append(el('h2',{class:'sub', text:'Per-Game KPIs'}));
+      pane.append(el('p',{class:'muted', style:'font-size:12px;', text:'Track rank, record and K/D per title. Win-rate is computed from wins & losses.'}));
+      kpiGroup = plRowGroup(
+        [{key:'game',label:'Game',flex:'2'},{key:'rank',label:'Rank/Tier'},{key:'wins',label:'Wins',type:'number'},{key:'losses',label:'Losses',type:'number'},{key:'kd',label:'K/D',type:'number'}],
+        (cur.kpis||[]).map(k=>({game:k.game,rank:k.rank,wins:k.wins,losses:k.losses,kd:k.kd})),
+        'Add a game'
+      );
+      pane.append(kpiGroup.el);
+
+      pane.append(el('h2',{class:'sub', text:'Top Games (optional)'}));
+      var topGroup = plRowGroup(
+        [{key:'name',label:'Game',flex:'3'},{key:'hours',label:'Hours',type:'number'}],
+        (lib.topGames||[]).slice(0,10).map(g=>({name:g.name,hours:g.hours})),
+        'Add a game'
+      );
+      pane.append(topGroup.el);
+    }
+
+    // free-form custom rows (all platforms)
+    pane.append(el('h2',{class:'sub', text:'Custom Fields (optional)'}));
+    const reserved = (plat.extra||[]).map(e=>e[1]);
+    const customGroup = plRowGroup(
+      [{key:'key',label:'Label',flex:'1'},{key:'value',label:'Value',flex:'2'}],
+      (cur.custom||[]).filter(c=> reserved.indexOf(c.key)<0),
+      'Add a field'
+    );
+    pane.append(customGroup.el);
+
+    // save
+    const saveBtn = el('button',{class:'btn primary', style:'margin-top:14px;', html:'💾 Save '+plat.name});
+    pane.append(saveBtn);
+    saveBtn.onclick = ()=>{
+      const snap = { identity:{}, library:{gamesOwned:0,totalHours:0,topGames:[]}, kpis:[], social:{}, badges:[], custom:[] };
+      snap.identity.handle = fHandle.value.trim();
+      if(fUrl.value.trim()) snap.identity.profileUrl = fUrl.value.trim();
+      if(fRegion.value.trim()) snap.identity.region = fRegion.value.trim();
+      if(fSince.value.trim()) snap.identity.memberSince = fSince.value.trim();
+      snap.identity.verified = verChk.checked;
+
+      // custom rows + platform extras
+      snap.custom = customGroup.collect().map(o=>({key:o.key, value:o.value}));
+      Object.keys(extraInputs).forEach(k=>{
+        const v = extraInputs[k].input.value.trim();
+        if(v) snap.custom.push({ key: extraInputs[k].label, value: v });
+      });
+
+      if(plat.type==='game'){
+        snap.library.gamesOwned = plNum(fGames.value);
+        snap.library.totalHours = plNum(fHours.value);
+        const cats={}; let anyCat=false;
+        Object.keys(catInputs).forEach(k=>{ const v=plNum(catInputs[k].value); if(v){cats[k]=v; anyCat=true;} });
+        if(anyCat) snap.library.categories = cats;
+        snap.library.topGames = topGroup.collect().map(o=>({name:o.name, hours:plNum(o.hours)}));
+        snap.kpis = kpiGroup.collect().map(o=>{
+          const wins=o.wins!==''?plNum(o.wins):null, losses=o.losses!==''?plNum(o.losses):null;
+          const k = { game:o.game, rank:o.rank, wins:o.wins, losses:o.losses, kd:o.kd };
+          if(wins!=null && losses!=null && (wins+losses)>0) k.winRate = Math.round(wins/(wins+losses)*100);
+          return k;
+        });
+      } else {
+        Object.keys(socialInputs).forEach(k=>{ const v=socialInputs[k].value.trim(); if(v) snap.social[k]=v; });
+      }
+
+      if(!snap.identity.handle && !snap.custom.length && !snap.kpis.length &&
+         !snap.library.gamesOwned && !Object.keys(snap.social).length){
+        UI.toast('Nothing to save','Add at least a handle or one stat.'); return;
+      }
+      Store.savePlatform(plat.id, plat.type, 'manual', snap);
+      Ach.evaluate({tool:'platform', platform:plat.id});
+      UI.toast('Saved', plat.name+' linked to your Gamer DNA.');
+      open(plat.id);
+    };
+  }
+
+  mount();
+};
 
 /* ============================================================================
    REFLEX LAB CABINETS
@@ -6162,6 +6572,7 @@ const APP_VERSION = '1.0.0';
    ============================================================================ */
 Router.add('#/', Views.home);
 Router.add('#/dna', Views.dna);
+Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);
 Router.add('#/reflex/calibration', Views.calibration);
 Router.add('#/reflex/reaction', Views.reaction);
