@@ -218,6 +218,8 @@
   .cab.locked{opacity:0.55; cursor:not-allowed;}
   .cab.locked:hover{border-color:var(--line); box-shadow:none; transform:none;}
   .cab .cab-icon{font-size:26px; line-height:1; margin-bottom:8px;}
+  /* Sequence quadrant icon: scales to the surrounding font-size wherever it's dropped in */
+  .seq-quads{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .cab .cab-name{font-family:var(--pixel); color:#fff; font-size:15px; letter-spacing:.5px; display:flex; gap:6px; align-items:center;}
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
@@ -886,6 +888,18 @@ const Attr = (function(){
   return { RANKS, applyVector, gamerScore, rankFor, nextRank, classFor };
 })();
 
+/* Sequence (Simon) branding — four neon quadrant pads matching the in-game
+   colours (teal/pink/yellow/purple), connected with a thin dark gap. SEQ_ICON
+   is an inline SVG so it renders anywhere the icon string lands in innerHTML
+   (cabinet tile, rail, page title, achievement row, toast). SEQ_PADS feeds the
+   shareable result card, which draws its own quadrants on <canvas>. */
+const SEQ_PADS = ['#16f2c8','#ff3df0','#ffd23d','#7c5cff'];
+const SEQ_ICON = '<svg class="seq-quads" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
+  '<rect x="4" y="4" width="44" height="44" fill="#16f2c8"/>'+
+  '<rect x="52" y="4" width="44" height="44" fill="#ff3df0"/>'+
+  '<rect x="4" y="52" width="44" height="44" fill="#ffd23d"/>'+
+  '<rect x="52" y="52" width="44" height="44" fill="#7c5cff"/></svg>';
+
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
    ============================================================================ */
@@ -944,7 +958,7 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='bricks' && c.cleared) || !!(d.counters && d.counters.brickClears>=1) },
     { id:'mole_masher', name:'Mole Masher', icon:'🔨', desc:'Whack 25 moles in a single round.',
       test:(d,c)=> c && c.tool==='whack' && c.hits>=25 },
-    { id:'sequence_savant', name:'Sequence Savant', icon:'🟦', desc:'Recall a sequence of length 12 in Sequence.',
+    { id:'sequence_savant', name:'Sequence Savant', icon:SEQ_ICON, desc:'Recall a sequence of length 12 in Sequence.',
       test:(d,c)=> c && c.tool==='sequence' && c.length>=12 },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
@@ -1017,8 +1031,16 @@ const ShareCard = (function(){
     center('PLAYTOOLS', 48, '700 13px monospace', '#ffd23d', 8);
     center((data.lab||'ARCADE')+' · '+(data.tool||''), 70, '11px monospace', '#9aa3d4', 0, W-60);
 
-    // glyph
-    center(data.glyph||'🕹️', 160, '90px sans-serif', '#fff', 0);
+    // glyph — either a text glyph or, when supplied, four connected quadrant pads
+    if(data.glyphQuads){
+      const cols=data.glyphQuads, S=84, gap=6, half=(S-gap)/2, x0=W/2-S/2, y0=86;
+      [[0,0],[1,0],[0,1],[1,1]].forEach((p,i)=>{
+        ctx.fillStyle=cols[i];
+        ctx.fillRect(x0+p[0]*(half+gap), y0+p[1]*(half+gap), half, half);
+      });
+    } else {
+      center(data.glyph||'🕹️', 160, '90px sans-serif', '#fff', 0);
+    }
 
     // grade badge
     if(data.grade){
@@ -1269,7 +1291,7 @@ const CABINETS = [
     desc:'Bounce the ball, shatter every brick & keep the paddle under it.', dna:'Precision +12 · Reflex +6' },
   { id:'arcade_whack', lab:'Arcade', name:'Whack-a-Mole', railName:'Whack', icon:'🔨', tag:'mvp', route:'#/arcade/whack',
     desc:'Thirty seconds, nine holes — smack every mole the instant it pops up.', dna:'Reflex +14 · Speed +6' },
-  { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:'🟦', tag:'mvp', route:'#/arcade/sequence',
+  { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
     desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' }
 ];
 
@@ -5083,7 +5105,7 @@ Views.sequence = function(c){
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
-      lab:'RETRO ARCADE', tool:'Sequence', glyph:'🟦', grade:g,
+      lab:'RETRO ARCADE', tool:'Sequence', glyph:'🟦', glyphQuads:SEQ_PADS, grade:g,
       metric:[{k:'Sequence', v:String(score)}],
       designation: g==='S'?'Total Recall': g==='A'?'Pattern Ace': g==='B'?'Sharp Memory':'Short-Term',
       badge: score>=12?'Sequence Savant':null
