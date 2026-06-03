@@ -989,6 +989,49 @@ const Ach = (function(){
 const ShareCard = (function(){
   const W=440, H=560;
 
+  /* --------------------------------------------------------------------------
+     FONT REGISTRY — shared with the Share Card Studio (sharecard-studio.html);
+     keep both definitions in sync. `stack` is the CSS font-family drawn on
+     canvas (web font first, system fallback last). `google` (optional) is the
+     Google Fonts CSS2 family spec; entries without it are offline system stacks.
+     Web fonts are lazy-loaded only when actually used, so the app keeps its
+     zero-dependency offline baseline unless a web font is selected.
+     ------------------------------------------------------------------------ */
+  const FONTS = {
+    'monospace':       { stack:'"DejaVu Sans Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace' },
+    'sans-serif':      { stack:'"Trebuchet MS","Segoe UI",system-ui,sans-serif' },
+    'Press Start 2P':  { stack:"'Press Start 2P', monospace", google:'Press+Start+2P' },
+    'VT323':           { stack:"'VT323', monospace",          google:'VT323' },
+    'Share Tech Mono': { stack:"'Share Tech Mono', monospace",google:'Share+Tech+Mono' },
+    'Orbitron':        { stack:"'Orbitron', sans-serif",      google:'Orbitron:wght@400;700;900' },
+    'Rajdhani':        { stack:"'Rajdhani', sans-serif",      google:'Rajdhani:wght@400;600;700' },
+    'Audiowide':       { stack:"'Audiowide', sans-serif",     google:'Audiowide' }
+  };
+  function fam(name){ return (FONTS[name] && FONTS[name].stack) || name; }
+
+  // Lazy-inject the Google Fonts stylesheet(s) for any web fonts in `names`, then
+  // resolve once they're decoded so the canvas draws with the real glyphs (not a
+  // fallback). Degrades gracefully: missing document.fonts or offline -> resolves
+  // anyway and the CSS stack's system fallback is used.
+  const _fontLinks = {};
+  function ensureFonts(names){
+    if(!(typeof document!=='undefined' && document.fonts)) return Promise.resolve();
+    const need = [...new Set(names)].filter(n => FONTS[n] && FONTS[n].google);
+    need.forEach(n => {
+      if(_fontLinks[n]) return;
+      _fontLinks[n] = true;
+      const link = document.createElement('link'); link.rel='stylesheet';
+      link.href = 'https://fonts.googleapis.com/css2?family='+FONTS[n].google+'&display=swap';
+      document.head.appendChild(link);
+    });
+    return Promise.all(need.map(n => document.fonts.load("700 16px '"+n+"'").catch(()=>{}))).then(()=>{});
+  }
+
+  // Font names referenced by a given card. Currently the renderer uses the two
+  // system fonts; when the card becomes THEME-driven, pull the chosen families
+  // from the theme here so ensureFonts() preloads them before drawing.
+  function fontsUsedBy(data){ return ['monospace','sans-serif']; }
+
   // data: { lab, tool, glyph, metric:[{k,v}], grade, designation, badge }
   function draw(canvas, data){
     const ctx = canvas.getContext('2d');
@@ -1028,8 +1071,8 @@ const ShareCard = (function(){
       ctx.fillText(text, W/2, y); ctx.shadowBlur=0;
     }
 
-    center('PLAYTOOLS', 48, '700 13px monospace', '#ffd23d', 8);
-    center((data.lab||'ARCADE')+' · '+(data.tool||''), 70, '11px monospace', '#9aa3d4', 0, W-60);
+    center('PLAYTOOLS', 48, '700 13px '+fam('monospace'), '#ffd23d', 8);
+    center((data.lab||'ARCADE')+' · '+(data.tool||''), 70, '11px '+fam('monospace'), '#9aa3d4', 0, W-60);
 
     // glyph — either a text glyph or, when supplied, four connected quadrant pads
     if(data.glyphQuads){
@@ -1039,13 +1082,13 @@ const ShareCard = (function(){
         ctx.fillRect(x0+p[0]*(half+gap), y0+p[1]*(half+gap), half, half);
       });
     } else {
-      center(data.glyph||'🕹️', 160, '90px sans-serif', '#fff', 0);
+      center(data.glyph||'🕹️', 160, '90px '+fam('sans-serif'), '#fff', 0);
     }
 
     // grade badge
     if(data.grade){
       ctx.fillStyle=accent; ctx.shadowColor=accent; ctx.shadowBlur=18;
-      ctx.font='800 64px sans-serif'; ctx.textAlign='center';
+      ctx.font='800 64px '+fam('sans-serif'); ctx.textAlign='center';
       ctx.fillText('GRADE '+data.grade, W/2, 250); ctx.shadowBlur=0;
     }
 
@@ -1054,11 +1097,11 @@ const ShareCard = (function(){
     ctx.textAlign='left';
     (data.metric||[]).forEach(m=>{
       const keyTxt=String(m.k).toUpperCase();
-      ctx.font='12px monospace'; ctx.fillStyle='#9aa3d4'; ctx.textAlign='left';
+      ctx.font='12px '+fam('monospace'); ctx.fillStyle='#9aa3d4'; ctx.textAlign='left';
       ctx.fillText(keyTxt, 50, y);
       const keyW=ctx.measureText(keyTxt).width;
       ctx.fillStyle=accent; ctx.textAlign='right';
-      const valTxt=fitInline(String(m.v), '700 20px monospace', (W-50)-(50+keyW+14));
+      const valTxt=fitInline(String(m.v), '700 20px '+fam('monospace'), (W-50)-(50+keyW+14));
       ctx.fillText(valTxt, W-50, y);
       ctx.textAlign='left'; y+=38;
     });
@@ -1066,10 +1109,10 @@ const ShareCard = (function(){
     // designation
     if(data.designation){
       y+=6;
-      ctx.font='12px monospace'; ctx.fillStyle='#9aa3d4'; ctx.textAlign='center';
+      ctx.font='12px '+fam('monospace'); ctx.fillStyle='#9aa3d4'; ctx.textAlign='center';
       ctx.fillText('DESIGNATION', W/2, y); y+=24;
       ctx.fillStyle='#ff3df0'; ctx.shadowColor='#ff3df0'; ctx.shadowBlur=10; ctx.textAlign='center';
-      ctx.fillText(fitInline(String(data.designation), '700 18px sans-serif', W-80), W/2, y); ctx.shadowBlur=0; y+=10;
+      ctx.fillText(fitInline(String(data.designation), '700 18px '+fam('sans-serif'), W-80), W/2, y); ctx.shadowBlur=0; y+=10;
     }
 
     // badge strip
@@ -1077,12 +1120,12 @@ const ShareCard = (function(){
       ctx.fillStyle='rgba(255,210,61,0.12)'; ctx.fillRect(30, H-128, W-60, 36);
       ctx.strokeStyle='#ffd23d'; ctx.lineWidth=1; ctx.strokeRect(30, H-128, W-60, 36);
       ctx.fillStyle='#ffd23d'; ctx.textAlign='center';
-      ctx.fillText(fitInline('★ '+data.badge, '13px monospace', W-72), W/2, H-104);
+      ctx.fillText(fitInline('★ '+data.badge, '13px '+fam('monospace'), W-72), W/2, H-104);
     }
 
     // footer — player + url
-    center('@'+tag, H-64, '700 15px sans-serif', accent, 6, W-80);
-    center('playology · playtools', H-40, '11px monospace', '#9aa3d4');
+    center('@'+tag, H-64, '700 15px '+fam('sans-serif'), accent, 6, W-80);
+    center('playology · playtools', H-40, '11px '+fam('monospace'), '#9aa3d4');
   }
 
   // open a modal showing the rendered card with share/download actions
@@ -1102,7 +1145,10 @@ const ShareCard = (function(){
     actions.append(dl, sh, cl);
     modal.append(close, h3, canvas, actions);
     backdrop.append(modal); root.append(backdrop);
-    draw(canvas, data);
+    // Ensure any web fonts the card uses are decoded before drawing, then keep
+    // canvas crisp by redrawing once the document reports all fonts ready.
+    ensureFonts(fontsUsedBy(data)).then(()=>draw(canvas, data));
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>draw(canvas, data));
 
     function dismiss(){ root.innerHTML=''; }
     close.onclick = dismiss; cl.onclick = dismiss;

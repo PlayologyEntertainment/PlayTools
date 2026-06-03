@@ -282,11 +282,37 @@ let sampleData = SAMPLES[Object.keys(SAMPLES)[0]];
    RENDERER — parameterized mirror of ShareCard.draw(canvas, data).
    Reads ALL visual values from THEME (T). Logic/flow matches production.
    ============================================================================ */
-function fam(name){
-  // allow a few friendly aliases to real font stacks
-  if(name==='monospace') return '"DejaVu Sans Mono",ui-monospace,Menlo,Consolas,monospace';
-  if(name==='sans-serif') return '"Trebuchet MS","Segoe UI",system-ui,sans-serif';
-  return name;
+/* ----------------------------------------------------------------------------
+   FONT REGISTRY — shared with production (keep these two definitions in sync).
+   Keys are the values stored in THEME. `stack` is the CSS font-family used on
+   canvas (web font first, system fallback last). `google` (optional) is the
+   family spec for the Google Fonts CSS2 API; entries without it are offline
+   system stacks. The two system entries preserve the original look.
+   -------------------------------------------------------------------------- */
+const FONT_REGISTRY = {
+  'monospace':       { label:'System Mono',            stack:'"DejaVu Sans Mono",ui-monospace,Menlo,Consolas,monospace' },
+  'sans-serif':      { label:'System Sans',            stack:'"Trebuchet MS","Segoe UI",system-ui,sans-serif' },
+  'Press Start 2P':  { label:'Press Start 2P · pixel', stack:"'Press Start 2P', monospace", google:'Press+Start+2P' },
+  'VT323':           { label:'VT323 · CRT terminal',   stack:"'VT323', monospace",          google:'VT323' },
+  'Share Tech Mono': { label:'Share Tech Mono · techy',stack:"'Share Tech Mono', monospace",google:'Share+Tech+Mono' },
+  'Orbitron':        { label:'Orbitron · futurist',    stack:"'Orbitron', sans-serif",      google:'Orbitron:wght@400;700;900' },
+  'Rajdhani':        { label:'Rajdhani · condensed',   stack:"'Rajdhani', sans-serif",      google:'Rajdhani:wght@400;600;700' },
+  'Audiowide':       { label:'Audiowide · display',    stack:"'Audiowide', sans-serif",     google:'Audiowide' }
+};
+function fam(name){ return (FONT_REGISTRY[name] && FONT_REGISTRY[name].stack) || name; }
+
+/* Studio eagerly loads every web font so all dropdown options preview live. */
+function injectGoogleFonts(){
+  const specs = Object.values(FONT_REGISTRY).filter(f=>f.google).map(f=>'family='+f.google);
+  if(!specs.length) return;
+  const link=document.createElement('link'); link.rel='stylesheet';
+  link.href='https://fonts.googleapis.com/css2?'+specs.join('&')+'&display=swap';
+  document.head.appendChild(link);
+}
+function preloadFonts(){
+  if(!document.fonts) return Promise.resolve();
+  const names=Object.keys(FONT_REGISTRY).filter(n=>FONT_REGISTRY[n].google);
+  return Promise.all(names.map(n=>document.fonts.load("700 16px '"+n+"'").catch(()=>{}))).then(()=>{});
 }
 function roundRectPath(ctx,x,y,w,h,r){
   r=Math.min(r,w/2,h/2);
@@ -470,7 +496,6 @@ function draw(canvas, data, T){
    CONTROL SCHEMA — declarative; drives the UI. Each entry maps to a THEME path.
    types: color | accentColor | rgba | range | number | text | check | select | font
    ============================================================================ */
-const FONTS=['monospace','sans-serif'];
 const SCHEMA=[
   {title:'Canvas & Persona', desc:'Card size and the profile values normally pulled from the logged-in user.', ctrls:[
     {p:'canvas.w', l:'Width', t:'number'},
@@ -645,7 +670,7 @@ function makeRow(c){
     ctl.appendChild(i);
   } else if(c.t==='font'){
     const sel=document.createElement('select');
-    FONTS.forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f; if(f===val)o.selected=true; sel.appendChild(o); });
+    Object.keys(FONT_REGISTRY).forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=FONT_REGISTRY[f].label||f; if(f===val)o.selected=true; sel.appendChild(o); });
     sel.onchange=()=>{ setPath(THEME,c.p,sel.value); render(); };
     ctl.appendChild(sel);
   } else if(c.t==='select'){
@@ -691,8 +716,11 @@ document.getElementById('downloadPng').onclick=()=>{
 };
 
 /* ----- boot ----- */
+injectGoogleFonts();
 buildUI();
 render();
+preloadFonts().then(render);            // re-render once web fonts are ready
+if(document.fonts) document.fonts.ready.then(render);
 </script>
 </body>
 </html>
