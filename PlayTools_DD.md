@@ -82,14 +82,14 @@ This subsection narrows the vision above into a build-ready specification for th
 
 **Architecture — strictly client-only.** The engine runs entirely in-browser. There is no backend, no proxy server, and no API keys; all data is entered/processed locally, consistent with the product's Browser-Only Execution principle (§1.3). (Any future paste import would parse locally via `DOMParser` / `JSON.parse`.)
 
-**MVP Platform Set.** The first release ships five platforms, split into two card archetypes:
+**MVP Platform Set.** The first release ships four platforms, split into two card archetypes:
 
 | Archetype | Platforms | Emphasis |
 | --- | --- | --- |
-| `game` | **Steam**, **Epic Games**, **Nintendo** | library + per-title competitive KPIs |
+| `game` | **Steam**, **Epic Games** | library + per-title competitive KPIs |
 | `social` | **Discord**, **Twitch** | handle + audience / verification stats |
 
-All five platforms are **manual-entry cards** in v1 (see implementation note below). Xbox Live, PlayStation Network, and Riot Games from the broader vision list (§3.1.2) are deferred to a later pass.
+All four platforms are **manual-entry cards** in v1 (see implementation note below), each shown with its official brand mark (inlined as a transparent single-path SVG so it stays crisp and offline). PlayTools is PC-focused, so the console-only **Nintendo** card was dropped; Xbox Live, PlayStation Network, and Riot Games from the broader vision list (§3.1.2) remain deferred to a later pass.
 
 **Implementation note — Steam auto-import (shipped: manual).** The original v1 plan auto-parsed Steam from its public Community XML (`…/?xml=1`, `…/games/?tab=all&xml=1`). In testing this proved unworkable client-side: Steam has deprecated the community XML and now serves logged-in profile owners the new JavaScript-rendered games page (ignoring `xml=1`), while the profile-summary XML never contained the full library. A true "enter your ID → auto-load" experience (à la gameindustry.eu) requires Steam's Web API behind a server/proxy — which violates the strictly-client-only, no-proxy rule above. v1 therefore ships **manual entry for all platforms**, including Steam. The data model keeps `source: 'parser'` reserved so an optional Web-API-key + proxy path can be added later without migration.
 
@@ -108,7 +108,7 @@ platforms: {
 //              social{ followers, subs, verified }, badges[], custom{ key:val } }
 ```
 
-**Snapshot Retention Policy.** Per platform, the engine pulls and retains the **top 50 games ranked by usage (playtime)**, plus rolling summaries. The latest snapshot holds full per-title detail; older snapshots collapse to summary-only records. The 50-game cap keeps the aggregate footprint comfortably under the browser's ~5 MB `localStorage` ceiling even with all five platforms populated.
+**Snapshot Retention Policy.** Per platform, the engine pulls and retains the **top 50 games ranked by usage (playtime)**, plus rolling summaries. The latest snapshot holds full per-title detail; older snapshots collapse to summary-only records. The 50-game cap keeps the aggregate footprint comfortably under the browser's ~5 MB `localStorage` ceiling even with all platforms populated.
 
 **Field Schema.**
 * *Shared (all cards):* handle · profile URL · region · member-since · verification toggle · free-form custom key→value rows.
