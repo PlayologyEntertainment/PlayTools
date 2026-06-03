@@ -687,7 +687,7 @@
   </div>
 
   <footer>
-    <p class="footer-row">PlayTools - ©2026 - All Rights Reserved</p>
+    <p class="footer-row">PlayTools - ©<span id="footerYear">2026</span> - All Rights Reserved</p>
     <p class="footer-row">Gamified Gaming Tools for Gamers</p>
     <p class="footer-row"><span class="pl">PLAYOLOGY ENTERTAINMENT</span></p>
     <img class="footer-logo" id="footerLogo" alt="Playology Entertainment">
@@ -5044,6 +5044,8 @@ const APP_VERSION = '1.0.0';
   if(logo){ logo.addEventListener('error', ()=>{ logo.style.display='none'; }); if(!logo.getAttribute('src')) logo.style.display='none'; }
   // Reuse the same inline logo asset in the footer (captured now, before the
   // splash node is removed on dismiss) so we don't duplicate the data URI.
+  const footerYear = document.getElementById('footerYear');
+  if(footerYear) footerYear.textContent = new Date().getFullYear();
   const footerLogo = document.getElementById('footerLogo');
   if(footerLogo){
     footerLogo.addEventListener('error', ()=>{ footerLogo.style.display='none'; });
