@@ -1339,10 +1339,35 @@ const ShareCard = (function(){
         + '\n\n(Your card image "'+fname+'" was just downloaded — attach it to this email before sending!)'
         + '\n\n— Sent from PlayTools';
       const mailto = 'mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-      // Hand off to the mail client on the next tick: firing the download click and
-      // the mailto navigation in the same gesture makes the browser swallow the
-      // mailto, so the email never opens. Deferring it makes it a separate action.
-      setTimeout(()=>{ window.location.href = mailto; }, 300);
+      const gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to='
+        + '&su=' + encodeURIComponent(subject)
+        + '&body=' + encodeURIComponent(body);
+
+      // Try the default mail client (mailto:) first. We can't directly detect
+      // whether it launched, so use focus as the signal: if a mail app opens it
+      // takes focus and the window blurs. If the window keeps focus (no mailto
+      // handler registered), fall back to Gmail compose in a new tab — the same
+      // approach ProfileIO.shareEmail() uses elsewhere in the app. Firing mailto
+      // on its own tick (not in the download's click) is what stops the browser
+      // from swallowing it; the delays stay within the browser's post-click
+      // activation window so the fallback tab isn't popup-blocked.
+      let handed = false;
+      const onBlur = ()=>{ handed = true; };
+      window.addEventListener('blur', onBlur, { once:true });
+      setTimeout(()=>{ window.location.href = mailto; }, 120);
+      setTimeout(()=>{
+        window.removeEventListener('blur', onBlur);
+        if(!handed){
+          const g=document.createElement('a');
+          g.href=gmailUrl; g.target='_blank'; g.rel='noopener noreferrer'; g.style.display='none';
+          document.body.appendChild(g); g.click(); document.body.removeChild(g);
+        }
+        // Copy the message too, so the text is never lost if neither path opens.
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(subject+'\n\n'+body).catch(()=>{});
+        }
+      }, 700);
+
       if(window.UI && UI.toast) UI.toast('Card downloaded','Attach the downloaded card, then send the email that just opened.');
     };
   }
