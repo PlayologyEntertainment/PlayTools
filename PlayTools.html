@@ -1335,49 +1335,33 @@ const ShareCard = (function(){
       }catch(e){ /* user cancelled */ }
     };
 
-    // Email — a mail client can't be handed an attachment programmatically
-    // (browser security), so download the card first (now ready in Downloads),
-    // then open the user's default mail app with a prefilled message that
-    // reminds them to attach the just-downloaded image.
+    // Email — opens Gmail compose with the card details prefilled, matching
+    // ProfileIO.shareEmail() used elsewhere in the app. A mail client can't be
+    // handed an attachment programmatically (browser security), so we also
+    // download the card image so the user can attach it. Both the new tab and the
+    // download must be triggered synchronously inside this click, or the browser
+    // popup-blocks the tab / drops the action.
     mail.onclick = ()=>{
-      // Download the card first (within the click gesture) so it's ready to attach.
-      const a=document.createElement('a'); a.download=fname; a.href=canvas.toDataURL('image/png'); a.click();
       const tag = Store.get().profile.gamerTag || 'A challenger';
       const subject = '[PlayTools] '+tag+' — '+(data.tool||'Score');
       const body = shareText
-        + '\n\n(Your card image "'+fname+'" was just downloaded — attach it to this email before sending!)'
+        + '\n\n(Attach the card image "'+fname+'" — it was just downloaded to your device.)'
         + '\n\n— Sent from PlayTools';
-      const mailto = 'mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
       const gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to='
         + '&su=' + encodeURIComponent(subject)
         + '&body=' + encodeURIComponent(body);
-
-      // Try the default mail client (mailto:) first. We can't directly detect
-      // whether it launched, so use focus as the signal: if a mail app opens it
-      // takes focus and the window blurs. If the window keeps focus (no mailto
-      // handler registered), fall back to Gmail compose in a new tab — the same
-      // approach ProfileIO.shareEmail() uses elsewhere in the app. Firing mailto
-      // on its own tick (not in the download's click) is what stops the browser
-      // from swallowing it; the delays stay within the browser's post-click
-      // activation window so the fallback tab isn't popup-blocked.
-      let handed = false;
-      const onBlur = ()=>{ handed = true; };
-      window.addEventListener('blur', onBlur, { once:true });
-      setTimeout(()=>{ window.location.href = mailto; }, 120);
-      setTimeout(()=>{
-        window.removeEventListener('blur', onBlur);
-        if(!handed){
-          const g=document.createElement('a');
-          g.href=gmailUrl; g.target='_blank'; g.rel='noopener noreferrer'; g.style.display='none';
-          document.body.appendChild(g); g.click(); document.body.removeChild(g);
-        }
-        // Copy the message too, so the text is never lost if neither path opens.
-        if(navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(subject+'\n\n'+body).catch(()=>{});
-        }
-      }, 700);
-
-      if(window.UI && UI.toast) UI.toast('Card downloaded','Attach the downloaded card, then send the email that just opened.');
+      // Open Gmail compose first (most popup-block-sensitive action, so it goes
+      // while user activation is freshest) via a real anchor click, not window.open.
+      const g=document.createElement('a');
+      g.href=gmailUrl; g.target='_blank'; g.rel='noopener noreferrer'; g.style.display='none';
+      document.body.appendChild(g); g.click(); document.body.removeChild(g);
+      // Then download the card so it's ready to attach.
+      const a=document.createElement('a'); a.download=fname; a.href=canvas.toDataURL('image/png'); a.click();
+      // Copy the message too, so the text is never lost if the tab is blocked.
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(subject+'\n\n'+body).catch(()=>{});
+      }
+      if(window.UI && UI.toast) UI.toast('Opening Gmail','Compose opened in a new tab — attach the downloaded card before sending.');
     };
   }
 
