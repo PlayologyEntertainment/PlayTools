@@ -1247,6 +1247,12 @@ const CABINETS = [
   // Foundation pass: remaining labs are visible but locked (coming soon).
   { id:'dice_lab',   lab:'RPG', name:'Dice Roller', railName:'Dice', icon:'🎲', tag:'mvp', route:'#/dice/roller',
     desc:'Polyhedral dice, modifiers, advantage & notation.', dna:'Strategy +6 · fortune favors' },
+  { id:'rpg_npc',    lab:'RPG', name:'NPC Generator', railName:'NPC', icon:'🧙', tag:'mvp', route:'#/rpg/npc',
+    desc:'Conjure a full NPC — name, race, class, alignment, quirk, secret & rolled stats.', dna:'Strategy +4 · Focus +2' },
+  { id:'rpg_init',   lab:'RPG', name:'Initiative Tracker', railName:'Initiative', icon:'⚔️', tag:'mvp', route:'#/rpg/initiative',
+    desc:'Auto-roll initiative, sort the turn order & track HP through the fight.', dna:'Strategy +3 · runs the table' },
+  { id:'rpg_quest',  lab:'RPG', name:'Quest & Tavern', railName:'Quest', icon:'📜', tag:'mvp', route:'#/rpg/quest',
+    desc:'Improv seeds on demand — quest hooks, taverns, barkeeps & rumours.', dna:'Strategy +4 · spins a yarn' },
   { id:'arcade_memory', lab:'Arcade', name:'Memory Match', railName:'Memory', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:'👾', tag:'mvp', route:'#/arcade/dodge',
@@ -3886,6 +3892,244 @@ Views.diceRoller = function(c){
 };
 
 /* ============================================================================
+   RPG LAB — DM Toolkit: NPC Generator, Initiative Tracker, Quest & Tavern Gen.
+   Generators are replayable (one click), so — like the Dice Roller — they credit
+   toolsCompleted only on first use to keep the Gamer Score honest, while still
+   tracking runs + counters every time and nudging the Strategy attribute.
+   ============================================================================ */
+
+const RPG_DATA = {
+  given:  ['Aldric','Bryn','Cassia','Dorn','Elowen','Fendrel','Greta','Halvard','Isolde','Joss','Kethra','Lorne','Mirabel','Nox','Orrin','Pell','Quill','Rhea','Sorrel','Thane','Ulia','Varrick','Wren','Yorath','Zara','Brannock','Sable','Tamsin','Garrick','Maelis'],
+  epithet:['the Bold','the Quiet','Ironhand','Quickfinger','the Grey','Stormborn','of the Hollow','Brightblade','the Cunning','Ashweaver','Thorne','the Lost','Embereye','the Unbroken'],
+  race:   ['Human','Elf','Half-Elf','Dwarf','Halfling','Half-Orc','Gnome','Tiefling','Dragonborn','Goblin','Aasimar','Firbolg'],
+  cls:    ['Fighter','Wizard','Rogue','Cleric','Bard','Ranger','Paladin','Barbarian','Druid','Sorcerer','Warlock','Monk'],
+  align:  ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral','True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil'],
+  quirk:  ['never breaks eye contact','hums an old war ballad','collects pressed flowers','speaks of themselves in the third person','flinches at loud noises','always smells faintly of cloves','counts their coins obsessively','refuses to sit with their back to a door','laughs at the wrong moments','keeps a pet raven named Sorrow','quotes scripture they half-remember','has mismatched eyes','taps a nervous rhythm','wears a dead rival’s ring'],
+  secret: ['is secretly nobility in hiding','owes a debt to a devil','is the long-lost heir to the throne','spies for a rival city','murdered their mentor years ago','carries a cursed relic they cannot discard','is not who they claim to be','knows where the dragon’s hoard lies','is dying and hides the sickness','smuggles contraband through the docks','can hear the dead whispering','betrayed the party once before'],
+  quest:  {
+    patron:['a desperate village elder','a hooded stranger in the tavern','the local magistrate','a frightened merchant','a dying knight','the temple’s high priestess','a talking raven','a guild of thieves','an exiled prince','a grieving widow'],
+    verb:  ['recover','escort','destroy','investigate','protect','deliver','sabotage','retrieve','rescue','hunt down'],
+    target:['a stolen relic from the sunken crypt','a caravan through the haunted pass','the nest of a rampaging chimera','strange lights seen over the old mill','a witness before assassins find them','a sealed letter to a rival lord','the supply lines of a marauding warband','an heirloom blade lost in the marsh','a child taken by goblins','the beast terrorising the northern farms'],
+    twist: ['the patron is lying about the reward','a rival party hunts the same prize','the target is cursed','time runs out at the next full moon','someone in the party is being watched','the quest-giver will betray you at the end','the truth is far worse than promised','a storm is closing the only road'],
+    reward:['200 gold and a noble’s favour','a minor magic item of your choice','safe lodging for a year','the deed to a small plot of land','word of your true enemy','a seat at the lord’s table','a trained warhorse','a vial of rare elixir']
+  },
+  tavern: {
+    adj:  ['Gilded','Rusty','Prancing','Drunken','Silver','Black','Laughing','Salty','Crooked','Sleeping','Roaring','Broken'],
+    noun: ['Tankard','Griffon','Anchor','Lantern','Boar','Mermaid','Crown','Dagger','Barrel','Dragon','Stag','Wheel'],
+    keep: ['a one-eyed ex-pirate','a motherly half-orc','a nervous gnome','a retired adventurer','a sharp-tongued elf','twin halfling brothers','a brooding former knight','a cheerful dwarf'],
+    rumor:['the old mine reopened, and no one who enters returns','the baron hasn’t been seen in a fortnight','a dragon was spotted circling the eastern peaks','the river ran red for three days last spring','there’s a price on a stranger matching your description','the graveyard has been disturbed again','a fortune lies in the ship that sank offshore','the woods have grown quiet — too quiet']
+  }
+};
+function rpgPick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+function recordNpc(){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.rpg_npc){ d.toolsCompleted++; d.bests.rpg_npc={value:1, mode:'max'}; }
+    d.counters.npcsRolled=(d.counters.npcsRolled||0)+1;
+  });
+}
+function recordQuest(){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.rpg_quest){ d.toolsCompleted++; d.bests.rpg_quest={value:1, mode:'max'}; }
+    d.counters.questsRolled=(d.counters.questsRolled||0)+1;
+  });
+}
+// Initiative Tracker is a utility, not a scored run: credit toolsCompleted once on
+// first use and count the encounter — but don't inflate the run counter per combatant.
+function recordInitiative(){
+  Store.update(d=>{
+    if(!d.bests.rpg_init){ d.toolsCompleted++; d.bests.rpg_init={value:1, mode:'max'}; }
+    d.counters.combatsTracked=(d.counters.combatsTracked||0)+1;
+  });
+}
+
+/* ---- RPG.1 NPC Generator ---- */
+Views.npcGen = function(c){
+  const cab = getCab('rpg_npc');
+  const panel = toolShell(c, cab);
+  const ABIL = ['STR','DEX','CON','INT','WIS','CHA'];
+
+  const ctrls = el('div',{class:'controls-row'});
+  const genBtn = el('button',{class:'btn primary', html:'🧙 Generate NPC'});
+  ctrls.append(genBtn);
+  const card = el('div',{style:'margin-top:14px; padding:16px; border:1px solid var(--line); border-radius:12px; background:rgba(124,92,255,0.06)'});
+  const shareHolder = el('div',{});
+  panel.append(ctrls, card, shareHolder);
+
+  function gen(){
+    const name  = rpgPick(RPG_DATA.given) + (Math.random()<0.5 ? ' '+rpgPick(RPG_DATA.epithet) : '');
+    const race  = rpgPick(RPG_DATA.race), cls = rpgPick(RPG_DATA.cls), align = rpgPick(RPG_DATA.align);
+    const quirk = rpgPick(RPG_DATA.quirk), secret = rpgPick(RPG_DATA.secret);
+    const scores = ABIL.map(()=> DiceEngine.roll({n:4,sides:6,op:'kh',k:3,mod:0}).total);
+
+    card.innerHTML='';
+    card.append(
+      el('div',{style:'font-size:26px; font-weight:800; color:var(--neon); letter-spacing:.5px', text:name}),
+      el('div',{class:'muted', style:'margin:2px 0 12px', text:`${align} · ${race} · ${cls}`})
+    );
+    const grid = el('div',{class:'results', style:'margin:0'});
+    ABIL.forEach((k,i)=>{ const t=el('div',{class:'result-tile'}); t.innerHTML=`<div class="k">${k}</div><div class="v">${scores[i]}</div>`; grid.append(t); });
+    card.append(grid,
+      el('div',{style:'margin-top:12px', html:`<strong style="color:var(--neon-3)">Quirk:</strong> ${quirk}.`}),
+      el('div',{style:'margin-top:4px', html:`<strong style="color:var(--neon-2)">Secret:</strong> ${secret}.`})
+    );
+
+    recordNpc();
+    Attr.applyVector({strategy:4, focus:2}, 0.55);
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'TABLETOP / RPG', tool:'NPC Generator', glyph:'🧙',
+      metric:[{k:'Name', v:name}, {k:'Build', v:`${race} ${cls}`}, {k:'Align', v:align}],
+      designation: cls, badge:null
+    }));
+  }
+
+  genBtn.onclick = gen;
+  gen();
+  return ()=>{};
+};
+
+/* ---- RPG.2 Initiative Tracker ---- */
+Views.initiative = function(c){
+  const cab = getCab('rpg_init');
+  const panel = toolShell(c, cab);
+  const KEY = 'pt_initiative';
+  let credited = false;
+
+  function load(){ try{ const o=JSON.parse(localStorage.getItem(KEY)||'null'); if(o && Array.isArray(o.list)) return o; }catch(e){} return {list:[], turn:0, round:1}; }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+  let state = load();
+
+  // add form
+  const form  = el('div',{class:'dice-row', style:'gap:8px; flex-wrap:wrap; align-items:flex-end'});
+  const nameF = el('div',{class:'field', style:'flex:2; min-width:160px', html:'<label>Combatant</label>'});
+  const nameI = el('input',{type:'text', placeholder:'Goblin Archer'}); nameF.append(nameI);
+  const modF  = el('div',{class:'field', style:'width:90px', html:'<label>Init Mod</label>'});
+  const modI  = el('input',{type:'number', value:'0', step:'1'}); modF.append(modI);
+  const hpF   = el('div',{class:'field', style:'width:90px', html:'<label>HP</label>'});
+  const hpI   = el('input',{type:'number', value:'10', min:'1', step:'1'}); hpF.append(hpI);
+  const addB  = el('button',{class:'btn', html:'+ Add', style:'align-self:flex-end'});
+  form.append(nameF, modF, hpF, addB);
+
+  const actions = el('div',{class:'controls-row'});
+  const rollB  = el('button',{class:'btn primary', html:'🎲 Roll Initiative'});
+  const nextB  = el('button',{class:'btn', html:'⏭ Next Turn'});
+  const resetB = el('button',{class:'btn ghost', html:'♻ Reset'});
+  actions.append(rollB, nextB, resetB);
+
+  const status  = el('div',{class:'muted', style:'margin:8px 0'});
+  const listBox = el('div',{});
+  panel.append(form, actions, status, listBox);
+
+  function add(){
+    const name=(nameI.value||'').trim();
+    if(!name){ UI.toast('Name needed','Enter a combatant name first.'); return; }
+    const mod=parseInt(modI.value,10)||0, hp=Math.max(1, parseInt(hpI.value,10)||1);
+    state.list.push({name, mod, init:null, hp, maxHp:hp});
+    nameI.value=''; modI.value='0'; hpI.value='10';
+    if(!credited){ recordInitiative(); credited=true; Attr.applyVector({strategy:3}, 0.5); }
+    save(); render(); nameI.focus();
+  }
+  function rollInit(){
+    if(!state.list.length){ UI.toast('No combatants','Add some fighters first.'); return; }
+    state.list.forEach(x=> x.init = DiceEngine.roll({n:1,sides:20,op:null,k:null,mod:x.mod}).total);
+    state.list.sort((a,b)=> b.init-a.init);
+    state.turn=0; state.round=1; save(); render();
+  }
+  function next(){
+    if(!state.list.length) return;
+    state.turn++;
+    if(state.turn>=state.list.length){ state.turn=0; state.round++; }
+    save(); render();
+  }
+  function reset(){ state={list:[], turn:0, round:1}; save(); render(); }
+  function adjHp(i, delta){ const x=state.list[i]; if(!x) return; x.hp=Math.max(0, x.hp+delta); save(); render(); }
+  function remove(i){ state.list.splice(i,1); if(state.turn>=state.list.length) state.turn=0; save(); render(); }
+
+  function render(){
+    const rolled = state.list.some(x=>x.init!=null);
+    const active = state.list[state.turn] || {};
+    status.innerHTML = state.list.length
+      ? `Round <strong style="color:var(--neon)">${state.round}</strong> · ${state.list.length} combatant${state.list.length>1?'s':''}${rolled?` · <strong>${active.name||''}</strong>’s turn`:''}`
+      : 'Add combatants, then roll initiative.';
+    listBox.innerHTML='';
+    if(!state.list.length){ listBox.append(el('div',{class:'empty', html:'No combatants yet.'})); return; }
+    state.list.forEach((x,i)=>{
+      const on = rolled && i===state.turn, dead = x.hp<=0;
+      const row = el('div',{style:`display:flex; align-items:center; gap:10px; padding:8px 10px; margin:4px 0; border-radius:8px; border:1px solid ${on?'var(--neon)':'var(--line)'}; background:${on?'rgba(22,242,200,0.08)':'rgba(124,92,255,0.04)'}`});
+      row.append(
+        el('div',{style:'min-width:34px; text-align:center; font-weight:800; color:var(--neon-3)', text: x.init!=null?String(x.init):'—'}),
+        el('div',{style:`flex:1; font-weight:600${dead?'; text-decoration:line-through; opacity:.6':''}`, text:x.name}),
+        el('div',{style:`min-width:74px; text-align:right; color:${dead?'var(--danger)':'var(--ink-dim)'}`, html:`❤ ${x.hp}/${x.maxHp}`}),
+        el('button',{class:'btn ghost', style:'padding:2px 9px', html:'−', onclick:()=>adjHp(i,-1)}),
+        el('button',{class:'btn ghost', style:'padding:2px 9px', html:'+', onclick:()=>adjHp(i,1)}),
+        el('button',{class:'btn ghost', style:'padding:2px 9px', html:'✕', onclick:()=>remove(i)})
+      );
+      listBox.append(row);
+    });
+  }
+
+  addB.onclick=add; rollB.onclick=rollInit; nextB.onclick=next; resetB.onclick=reset;
+  nameI.addEventListener('keydown', e=>{ if(e.key==='Enter') add(); });
+  render();
+  return ()=>{};
+};
+
+/* ---- RPG.3 Quest & Tavern Generator ---- */
+Views.questGen = function(c){
+  const cab = getCab('rpg_quest');
+  const panel = toolShell(c, cab);
+  const Q = RPG_DATA.quest, T = RPG_DATA.tavern;
+  function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+  function stripArticle(s){ return s.replace(/^(a |an |the )/i,''); }
+
+  const ctrls = el('div',{class:'controls-row'});
+  const qBtn = el('button',{class:'btn primary', html:'📜 New Quest'});
+  const tBtn = el('button',{class:'btn', html:'🍺 New Tavern'});
+  ctrls.append(qBtn, tBtn);
+  const out = el('div',{style:'margin-top:14px; padding:16px; border:1px solid var(--line); border-radius:12px; background:rgba(124,92,255,0.06); min-height:60px; line-height:1.6'});
+  const shareHolder = el('div',{});
+  panel.append(ctrls, out, shareHolder);
+
+  function quest(){
+    const patron=rpgPick(Q.patron), verb=rpgPick(Q.verb), target=rpgPick(Q.target), twist=rpgPick(Q.twist), reward=rpgPick(Q.reward);
+    out.innerHTML = `<div style="font-size:13px; color:var(--neon); letter-spacing:1px; font-weight:700">QUEST HOOK</div>
+      <p style="margin:8px 0 0">${cap(patron)} needs you to <strong style="color:var(--neon-3)">${verb}</strong> ${target}.</p>
+      <p style="margin:8px 0 0"><strong style="color:var(--neon-2)">Complication:</strong> ${cap(twist)}.</p>
+      <p style="margin:8px 0 0"><strong style="color:var(--neon-5)">Reward:</strong> ${cap(reward)}.</p>`;
+    recordQuest();
+    Attr.applyVector({strategy:4}, 0.55);
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'TABLETOP / RPG', tool:'Quest Generator', glyph:'📜',
+      metric:[{k:'Objective', v:cap(verb)+' '+stripArticle(target)}, {k:'Reward', v:cap(reward)}],
+      designation:'Quest Giver', badge:null
+    }));
+  }
+  function tavern(){
+    const name=`The ${rpgPick(T.adj)} ${rpgPick(T.noun)}`, keep=rpgPick(T.keep), rumor=rpgPick(T.rumor);
+    out.innerHTML = `<div style="font-size:13px; color:var(--neon); letter-spacing:1px; font-weight:700">TAVERN</div>
+      <p style="margin:8px 0 0; font-size:22px; font-weight:800; color:var(--neon-3)">${name}</p>
+      <p style="margin:6px 0 0">Run by ${keep}.</p>
+      <p style="margin:8px 0 0"><strong style="color:var(--neon-2)">Overheard:</strong> “…${rumor}.”</p>`;
+    recordQuest();
+    Attr.applyVector({strategy:2, focus:2}, 0.5);
+    shareHolder.innerHTML='';
+    shareHolder.append(shareRow({
+      lab:'TABLETOP / RPG', tool:'Tavern Generator', glyph:'🍺',
+      metric:[{k:'Tavern', v:name}, {k:'Barkeep', v:cap(keep)}],
+      designation:'Barfly', badge:null
+    }));
+  }
+
+  qBtn.onclick=quest; tBtn.onclick=tavern;
+  quest();
+  return ()=>{};
+};
+
+/* ============================================================================
    RETRO ARCADE — Memory Match (DD §5.5)
    Classic flip-and-match pairs on a retro grid. Selectable difficulty that
    escalates (Easy→Medium→Hard); evaluates visual memory recall. Feeds Focus
@@ -5097,6 +5341,9 @@ Router.add('#/setup/aspect', Views.aspect);
 Router.add('#/setup/refresh', Views.refresh);
 Router.add('#/setup/session', Views.session);
 Router.add('#/dice/roller', Views.diceRoller);
+Router.add('#/rpg/npc', Views.npcGen);
+Router.add('#/rpg/initiative', Views.initiative);
+Router.add('#/rpg/quest', Views.questGen);
 Router.add('#/arcade/memory', Views.memoryMatch);
 Router.add('#/arcade/dodge', Views.pixelDodge);
 Router.add('#/fun/quiz', Views.gamerQuiz);
