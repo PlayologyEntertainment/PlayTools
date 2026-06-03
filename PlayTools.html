@@ -618,6 +618,24 @@
     nav.rail{position:static;}
     .dna-layout{grid-template-columns:1fr;}
   }
+
+  /* ---- Mobile / narrow screens ---- */
+  @media(max-width:640px){
+    /* Stack the status strip so the action buttons sit ABOVE the stats and
+       both rows are centred (DD UX pass). */
+    .controls{ flex-direction:column; align-items:center; gap:10px; flex-wrap:nowrap; }
+    .controls-actions{ order:-1; justify-content:center; width:100%; }
+    /* Keep RANK · CLASS · SCORE on a single, non-wrapping line — scale the
+       type down with the viewport so it always fits. */
+    .score-strip{
+      order:0; width:100%; text-align:center; white-space:nowrap;
+      font-size:clamp(9px, 3vw, 12px); letter-spacing:0;
+    }
+    .score-strip .sep{ margin:0 3px; }
+    /* The arcade shortcut rail is hidden on mobile — every cabinet is already
+       listed in the Arcade Lobby, so we drop the sidebar to save vertical space. */
+    nav.rail{ display:none; }
+  }
 </style>
 </head>
 <body>
@@ -646,9 +664,9 @@
   <!-- ===================== STATUS STRIP ===================== -->
   <div class="controls">
     <div class="score-strip" id="scoreStrip">
-      GAMER DNA <span class="sep">·</span> CLASS <b id="ssClass">UNRANKED</b>
+      RANK <b id="ssRank">NEWBIE</b>
+      <span class="sep">·</span> CLASS <b id="ssClass">UNRANKED</b>
       <span class="sep">·</span> SCORE <b id="ssScore">0000000</b>
-      <span class="sep">·</span> RANK <b id="ssRank">NEWBIE</b>
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
