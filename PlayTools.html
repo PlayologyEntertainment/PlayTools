@@ -281,17 +281,17 @@
       inset 0 0 26px 9px rgba(0,0,0,0.6),                                    /* screen vignette */
       0 1px 2px rgba(0,0,0,0.6);
     overflow:hidden; isolation:isolate;
-    /* keep hover smooth but DON'T transition `filter`/`transform` driven by
-       the animations, so flicker & jitter stay crisp */
+    /* the picture flickers here; the glass box itself stays steady */
     animation:crtCardFlicker var(--crt-dur,28s) steps(1,end) infinite;
     animation-delay:var(--crt-delay,0s);
   }
-  .crt-screen.jitter{
-    animation:crtCardFlicker var(--crt-dur,28s) steps(1,end) infinite,
-              crtJitter var(--jit-dur,11s) steps(1,end) infinite;
-    animation-delay:var(--crt-delay,0s), var(--jit-delay,0s);
+  /* Wraps just the text/icon so the optional jitter wobbles the *picture*,
+     not the whole screen, rim, scanlines or glare. */
+  .crt-content{ position:relative; z-index:2; }
+  .crt-content.jitter{
+    animation:crtJitter var(--jit-dur,11s) steps(1,end) infinite;
+    animation-delay:var(--jit-delay,0s);
   }
-  .crt-screen > *{ position:relative; z-index:2; }           /* content above scanlines */
   /* Scanlines + edge darkening that suggests the curved glass. */
   .crt-screen::before{
     content:""; position:absolute; inset:0; pointer-events:none; z-index:3;
@@ -376,15 +376,14 @@
     98%{ filter:brightness(1.08); }
     99%{ filter:brightness(0.9); }
   }
-  /* Occasional horizontal-sync jitter — a quick picture shake, only on the
-     subset of sets that get the .jitter class. */
+  /* Occasional, gentle picture wobble — sub-pixel drift on the content only,
+     no skew, only on the subset of sets that get the .jitter class. */
   @keyframes crtJitter{
-    0%,93%,100%{ transform:translate3d(0,0,0) skewX(0); }
-    93.6%{ transform:translate3d(-2px,0,0) skewX(-0.6deg); }
-    94.2%{ transform:translate3d(2px,1px,0) skewX(0.6deg); }
-    94.8%{ transform:translate3d(-1px,-1px,0) skewX(-0.3deg); }
-    95.4%{ transform:translate3d(1px,0,0) skewX(0.3deg); }
-    96%{ transform:translate3d(0,0,0) skewX(0); }
+    0%,93%,100%{ transform:translate3d(0,0,0); }
+    93.7%{ transform:translate3d(0,-1px,0); }
+    94.3%{ transform:translate3d(0.5px,1px,0); }
+    94.9%{ transform:translate3d(-0.5px,0,0); }
+    95.5%{ transform:translate3d(0,0.5px,0); }
   }
   @keyframes crtBlink{
     0%,46%{ opacity:1; }
@@ -392,7 +391,7 @@
     100%{ opacity:1; }
   }
   @media (prefers-reduced-motion: reduce){
-    .crt-screen, .crt-screen.jitter, .crt-led{ animation:none; }
+    .crt-screen, .crt-content.jitter, .crt-led{ animation:none; }
   }
 
   .tag{display:inline-block; font-size:9px; letter-spacing:1px; font-weight:700; padding:2px 6px; border-radius:3px; text-transform:uppercase;}
@@ -1899,11 +1898,13 @@ function cabCard(cab){
     style:`--crt:${col}; --crt-dur:${dur}s; --crt-delay:${delay}s;${jitVars}`
   });
   const tagHtml = cab.locked ? '<span class="tag soon">soon</span>' : '';
-  card.innerHTML = `<div class="crt-screen${jitter?' jitter':''}">
-      <div class="cab-icon">${cab.icon}</div>
-      <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
-      <div class="cab-desc">${cab.desc||''}</div>
-      ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}
+  card.innerHTML = `<div class="crt-screen">
+      <div class="crt-content${jitter?' jitter':''}">
+        <div class="cab-icon">${cab.icon}</div>
+        <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
+        <div class="cab-desc">${cab.desc||''}</div>
+        ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}
+      </div>
     </div>
     ${crtChrome()}`;
   if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
