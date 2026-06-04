@@ -236,6 +236,91 @@
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
 
+  /* ---- CRT cabinet treatment (home/lobby) ----
+     Each lobby card is dressed up as a tiny rounded CRT monitor: a thin dark
+     bezel with a per-category accent edge + glow, a recessed glass screen,
+     a faint scanline overlay, a soft corner glare, a subtle convex bulge
+     (approximated with highlights/vignette so text stays crisp) and a rare,
+     per-card flicker. The accent colour is supplied inline as --crt so each
+     applet category reads as a distinct group. */
+  .cab.crt{
+    --crt:var(--neon);                 /* per-category accent; set inline in JS */
+    border:none; border-radius:18px / 14px;   /* slightly elliptical = CRT corners */
+    padding:18px 18px 20px;
+    background:
+      radial-gradient(135% 120% at 50% 6%, rgba(255,255,255,0.05), transparent 52%),  /* convex top sheen */
+      radial-gradient(150% 150% at 50% 125%, color-mix(in srgb, var(--crt) 12%, transparent), transparent 60%),
+      linear-gradient(180deg,#0b1024 0%, #06091580 55%, #05070f 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.04),                                  /* glass rim */
+      inset 0 0 26px 8px rgba(0,0,0,0.55),                                     /* screen vignette */
+      0 0 0 3px #0a0c14,                                                       /* thin dark bezel */
+      0 0 0 4px color-mix(in srgb, var(--crt) 55%, #0a0c14),                   /* accent edge */
+      0 6px 18px rgba(0,0,0,0.5),
+      0 0 16px -2px color-mix(in srgb, var(--crt) 40%, transparent);          /* accent glow */
+    overflow:hidden; isolation:isolate;
+    /* keep hover smooth but DON'T transition `filter`, so the flicker stays crisp */
+    transition:transform .15s ease, box-shadow .15s ease;
+    animation:crtCardFlicker var(--crt-dur,12s) steps(1,end) infinite;
+    animation-delay:var(--crt-delay,0s);
+  }
+  .cab.crt > *{ position:relative; z-index:2; }    /* content above bezel bg */
+  /* Scanlines + a touch of edge darkening to suggest the curved glass. */
+  .cab.crt::before{
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:3;
+    border-radius:inherit;
+    background:
+      radial-gradient(125% 120% at 50% 50%, transparent 62%, rgba(0,0,0,0.45) 100%),  /* edge curve falloff */
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:multiply; opacity:0.55;
+  }
+  /* Soft upper-left glare, tinted with the category accent (like the sample). */
+  .cab.crt::after{
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:4;
+    border-radius:inherit;
+    background:
+      linear-gradient(125deg, color-mix(in srgb, var(--crt) 22%, transparent) 0%, rgba(255,255,255,0.10) 12%, transparent 40%),
+      radial-gradient(60% 42% at 22% 12%, rgba(255,255,255,0.14), transparent 60%);
+    mix-blend-mode:screen; opacity:0.7;
+  }
+  .cab.crt .cab-dna{ color:var(--crt); }
+  .cab.crt:hover{
+    transform:translateY(-2px);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.06),
+      inset 0 0 22px 6px rgba(0,0,0,0.5),
+      0 0 0 3px #0a0c14,
+      0 0 0 4px color-mix(in srgb, var(--crt) 80%, #0a0c14),
+      0 8px 22px rgba(0,0,0,0.55),
+      0 0 26px 0 color-mix(in srgb, var(--crt) 60%, transparent);
+  }
+  /* Locked cabinets keep the dimmed, no-lift behaviour. */
+  .cab.crt.locked{ animation:none; }
+  .cab.crt.locked:hover{
+    transform:none;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.04),
+      inset 0 0 26px 8px rgba(0,0,0,0.55),
+      0 0 0 3px #0a0c14,
+      0 0 0 4px color-mix(in srgb, var(--crt) 55%, #0a0c14),
+      0 6px 18px rgba(0,0,0,0.5),
+      0 0 16px -2px color-mix(in srgb, var(--crt) 40%, transparent);
+  }
+  /* Rare, brief tube-stutter. Most of the cycle is steady (filter:none); the
+     flicker burst lives in the last ~6% of the cycle. Each card gets its own
+     --crt-dur and --crt-delay (set in JS) so they never flicker in unison. */
+  @keyframes crtCardFlicker{
+    0%,93%,100%{ filter:none; }
+    94%{ filter:brightness(1.22) contrast(1.04); }
+    95%{ filter:brightness(0.7); }
+    96%{ filter:brightness(1.12); }
+    97%{ filter:brightness(0.85); }
+    98%{ filter:none; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .cab.crt{ animation:none; }
+  }
+
   .tag{display:inline-block; font-size:9px; letter-spacing:1px; font-weight:700; padding:2px 6px; border-radius:3px; text-transform:uppercase;}
   .tag.mvp{background:var(--neon-5); color:#04120a;}
   .tag.p2{background:var(--neon-3); color:#1a1400;}
@@ -1659,6 +1744,20 @@ const Router = (function(){
 const Views = {};
 
 /* ---- HOME / LOBBY ---- */
+/* Per-category CRT accent colours. Each applet group gets a distinct hue so the
+   monitor bezel, glare and section header read as a separate "shelf" of
+   cabinets. Falls back to the primary neon for any future, unmapped lab. */
+const LAB_CRT = {
+  'Gamer DNA':'#16f2c8',   // cyan
+  'Reflex'   :'#ff3df0',   // magenta
+  'Hardware' :'#7c5cff',   // violet
+  'Setup'    :'#ffd23d',   // gold
+  'Fun'      :'#37e35b',   // green
+  'RPG'      :'#ff4d6d',   // red
+  'Arcade'   :'#ff9d3d'    // orange
+};
+function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
+
 Views.home = function(c){
   const panel = el('div',{class:'panel'});
   panel.append(
@@ -1670,7 +1769,8 @@ Views.home = function(c){
   const labs = [];
   CABINETS.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
   labs.forEach(lab=>{
-    panel.append(el('h2',{class:'sub', text:lab}));
+    const col = labColor(lab);
+    panel.append(el('h2',{class:'sub', text:lab, style:`color:${col}; border-left-color:${col};`}));
     const grid = el('div',{class:'cab-grid'});
     CABINETS.filter(x=>x.lab===lab).forEach(cab=> grid.append(cabCard(cab)));
     panel.append(grid);
@@ -1679,7 +1779,16 @@ Views.home = function(c){
 };
 
 function cabCard(cab){
-  const card = el('a',{class:'cab'+(cab.locked?' locked':''), href: cab.locked?'javascript:void 0':cab.route});
+  // Each card is a little CRT monitor. The accent colour comes from its lab, and
+  // a randomised flicker duration/offset keeps the cards from blinking in sync.
+  const col = labColor(cab.lab);
+  const dur = (8 + Math.random()*8).toFixed(2);          // 8–16s cycle
+  const delay = (-Math.random()*dur).toFixed(2);          // desync the flicker
+  const card = el('a',{
+    class:'cab crt'+(cab.locked?' locked':''),
+    href: cab.locked?'javascript:void 0':cab.route,
+    style:`--crt:${col}; --crt-dur:${dur}s; --crt-delay:${delay}s;`
+  });
   const tagHtml = cab.locked ? '<span class="tag soon">soon</span>' : '';
   card.innerHTML = `<div class="cab-icon">${cab.icon}</div>
     <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
