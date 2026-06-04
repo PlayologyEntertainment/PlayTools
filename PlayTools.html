@@ -237,36 +237,63 @@
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
 
   /* ---- CRT cabinet treatment (home/lobby) ----
-     Each lobby card is dressed up as a tiny rounded CRT monitor: a thin dark
-     bezel with a per-category accent edge + glow, a recessed glass screen,
-     a faint scanline overlay, a soft corner glare, a subtle convex bulge
-     (approximated with highlights/vignette so text stays crisp) and a rare,
-     per-card flicker. The accent colour is supplied inline as --crt so each
-     applet category reads as a distinct group. */
+     Each lobby card is built as a little CRT television: a rectangular
+     dark-blue plastic HOUSING (.cab.crt) wraps a rounded glass SCREEN
+     (.crt-screen) plus a control-panel strip (.crt-chrome) carrying a
+     randomised mix of brand logo, knobs, buttons and blinking lights. The
+     glass carries scanlines, a soft corner glare and a subtle convex bulge
+     (highlight + vignette, so text stays crisp). A per-category accent
+     colour — supplied inline as --crt — tints the screen rim, glow, glare
+     and lights so each applet group reads as a distinct shelf. The picture
+     flickers rarely, and a randomly chosen subset of sets also jitters. */
   .cab.crt{
-    --crt:var(--neon);                 /* per-category accent; set inline in JS */
-    border:none; border-radius:18px / 14px;   /* slightly elliptical = CRT corners */
-    padding:18px 18px 20px;
+    --crt:var(--neon);                                       /* per-category accent (set inline in JS) */
+    --crt-lit:color-mix(in srgb, var(--crt) 78%, #ffffff);   /* lightened accent, stays visible on dark sets */
+    display:flex; flex-direction:column;
+    border:1px solid rgba(255,255,255,0.05);
+    border-radius:11px;                                      /* rectangular TV housing */
+    padding:12px 12px 10px;
     background:
-      radial-gradient(135% 120% at 50% 6%, rgba(255,255,255,0.05), transparent 52%),  /* convex top sheen */
-      radial-gradient(150% 150% at 50% 125%, color-mix(in srgb, var(--crt) 12%, transparent), transparent 60%),
-      linear-gradient(180deg,#0b1024 0%, #06091580 55%, #05070f 100%);
+      radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,0.06), transparent 60%),  /* top housing sheen */
+      linear-gradient(180deg, #16264f 0%, #0f1c40 50%, #0b1430 100%);                /* dark-blue plastic */
     box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.04),                                  /* glass rim */
-      inset 0 0 26px 8px rgba(0,0,0,0.55),                                     /* screen vignette */
-      0 0 0 3px #0a0c14,                                                       /* thin dark bezel */
-      0 0 0 4px color-mix(in srgb, var(--crt) 55%, #0a0c14),                   /* accent edge */
-      0 6px 18px rgba(0,0,0,0.5),
-      0 0 16px -2px color-mix(in srgb, var(--crt) 40%, transparent);          /* accent glow */
-    overflow:hidden; isolation:isolate;
-    /* keep hover smooth but DON'T transition `filter`, so the flicker stays crisp */
+      inset 0 1px 0 rgba(255,255,255,0.08),                                  /* housing top highlight */
+      inset 0 -2px 4px rgba(0,0,0,0.4),
+      0 0 0 1px color-mix(in srgb, var(--crt) 45%, #0b1430),                 /* subtle accent edge */
+      0 8px 20px rgba(0,0,0,0.5),
+      0 0 20px -5px var(--crt-lit);                                          /* accent glow */
     transition:transform .15s ease, box-shadow .15s ease;
-    animation:crtCardFlicker var(--crt-dur,12s) steps(1,end) infinite;
+    overflow:hidden; isolation:isolate;
+  }
+  /* The glass screen — recessed, rounded, scanlined; this is where the
+     flicker (and optional jitter) live so the housing itself stays steady. */
+  .crt-screen{
+    position:relative; flex:1 1 auto;
+    border-radius:16px / 13px;                               /* slightly elliptical CRT corners */
+    padding:14px 14px 15px; margin-bottom:9px;
+    background:
+      radial-gradient(135% 120% at 50% 5%, rgba(255,255,255,0.05), transparent 52%),  /* convex top sheen */
+      radial-gradient(150% 150% at 50% 125%, color-mix(in srgb, var(--crt) 12%, transparent), transparent 60%),
+      linear-gradient(180deg,#070b1c 0%, #05080f 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.05),                                /* glass rim */
+      inset 0 0 0 3px color-mix(in srgb, var(--crt) 38%, #05080f),           /* accent screen rim */
+      inset 0 0 26px 9px rgba(0,0,0,0.6),                                    /* screen vignette */
+      0 1px 2px rgba(0,0,0,0.6);
+    overflow:hidden; isolation:isolate;
+    /* keep hover smooth but DON'T transition `filter`/`transform` driven by
+       the animations, so flicker & jitter stay crisp */
+    animation:crtCardFlicker var(--crt-dur,28s) steps(1,end) infinite;
     animation-delay:var(--crt-delay,0s);
   }
-  .cab.crt > *{ position:relative; z-index:2; }    /* content above bezel bg */
-  /* Scanlines + a touch of edge darkening to suggest the curved glass. */
-  .cab.crt::before{
+  .crt-screen.jitter{
+    animation:crtCardFlicker var(--crt-dur,28s) steps(1,end) infinite,
+              crtJitter var(--jit-dur,11s) steps(1,end) infinite;
+    animation-delay:var(--crt-delay,0s), var(--jit-delay,0s);
+  }
+  .crt-screen > *{ position:relative; z-index:2; }           /* content above scanlines */
+  /* Scanlines + edge darkening that suggests the curved glass. */
+  .crt-screen::before{
     content:""; position:absolute; inset:0; pointer-events:none; z-index:3;
     border-radius:inherit;
     background:
@@ -275,50 +302,97 @@
     mix-blend-mode:multiply; opacity:0.55;
   }
   /* Soft upper-left glare, tinted with the category accent (like the sample). */
-  .cab.crt::after{
+  .crt-screen::after{
     content:""; position:absolute; inset:0; pointer-events:none; z-index:4;
     border-radius:inherit;
     background:
-      linear-gradient(125deg, color-mix(in srgb, var(--crt) 22%, transparent) 0%, rgba(255,255,255,0.10) 12%, transparent 40%),
+      linear-gradient(125deg, color-mix(in srgb, var(--crt-lit) 30%, transparent) 0%, rgba(255,255,255,0.10) 12%, transparent 40%),
       radial-gradient(60% 42% at 22% 12%, rgba(255,255,255,0.14), transparent 60%);
     mix-blend-mode:screen; opacity:0.7;
   }
-  .cab.crt .cab-dna{ color:var(--crt); }
+  .cab.crt .cab-dna{ color:var(--crt-lit); }
+
+  /* ---- Control panel: brand logo, knobs, buttons, blinking lights ---- */
+  .crt-chrome{
+    flex:0 0 auto; display:flex; align-items:center; gap:7px;
+    height:14px; padding:0 3px;
+  }
+  .crt-chrome .spc{ flex:1 1 auto; }
+  .crt-brand{
+    font-family:var(--mono); font-size:7px; letter-spacing:1.5px;
+    color:rgba(255,255,255,0.42); text-transform:uppercase; white-space:nowrap;
+  }
+  .crt-logo{
+    font-size:9px; line-height:1; color:var(--crt-lit); opacity:.7;
+    filter:drop-shadow(0 0 3px var(--crt-lit));
+  }
+  .crt-knob{
+    width:11px; height:11px; border-radius:50%; position:relative; flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%, #56638f, #1b2444 68%, #0b1228);
+    box-shadow:0 1px 1px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.18);
+  }
+  .crt-knob::after{
+    content:""; position:absolute; left:50%; top:1.5px; width:1px; height:4px;
+    background:rgba(255,255,255,0.55); transform:translateX(-50%);
+  }
+  .crt-btn{
+    width:13px; height:6px; border-radius:2px; flex:0 0 auto;
+    background:linear-gradient(180deg,#2c3766,#161e3c);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 1px rgba(0,0,0,0.5);
+  }
+  .crt-led{
+    width:6px; height:6px; border-radius:50%; flex:0 0 auto;
+    background:var(--led, var(--crt-lit));
+    box-shadow:0 0 5px var(--led, var(--crt-lit)), 0 0 2px var(--led, var(--crt-lit));
+    animation:crtBlink var(--led-dur,2.6s) steps(1,end) infinite;
+    animation-delay:var(--led-delay,0s);
+  }
+  .crt-led.steady{ animation:none; opacity:.85; }
+
   .cab.crt:hover{
     transform:translateY(-2px);
     box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.06),
-      inset 0 0 22px 6px rgba(0,0,0,0.5),
-      0 0 0 3px #0a0c14,
-      0 0 0 4px color-mix(in srgb, var(--crt) 80%, #0a0c14),
-      0 8px 22px rgba(0,0,0,0.55),
-      0 0 26px 0 color-mix(in srgb, var(--crt) 60%, transparent);
+      inset 0 1px 0 rgba(255,255,255,0.1),
+      inset 0 -2px 4px rgba(0,0,0,0.4),
+      0 0 0 1px color-mix(in srgb, var(--crt) 75%, #0b1430),
+      0 10px 24px rgba(0,0,0,0.55),
+      0 0 30px -4px var(--crt-lit);
   }
-  /* Locked cabinets keep the dimmed, no-lift behaviour. */
-  .cab.crt.locked{ animation:none; }
-  .cab.crt.locked:hover{
-    transform:none;
-    box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.04),
-      inset 0 0 26px 8px rgba(0,0,0,0.55),
-      0 0 0 3px #0a0c14,
-      0 0 0 4px color-mix(in srgb, var(--crt) 55%, #0a0c14),
-      0 6px 18px rgba(0,0,0,0.5),
-      0 0 16px -2px color-mix(in srgb, var(--crt) 40%, transparent);
-  }
-  /* Rare, brief tube-stutter. Most of the cycle is steady (filter:none); the
-     flicker burst lives in the last ~6% of the cycle. Each card gets its own
-     --crt-dur and --crt-delay (set in JS) so they never flicker in unison. */
+  /* Locked cabinets keep the dimmed, no-lift behaviour and a dead picture. */
+  .cab.crt.locked:hover{ transform:none; box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -2px 4px rgba(0,0,0,0.4),
+      0 0 0 1px color-mix(in srgb, var(--crt) 45%, #0b1430),
+      0 8px 20px rgba(0,0,0,0.5), 0 0 20px -5px var(--crt-lit); }
+  .cab.crt.locked .crt-screen{ animation:none; }
+  .cab.crt.locked .crt-led{ animation:none; opacity:.4; }
+
+  /* Rare, brief tube-stutter. Most of the (long) cycle is steady; the flicker
+     burst lives in the last ~4%. Each set gets its own --crt-dur/--crt-delay
+     so they never stutter in unison. */
   @keyframes crtCardFlicker{
-    0%,93%,100%{ filter:none; }
-    94%{ filter:brightness(1.22) contrast(1.04); }
-    95%{ filter:brightness(0.7); }
-    96%{ filter:brightness(1.12); }
-    97%{ filter:brightness(0.85); }
-    98%{ filter:none; }
+    0%,95%,100%{ filter:none; }
+    96%{ filter:brightness(1.18); }
+    97%{ filter:brightness(0.78); }
+    98%{ filter:brightness(1.08); }
+    99%{ filter:brightness(0.9); }
+  }
+  /* Occasional horizontal-sync jitter — a quick picture shake, only on the
+     subset of sets that get the .jitter class. */
+  @keyframes crtJitter{
+    0%,93%,100%{ transform:translate3d(0,0,0) skewX(0); }
+    93.6%{ transform:translate3d(-2px,0,0) skewX(-0.6deg); }
+    94.2%{ transform:translate3d(2px,1px,0) skewX(0.6deg); }
+    94.8%{ transform:translate3d(-1px,-1px,0) skewX(-0.3deg); }
+    95.4%{ transform:translate3d(1px,0,0) skewX(0.3deg); }
+    96%{ transform:translate3d(0,0,0) skewX(0); }
+  }
+  @keyframes crtBlink{
+    0%,46%{ opacity:1; }
+    50%,96%{ opacity:0.18; }
+    100%{ opacity:1; }
   }
   @media (prefers-reduced-motion: reduce){
-    .cab.crt{ animation:none; }
+    .crt-screen, .crt-screen.jitter, .crt-led{ animation:none; }
   }
 
   .tag{display:inline-block; font-size:9px; letter-spacing:1px; font-weight:700; padding:2px 6px; border-radius:3px; text-transform:uppercase;}
@@ -1749,14 +1823,45 @@ const Views = {};
    cabinets. Falls back to the primary neon for any future, unmapped lab. */
 const LAB_CRT = {
   'Gamer DNA':'#16f2c8',   // cyan
-  'Reflex'   :'#ff3df0',   // magenta
-  'Hardware' :'#7c5cff',   // violet
-  'Setup'    :'#ffd23d',   // gold
-  'Fun'      :'#37e35b',   // green
-  'RPG'      :'#ff4d6d',   // red
-  'Arcade'   :'#ff9d3d'    // orange
+  'Reflex'   :'#f7c59f',   // peach
+  'Hardware' :'#679436',   // green
+  'Setup'    :'#FFD166',   // yellow
+  'Fun'      :'#EF476F',   // hot pink
+  'RPG'      :'#118AB2',   // blue
+  'Arcade'   :'#3C1642'    // purple
 };
 function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
+
+/* Retro-TV brand names + decorations sprinkled onto each set's control panel. */
+const CRT_BRANDS = ['PLAYOTRON','VECTREX','NOVA-9','RETROVUE','ARC-80','PIXLCORP','TUBETEK','GAMMA-V','CRT-MAX','HYPERVUE','OMNIVOX','RASTERON'];
+const CRT_LOGOS  = ['◉','▣','✦','◈','⬢','▤'];
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* Build the control-panel strip: a brand logo on the left, then a random mix
+   of knobs, buttons and blinking lights pushed to the right. Lights get their
+   own blink timing so the panel feels alive. */
+function crtChrome(){
+  const left = Math.random()<0.5
+    ? `<span class="crt-logo">${pick(CRT_LOGOS)}</span><span class="crt-brand">${pick(CRT_BRANDS)}</span>`
+    : `<span class="crt-brand">${pick(CRT_BRANDS)}</span>`;
+  const bits = [];
+  const knobs = Math.floor(rnd(0,2.999));      // 0–2 knobs
+  const btns  = Math.floor(rnd(0,3.999));      // 0–3 buttons
+  const leds  = Math.floor(rnd(1,2.999));      // 1–2 lights
+  for(let i=0;i<knobs;i++) bits.push('<span class="crt-knob"></span>');
+  for(let i=0;i<btns;i++)  bits.push('<span class="crt-btn"></span>');
+  for(let i=0;i<leds;i++){
+    const amber = Math.random()<0.4;
+    const steady = Math.random()<0.25;
+    const dur = rnd(1.6,3.6).toFixed(2), del = (-rnd(0,3)).toFixed(2);
+    const style = `${amber?'--led:#ffb347;':''}--led-dur:${dur}s;--led-delay:${del}s;`;
+    bits.push(`<span class="crt-led${steady?' steady':''}" style="${style}"></span>`);
+  }
+  // shuffle the knobs/buttons/lights so the layout varies
+  for(let i=bits.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [bits[i],bits[j]]=[bits[j],bits[i]]; }
+  return `<div class="crt-chrome">${left}<span class="spc"></span>${bits.join('')}</div>`;
+}
 
 Views.home = function(c){
   const panel = el('div',{class:'panel'});
@@ -1779,21 +1884,28 @@ Views.home = function(c){
 };
 
 function cabCard(cab){
-  // Each card is a little CRT monitor. The accent colour comes from its lab, and
-  // a randomised flicker duration/offset keeps the cards from blinking in sync.
+  // Each card is a little CRT television: a dark-blue housing wrapping a rounded
+  // glass screen and a control-panel strip. The accent colour comes from its
+  // lab; a randomised (long) flicker cycle keeps the sets from stuttering in
+  // sync, and a randomly chosen ~1/3 of sets also get an occasional jitter.
   const col = labColor(cab.lab);
-  const dur = (8 + Math.random()*8).toFixed(2);          // 8–16s cycle
-  const delay = (-Math.random()*dur).toFixed(2);          // desync the flicker
+  const dur = rnd(24,42).toFixed(2);                       // long, infrequent flicker cycle
+  const delay = (-rnd(0,dur)).toFixed(2);                  // desync the flicker
+  const jitter = !cab.locked && Math.random()<0.35;        // only some sets jitter
+  const jitVars = jitter ? ` --jit-dur:${rnd(8,16).toFixed(2)}s; --jit-delay:${(-rnd(0,16)).toFixed(2)}s;` : '';
   const card = el('a',{
     class:'cab crt'+(cab.locked?' locked':''),
     href: cab.locked?'javascript:void 0':cab.route,
-    style:`--crt:${col}; --crt-dur:${dur}s; --crt-delay:${delay}s;`
+    style:`--crt:${col}; --crt-dur:${dur}s; --crt-delay:${delay}s;${jitVars}`
   });
   const tagHtml = cab.locked ? '<span class="tag soon">soon</span>' : '';
-  card.innerHTML = `<div class="cab-icon">${cab.icon}</div>
-    <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
-    <div class="cab-desc">${cab.desc||''}</div>
-    ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}`;
+  card.innerHTML = `<div class="crt-screen${jitter?' jitter':''}">
+      <div class="cab-icon">${cab.icon}</div>
+      <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
+      <div class="cab-desc">${cab.desc||''}</div>
+      ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}
+    </div>
+    ${crtChrome()}`;
   if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
   return card;
 }
