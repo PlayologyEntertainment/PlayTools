@@ -400,6 +400,15 @@
   @media (prefers-reduced-motion: reduce){
     .crt-screen, .crt-content.jitter, .crt-led{ animation:none; }
   }
+  /* Wrapper for live Arcade play-areas dressed up by crtWrapTV(): a centred,
+     width-capped CRT set whose screen holds the canvas stage / memory grid.
+     The relocated surface fills the screen, so we drop its own centring margin
+     and width cap (the housing now provides both). */
+  .crt-wrap{ max-width:432px; margin:14px auto 8px; }
+  .crt-wrap.wide{ max-width:620px; }
+  .crt-wrap .crt-content{ display:flex; }
+  .crt-wrap .pd-stage,
+  .crt-wrap .mem-grid{ margin:0; width:100%; max-width:none; }
 
   .tag{display:inline-block; font-size:9px; letter-spacing:1px; font-weight:700; padding:2px 6px; border-radius:3px; text-transform:uppercase;}
   .tag.mvp{background:var(--neon-5); color:#04120a;}
@@ -1893,6 +1902,21 @@ function crtDressTV(host, bodyHTML, opts){
       <div class="crt-content${jitter?' jitter':''}">${bodyHTML}</div>
     </div>${opts.chrome===false ? '' : crtChrome()}`;
   return host;
+}
+
+/* Wrap an existing, *live* DOM node (a canvas game stage, the memory grid, …)
+   in the CRT-TV treatment without clobbering it. crtDressTV() rewrites the
+   host's innerHTML, which would destroy a live canvas and its listeners — so we
+   dress an empty box first, then relocate the node onto the .crt-content screen
+   surface. Used to give the Arcade play-areas the same retro-television look as
+   the lobby cabinet cards. opts are passed straight through to crtDressTV;
+   opts.wide widens the housing for grid-based games (e.g. Memory Match). */
+function crtWrapTV(node, opts){
+  opts = opts || {};
+  const box = el('div',{class:'crt-wrap'+(opts.wide?' wide':'')});
+  crtDressTV(box, '', opts);
+  box.querySelector('.crt-content').append(node);
+  return box;
 }
 
 Views.home = function(c){
@@ -5304,7 +5328,8 @@ Views.memoryMatch = function(c){
   const hud = el('div',{class:'mem-hud'});
   const grid = el('div',{class:'mem-grid'});
   const result = el('div',{});
-  panel.append(diffField, startRow, hud, grid, result);
+  const gridTV = crtWrapTV(grid, { accent: labColor('Arcade'), jitter:false, wide:true });
+  panel.append(diffField, startRow, hud, gridTV, result);
 
   // ---- game state ----
   let playing=false, lock=false, first=null, second=null;
@@ -5487,7 +5512,8 @@ Views.pixelDodge = function(c){
   stage.append(canvas, overlay);
   const hint = el('div',{class:'pd-hint', html:'◀ ▶ or A · D &nbsp;·&nbsp; drag on screen &nbsp;·&nbsp; move mouse to steer'});
   const result = el('div',{});
-  panel.append(diffField, startRow, hud, stage, hint, result);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
 
   const ctx2d = canvas.getContext('2d');
 
@@ -5727,7 +5753,8 @@ Views.snake = function(c){
   stage.append(canvas, overlay);
   const hint = el('div',{class:'pd-hint', html:'◀ ▲ ▼ ▶ or W · A · S · D'});
   const result = el('div',{});
-  panel.append(startRow, hud, stage, hint, result);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(startRow, hud, stageTV, hint, result);
   const ctx2d = canvas.getContext('2d');
 
   let playing=false, raf=null, lastT=0, acc=0, stepMs=140;
@@ -5843,7 +5870,8 @@ Views.brickBreaker = function(c){
   stage.append(canvas, overlay);
   const hint = el('div',{class:'pd-hint', html:'◀ ▶ or A · D &nbsp;·&nbsp; move mouse to slide the paddle'});
   const result = el('div',{});
-  panel.append(startRow, hud, stage, hint, result);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(startRow, hud, stageTV, hint, result);
   const ctx2d = canvas.getContext('2d');
 
   let playing=false, raf=null, lastT=0;
@@ -5991,7 +6019,8 @@ Views.whackMole = function(c){
   stage.append(canvas, overlay);
   const hint = el('div',{class:'pd-hint', html:'Tap or click a mole the instant it pops up'});
   const result = el('div',{});
-  panel.append(startRow, hud, stage, hint, result);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(startRow, hud, stageTV, hint, result);
   const ctx2d = canvas.getContext('2d');
 
   let playing=false, raf=null, lastT=0, timeLeft=ROUND, spawnTimer=0;
@@ -6116,7 +6145,8 @@ Views.sequence = function(c){
   stage.append(canvas, overlay);
   const hint = el('div',{class:'pd-hint', html:'Watch the pattern, then tap it back in order'});
   const result = el('div',{});
-  panel.append(startRow, hud, stage, hint, result);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(startRow, hud, stageTV, hint, result);
   const ctx2d = canvas.getContext('2d');
 
   let playing=false, mode='idle', seq=[], inputIdx=0, score=0, active=-1, timers=[];
