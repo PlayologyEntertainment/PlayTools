@@ -236,18 +236,26 @@
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
 
-  /* ---- CRT cabinet treatment (home/lobby) ----
-     Each lobby card is built as a little CRT television: a rectangular
-     dark-blue plastic HOUSING (.cab.crt) wraps a rounded glass SCREEN
+  /* ============================================================
+     REUSABLE "CRT TV" TREATMENT  (.crt-tv)
+     ------------------------------------------------------------
+     Dresses any block element up as a little CRT television: a rectangular
+     dark-blue plastic HOUSING (.crt-tv) wraps a rounded glass SCREEN
      (.crt-screen) plus a control-panel strip (.crt-chrome) carrying a
      randomised mix of brand logo, knobs, buttons and blinking lights. The
      glass carries scanlines, a soft corner glare and a subtle convex bulge
-     (highlight + vignette, so text stays crisp). A per-category accent
-     colour — supplied inline as --crt — tints the screen rim, glow, glare
-     and lights so each applet group reads as a distinct shelf. The picture
-     flickers rarely, and a randomly chosen subset of sets also jitters. */
-  .cab.crt{
-    --crt:var(--neon);                                       /* per-category accent (set inline in JS) */
+     (highlight + vignette, so text stays crisp). An accent colour — supplied
+     as the --crt custom property — tints the screen rim, glare and lights so
+     instances can be visually grouped. The picture flickers rarely, and an
+     optional .jitter on the inner .crt-content gives a gentle picture wobble.
+
+     Reuse: add class `crt-tv`, set `--crt` to an accent colour, then build the
+     inner markup (or just call the crtDressTV(host, bodyHTML, opts) helper in
+     JS). First used by the lobby cabinet cards; kept generic on purpose so
+     other surfaces can adopt the same look.
+     ============================================================ */
+  .crt-tv{
+    --crt:var(--neon);                                       /* accent (set via inline --crt) */
     --crt-lit:color-mix(in srgb, var(--crt) 78%, #ffffff);   /* lightened accent, stays visible on dark sets */
     display:flex; flex-direction:column;
     border:1px solid rgba(255,255,255,0.05);
@@ -309,7 +317,7 @@
       radial-gradient(60% 42% at 22% 12%, rgba(255,255,255,0.14), transparent 60%);
     mix-blend-mode:screen; opacity:0.7;
   }
-  .cab.crt .cab-dna{ color:var(--crt-lit); }
+  .crt-tv .cab-dna{ color:var(--crt-lit); }
 
   /* ---- Control panel: brand logo, knobs, buttons, blinking lights ---- */
   .crt-chrome{
@@ -348,7 +356,7 @@
   }
   .crt-led.steady{ animation:none; opacity:.85; }
 
-  .cab.crt:hover{
+  .crt-tv:hover{
     transform:translateY(-2px);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.1),
@@ -357,13 +365,13 @@
       0 10px 24px rgba(0,0,0,0.55),
       0 0 30px -4px var(--crt-lit);
   }
-  /* Locked cabinets keep the dimmed, no-lift behaviour and a dead picture. */
-  .cab.crt.locked:hover{ transform:none; box-shadow:
+  /* A `locked` set keeps the dimmed, no-lift behaviour and a dead picture. */
+  .crt-tv.locked:hover{ transform:none; box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -2px 4px rgba(0,0,0,0.4),
       0 0 0 1px rgba(0,0,0,0.45),
       0 8px 20px rgba(0,0,0,0.5); }
-  .cab.crt.locked .crt-screen{ animation:none; }
-  .cab.crt.locked .crt-led{ animation:none; opacity:.4; }
+  .crt-tv.locked .crt-screen{ animation:none; }
+  .crt-tv.locked .crt-led{ animation:none; opacity:.4; }
 
   /* Rare, brief tube-stutter. Most of the (long) cycle is steady; the flicker
      burst lives in the last ~4%. Each set gets its own --crt-dur/--crt-delay
@@ -1861,6 +1869,32 @@ function crtChrome(){
   return `<div class="crt-chrome">${left}<span class="spc"></span>${bits.join('')}</div>`;
 }
 
+/* Reusable "CRT TV" treatment (see the .crt-tv CSS block). Turns `host` into a
+   retro television wrapping `bodyHTML`, wiring up the accent colour and the
+   randomised flicker/jitter timing. Generic on purpose — any surface can reuse
+   it, not just the lobby cards.
+     opts.accent    accent colour for --crt (default: leave as-is / CSS default)
+     opts.jitter    true|false to force the gentle picture wobble (default: ~1/3 random)
+     opts.flickerDur flicker cycle length in seconds (default: random 24–42s, rare)
+     opts.chrome    false to omit the knobs/buttons/lights control strip       */
+function crtDressTV(host, bodyHTML, opts){
+  opts = opts || {};
+  const dur = (opts.flickerDur || rnd(24,42)).toFixed(2);   // long, infrequent flicker
+  host.classList.add('crt-tv');
+  if(opts.accent) host.style.setProperty('--crt', opts.accent);
+  host.style.setProperty('--crt-dur', dur+'s');
+  host.style.setProperty('--crt-delay', (-rnd(0,dur)).toFixed(2)+'s');   // desync
+  const jitter = ('jitter' in opts) ? opts.jitter : (Math.random()<0.35);
+  if(jitter){
+    host.style.setProperty('--jit-dur', rnd(8,16).toFixed(2)+'s');
+    host.style.setProperty('--jit-delay', (-rnd(0,16)).toFixed(2)+'s');
+  }
+  host.innerHTML = `<div class="crt-screen">
+      <div class="crt-content${jitter?' jitter':''}">${bodyHTML}</div>
+    </div>${opts.chrome===false ? '' : crtChrome()}`;
+  return host;
+}
+
 Views.home = function(c){
   const panel = el('div',{class:'panel'});
   panel.append(
@@ -1882,30 +1916,18 @@ Views.home = function(c){
 };
 
 function cabCard(cab){
-  // Each card is a little CRT television: a dark-blue housing wrapping a rounded
-  // glass screen and a control-panel strip. The accent colour comes from its
-  // lab; a randomised (long) flicker cycle keeps the sets from stuttering in
-  // sync, and a randomly chosen ~1/3 of sets also get an occasional jitter.
-  const col = labColor(cab.lab);
-  const dur = rnd(24,42).toFixed(2);                       // long, infrequent flicker cycle
-  const delay = (-rnd(0,dur)).toFixed(2);                  // desync the flicker
-  const jitter = !cab.locked && Math.random()<0.35;        // only some sets jitter
-  const jitVars = jitter ? ` --jit-dur:${rnd(8,16).toFixed(2)}s; --jit-delay:${(-rnd(0,16)).toFixed(2)}s;` : '';
-  const card = el('a',{
-    class:'cab crt'+(cab.locked?' locked':''),
-    href: cab.locked?'javascript:void 0':cab.route,
-    style:`--crt:${col}; --crt-dur:${dur}s; --crt-delay:${delay}s;${jitVars}`
-  });
+  // Each lobby card is a CRT television via the reusable .crt-tv treatment. The
+  // accent colour comes from its lab; locked sets never jitter (dead picture).
   const tagHtml = cab.locked ? '<span class="tag soon">soon</span>' : '';
-  card.innerHTML = `<div class="crt-screen">
-      <div class="crt-content${jitter?' jitter':''}">
-        <div class="cab-icon">${cab.icon}</div>
+  const body = `<div class="cab-icon">${cab.icon}</div>
         <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
         <div class="cab-desc">${cab.desc||''}</div>
-        ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}
-      </div>
-    </div>
-    ${crtChrome()}`;
+        ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}`;
+  const card = el('a',{
+    class:'cab'+(cab.locked?' locked':''),
+    href: cab.locked?'javascript:void 0':cab.route
+  });
+  crtDressTV(card, body, { accent: labColor(cab.lab), jitter: !cab.locked && Math.random()<0.35 });
   if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
   return card;
 }
