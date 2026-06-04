@@ -6002,6 +6002,15 @@ Views.brickBreaker = function(c){
 };
 
 /* ---- ARCADE.5 Whack-a-Mole ---- */
+// Difficulty tiers — flat pacing per tier (no in-round ramp). `up` = how long a mole
+// stays whackable, `gap` = seconds between pop attempts, `maxUp` = simultaneous moles.
+// `target` is the hit count for a top-grade run (sized to each tier's mole volume);
+// `reward` scales the DNA payout so an easy 'S' isn't worth a hard one.
+const WHK_LEVELS = [
+  { key:'easy',   name:'Easy',   up:1.30, gap:1.00, maxUp:1, target:14, reward:0.5 },
+  { key:'medium', name:'Medium', up:0.85, gap:0.65, maxUp:2, target:26, reward:0.75 },
+  { key:'hard',   name:'Hard',   up:0.55, gap:0.45, maxUp:3, target:38, reward:1.0 }
+];
 Views.whackMole = function(c){
   const cab = getCab('arcade_whack');
   const panel = toolShell(c, cab);
@@ -6011,9 +6020,22 @@ Views.whackMole = function(c){
   const sndEnd=()=> [523,659,784].forEach((f,i)=> setTimeout(()=>blip(f,0.1,'square',0.05), i*90));
 
   const W=360, H=360, ROUND=30;
+  let levelIdx=1, lvl=WHK_LEVELS[levelIdx];   // default Medium
+
   const startRow = el('div',{class:'controls-row'});
   const startBtn = el('button',{class:'btn primary', html:'▶ START'});
   startRow.append(startBtn, soundToggle('whackMute'));
+
+  // difficulty selector (matches the Tracking lab's segmented control)
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  WHK_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; levelIdx=i; lvl=WHK_LEVELS[i]; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+
   const hud = el('div',{class:'mem-hud'});
   const stage = el('div',{class:'pd-stage'});
   const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
@@ -6022,32 +6044,33 @@ Views.whackMole = function(c){
   const hint = el('div',{class:'pd-hint', html:'Tap or click a mole the instant it pops up'});
   const result = el('div',{});
   const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
-  panel.append(startRow, hud, stageTV, hint, result);
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
   const ctx2d = canvas.getContext('2d');
 
   let playing=false, raf=null, lastT=0, timeLeft=ROUND, spawnTimer=0, gameTime=0;
   let holes=[], hits=0, misses=0;
   const CW=W/3, CH=H/3;
   const WHACK_DUR=0.5;
+  const whackBest = (diff)=>{ const b=Store.get().bests.arcade_whack; return (b&&b.diff&&b.diff[diff])||0; };
 
   function reset(){
+    lvl=WHK_LEVELS[levelIdx];
     timeLeft=ROUND; spawnTimer=0.6; hits=0; misses=0; gameTime=0;
     holes=[]; for(let i=0;i<9;i++) holes.push({active:false, ttl:0, rise:0, whack:0, seed:Math.random()*6.283});
   }
-  function difficulty(){ return 1 + (ROUND-timeLeft)/ROUND; }   // ramps 1 -> 2
   function spawn(){
     const empty=holes.map((h,i)=>i).filter(i=> !holes[i].active && holes[i].rise<0.08 && holes[i].whack<=0);
     if(!empty.length) return;
     const idx=empty[Math.floor(Math.random()*empty.length)];
     const h=holes[idx];
-    h.active=true; h.ttl=Math.max(0.45, 1.1/difficulty()); h.seed=Math.random()*6.283;
+    h.active=true; h.ttl=lvl.up; h.seed=Math.random()*6.283;
     sndPop();
   }
   function renderHud(){
-    const best=(Store.get().bests.arcade_whack||{}).value||0;
-    hud.innerHTML = `<span class="pill">Time <b>${Math.ceil(timeLeft)}s</b></span>
+    hud.innerHTML = `<span class="pill">Mode <b>${lvl.name}</b></span>
+      <span class="pill">Time <b>${Math.ceil(timeLeft)}s</b></span>
       <span class="pill">Hits <b>${hits}</b></span>
-      <span class="pill">Best <b>${best}</b></span>`;
+      <span class="pill">Best <b>${whackBest(lvl.key)}</b></span>`;
   }
   /* ---- Mole art: Pixar "Hoppers"-inspired form, neon-retro palette ---- */
   const DIRT_DY=14, MOUND_RX=46, MOUND_RY=22, RISE_SPAN=108, BODY_TOP=-82;
@@ -6194,7 +6217,10 @@ Views.whackMole = function(c){
     timeLeft-=dt;
     if(timeLeft<=0){ timeLeft=0; gameOver(); return; }
     spawnTimer-=dt;
-    if(spawnTimer<=0){ spawn(); spawnTimer=Math.max(0.35, 0.9/difficulty()); }
+    if(spawnTimer<=0){
+      if(holes.filter(h=>h.active).length < lvl.maxUp) spawn();
+      spawnTimer=lvl.gap;
+    }
     holes.forEach(h=>{
       if(h.active){ h.ttl-=dt; if(h.ttl<=0){ h.active=false; misses++; } }
       const target=h.active?1:0, k=h.active?9:13;
@@ -6213,30 +6239,32 @@ Views.whackMole = function(c){
   function startGame(){
     result.innerHTML=''; overlay.style.display='none';
     reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    diffField.style.opacity='0.5'; diffField.style.pointerEvents='none';
     lastT=performance.now()/1000; raf=requestAnimationFrame(frame); renderHud();
   }
   function gameOver(){
     playing=false; if(raf) cancelAnimationFrame(raf); raf=null; sndEnd();
     startBtn.innerHTML='▶ START';
-    const comp=clamp01(hits/30), g=arcadeGrade(comp);
-    Attr.applyVector({reflex:14, speed:6, focus:4}, comp);
-    recordWhackRun(hits, {misses});
-    Ach.evaluate({tool:'whack', hits});
+    diffField.style.opacity=''; diffField.style.pointerEvents='';
+    const comp=clamp01(hits/lvl.target), g=arcadeGrade(comp);
+    Attr.applyVector({reflex:14, speed:6, focus:4}, comp*lvl.reward);
+    recordWhackRun(hits, {misses, diff:lvl.key});
+    Ach.evaluate({tool:'whack', hits, difficulty:lvl.key});
     draw();
     overlay.style.display='flex';
-    overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${hits} whacked · ${misses} missed</div>`;
+    overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${lvl.name} · ${hits} whacked · ${misses} missed</div>`;
     renderHud();
     const r=el('div',{class:'results'});
     r.innerHTML = `<div class="result-tile"><div class="k">Hits</div><div class="v">${hits}</div></div>
       <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
       <div class="result-tile"><div class="k">Missed</div><div class="v">${misses}</div></div>
-      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_whack.value}</div></div>`;
+      <div class="result-tile"><div class="k">${lvl.name} Best</div><div class="v">${whackBest(lvl.key)}</div></div>`;
     result.append(r);
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
       lab:'RETRO ARCADE', tool:'Whack-a-Mole', glyph:'🔨', grade:g,
-      metric:[{k:'Hits', v:String(hits)}, {k:'Missed', v:String(misses)}],
+      metric:[{k:'Mode', v:lvl.name}, {k:'Hits', v:String(hits)}, {k:'Missed', v:String(misses)}],
       designation: g==='S'?'Mallet Maestro': g==='A'?'Quick Hammer': g==='B'?'Steady Swing':'Slow Reflexes',
       badge: hits>=25?'Mole Masher':null
     }));
@@ -6465,6 +6493,9 @@ function recordWhackRun(score, ctx){
     d.runs++;
     if(!d.bests.arcade_whack){ d.toolsCompleted++; d.bests.arcade_whack={value:score, mode:'max'}; }
     else if(score>d.bests.arcade_whack.value){ d.bests.arcade_whack.value=score; }
+    const diff=(ctx&&ctx.diff)||'medium';
+    const bd=d.bests.arcade_whack.diff||(d.bests.arcade_whack.diff={});
+    if(!(diff in bd) || score>bd[diff]) bd[diff]=score;
     d.arcadePoints += Math.round(score/3);
     d.counters.whackRuns=(d.counters.whackRuns||0)+1;
   });
