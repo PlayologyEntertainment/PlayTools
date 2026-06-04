@@ -2601,8 +2601,10 @@ function openCompare(friend){
   const root = document.getElementById('modal-root');
   root.innerHTML='';
   const me = Store.get();
-  const myAccent = me.profile.accent || '#16f2c8';
-  const frAccent = (friend.profile && friend.profile.accent) || '#ff3df0';
+  // Fixed high-contrast pair so the two players never blend together — yellow (you)
+  // vs blue (friend); their 18%-opacity overlap reads as green on the radar.
+  const myAccent = '#ffd23d';   // YOU — arcade gold/yellow
+  const frAccent = '#2d9bff';   // FRIEND — neon blue
   const myTag = me.profile.gamerTag || 'You';
 
   const backdrop = el('div',{class:'modal-backdrop'});
