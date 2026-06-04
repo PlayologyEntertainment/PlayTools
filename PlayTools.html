@@ -236,6 +236,171 @@
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
 
+  /* ============================================================
+     REUSABLE "CRT TV" TREATMENT  (.crt-tv)
+     ------------------------------------------------------------
+     Dresses any block element up as a little CRT television: a rectangular
+     dark-blue plastic HOUSING (.crt-tv) wraps a rounded glass SCREEN
+     (.crt-screen) plus a control-panel strip (.crt-chrome) carrying a
+     randomised mix of brand logo, knobs, buttons and blinking lights. The
+     glass carries scanlines, a soft corner glare and a subtle convex bulge
+     (highlight + vignette, so text stays crisp). An accent colour — supplied
+     as the --crt custom property — tints the screen rim, glare and lights so
+     instances can be visually grouped. The picture flickers rarely, and an
+     optional .jitter on the inner .crt-content gives a gentle picture wobble.
+
+     Reuse: add class `crt-tv`, set `--crt` to an accent colour, then build the
+     inner markup (or just call the crtDressTV(host, bodyHTML, opts) helper in
+     JS). First used by the lobby cabinet cards; kept generic on purpose so
+     other surfaces can adopt the same look.
+     ============================================================ */
+  .crt-tv{
+    --crt:var(--neon);                                       /* accent (set via inline --crt) */
+    --crt-lit:color-mix(in srgb, var(--crt) 78%, #ffffff);   /* lightened accent, stays visible on dark sets */
+    display:flex; flex-direction:column;
+    border:1px solid rgba(255,255,255,0.05);
+    border-radius:11px;                                      /* rectangular TV housing */
+    padding:12px 12px 10px;
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,0.06), transparent 60%),  /* top housing sheen */
+      linear-gradient(180deg, #16264f 0%, #0f1c40 50%, #0b1430 100%);                /* dark-blue plastic */
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),                                  /* housing top highlight */
+      inset 0 -2px 4px rgba(0,0,0,0.4),
+      0 0 0 1px rgba(0,0,0,0.45),                                            /* neutral resting edge — no accent halo */
+      0 8px 20px rgba(0,0,0,0.5);                                            /* no resting accent glow */
+    transition:transform .15s ease, box-shadow .15s ease;
+    overflow:hidden; isolation:isolate;
+  }
+  /* The glass screen — recessed, rounded, scanlined; this is where the
+     flicker (and optional jitter) live so the housing itself stays steady. */
+  .crt-screen{
+    position:relative; flex:1 1 auto;
+    border-radius:16px / 13px;                               /* slightly elliptical CRT corners */
+    padding:14px 14px 15px; margin-bottom:9px;
+    background:
+      radial-gradient(135% 120% at 50% 5%, rgba(255,255,255,0.05), transparent 52%),  /* convex top sheen */
+      radial-gradient(150% 150% at 50% 125%, color-mix(in srgb, var(--crt) 12%, transparent), transparent 60%),
+      linear-gradient(180deg,#070b1c 0%, #05080f 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.05),                                /* glass rim */
+      inset 0 0 0 3px color-mix(in srgb, var(--crt) 38%, #05080f),           /* accent screen rim */
+      inset 0 0 26px 9px rgba(0,0,0,0.6),                                    /* screen vignette */
+      0 1px 2px rgba(0,0,0,0.6);
+    overflow:hidden; isolation:isolate;
+    /* the picture flickers here; the glass box itself stays steady */
+    animation:crtCardFlicker var(--crt-dur,28s) steps(1,end) infinite;
+    animation-delay:var(--crt-delay,0s);
+  }
+  /* Wraps just the text/icon so the optional jitter wobbles the *picture*,
+     not the whole screen, rim, scanlines or glare. */
+  .crt-content{ position:relative; z-index:2; }
+  .crt-content.jitter{
+    animation:crtJitter var(--jit-dur,11s) steps(1,end) infinite;
+    animation-delay:var(--jit-delay,0s);
+  }
+  /* Scanlines + edge darkening that suggests the curved glass. */
+  .crt-screen::before{
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:3;
+    border-radius:inherit;
+    background:
+      radial-gradient(125% 120% at 50% 50%, transparent 62%, rgba(0,0,0,0.45) 100%),  /* edge curve falloff */
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:multiply; opacity:0.55;
+  }
+  /* Soft upper-left glare, tinted with the category accent (like the sample). */
+  .crt-screen::after{
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:4;
+    border-radius:inherit;
+    background:
+      linear-gradient(125deg, color-mix(in srgb, var(--crt-lit) 30%, transparent) 0%, rgba(255,255,255,0.10) 12%, transparent 40%),
+      radial-gradient(60% 42% at 22% 12%, rgba(255,255,255,0.14), transparent 60%);
+    mix-blend-mode:screen; opacity:0.7;
+  }
+  .crt-tv .cab-dna{ color:var(--crt-lit); }
+
+  /* ---- Control panel: brand logo, knobs, buttons, blinking lights ---- */
+  .crt-chrome{
+    flex:0 0 auto; display:flex; align-items:center; gap:7px;
+    height:14px; padding:0 3px;
+  }
+  .crt-chrome .spc{ flex:1 1 auto; }
+  .crt-brand{
+    font-family:var(--mono); font-size:7px; letter-spacing:1.5px;
+    color:rgba(255,255,255,0.42); text-transform:uppercase; white-space:nowrap;
+  }
+  .crt-logo{
+    font-size:9px; line-height:1; color:var(--crt-lit); opacity:.7;
+    filter:drop-shadow(0 0 3px var(--crt-lit));
+  }
+  .crt-knob{
+    width:11px; height:11px; border-radius:50%; position:relative; flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%, #56638f, #1b2444 68%, #0b1228);
+    box-shadow:0 1px 1px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.18);
+  }
+  .crt-knob::after{
+    content:""; position:absolute; left:50%; top:1.5px; width:1px; height:4px;
+    background:rgba(255,255,255,0.55); transform:translateX(-50%);
+  }
+  .crt-btn{
+    width:13px; height:6px; border-radius:2px; flex:0 0 auto;
+    background:linear-gradient(180deg,#2c3766,#161e3c);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 1px rgba(0,0,0,0.5);
+  }
+  .crt-led{
+    width:6px; height:6px; border-radius:50%; flex:0 0 auto;
+    background:var(--led, var(--crt-lit));
+    box-shadow:0 0 5px var(--led, var(--crt-lit)), 0 0 2px var(--led, var(--crt-lit));
+    animation:crtBlink var(--led-dur,2.6s) steps(1,end) infinite;
+    animation-delay:var(--led-delay,0s);
+  }
+  .crt-led.steady{ animation:none; opacity:.85; }
+
+  .crt-tv:hover{
+    transform:translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.1),
+      inset 0 -2px 4px rgba(0,0,0,0.4),
+      0 0 0 1px color-mix(in srgb, var(--crt) 75%, #0b1430),
+      0 10px 24px rgba(0,0,0,0.55),
+      0 0 30px -4px var(--crt-lit);
+  }
+  /* A `locked` set keeps the dimmed, no-lift behaviour and a dead picture. */
+  .crt-tv.locked:hover{ transform:none; box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -2px 4px rgba(0,0,0,0.4),
+      0 0 0 1px rgba(0,0,0,0.45),
+      0 8px 20px rgba(0,0,0,0.5); }
+  .crt-tv.locked .crt-screen{ animation:none; }
+  .crt-tv.locked .crt-led{ animation:none; opacity:.4; }
+
+  /* Rare, brief tube-stutter. Most of the (long) cycle is steady; the flicker
+     burst lives in the last ~4%. Each set gets its own --crt-dur/--crt-delay
+     so they never stutter in unison. */
+  @keyframes crtCardFlicker{
+    0%,95%,100%{ filter:none; }
+    96%{ filter:brightness(1.18); }
+    97%{ filter:brightness(0.78); }
+    98%{ filter:brightness(1.08); }
+    99%{ filter:brightness(0.9); }
+  }
+  /* Occasional, gentle picture wobble — sub-pixel drift on the content only,
+     no skew, only on the subset of sets that get the .jitter class. */
+  @keyframes crtJitter{
+    0%,93%,100%{ transform:translate3d(0,0,0); }
+    93.7%{ transform:translate3d(0,-1px,0); }
+    94.3%{ transform:translate3d(0.5px,1px,0); }
+    94.9%{ transform:translate3d(-0.5px,0,0); }
+    95.5%{ transform:translate3d(0,0.5px,0); }
+  }
+  @keyframes crtBlink{
+    0%,46%{ opacity:1; }
+    50%,96%{ opacity:0.18; }
+    100%{ opacity:1; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .crt-screen, .crt-content.jitter, .crt-led{ animation:none; }
+  }
+
   .tag{display:inline-block; font-size:9px; letter-spacing:1px; font-weight:700; padding:2px 6px; border-radius:3px; text-transform:uppercase;}
   .tag.mvp{background:var(--neon-5); color:#04120a;}
   .tag.p2{background:var(--neon-3); color:#1a1400;}
@@ -1659,6 +1824,77 @@ const Router = (function(){
 const Views = {};
 
 /* ---- HOME / LOBBY ---- */
+/* Per-category CRT accent colours. Each applet group gets a distinct hue so the
+   monitor bezel, glare and section header read as a separate "shelf" of
+   cabinets. Falls back to the primary neon for any future, unmapped lab. */
+const LAB_CRT = {
+  'Gamer DNA':'#16f2c8',   // cyan
+  'Reflex'   :'#f7c59f',   // peach
+  'Hardware' :'#679436',   // green
+  'Setup'    :'#FFD166',   // yellow
+  'Fun'      :'#ffb3c6',   // light pink
+  'RPG'      :'#118AB2',   // blue
+  'Arcade'   :'#9d4edd'    // bright purple
+};
+function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
+
+/* Retro-TV brand names + decorations sprinkled onto each set's control panel. */
+const CRT_BRANDS = ['PLAYOTRON','VECTREX','NOVA-9','RETROVUE','ARC-80','PIXLCORP','TUBETEK','GAMMA-V','CRT-MAX','HYPERVUE','OMNIVOX','RASTERON'];
+const CRT_LOGOS  = ['◉','▣','✦','◈','⬢','▤'];
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* Build the control-panel strip: a brand logo on the left, then a random mix
+   of knobs, buttons and blinking lights pushed to the right. Lights get their
+   own blink timing so the panel feels alive. */
+function crtChrome(){
+  const left = Math.random()<0.5
+    ? `<span class="crt-logo">${pick(CRT_LOGOS)}</span><span class="crt-brand">${pick(CRT_BRANDS)}</span>`
+    : `<span class="crt-brand">${pick(CRT_BRANDS)}</span>`;
+  const bits = [];
+  const knobs = Math.floor(rnd(0,2.999));      // 0–2 knobs
+  const btns  = Math.floor(rnd(0,3.999));      // 0–3 buttons
+  const leds  = Math.floor(rnd(1,2.999));      // 1–2 lights
+  for(let i=0;i<knobs;i++) bits.push('<span class="crt-knob"></span>');
+  for(let i=0;i<btns;i++)  bits.push('<span class="crt-btn"></span>');
+  for(let i=0;i<leds;i++){
+    const amber = Math.random()<0.4;
+    const steady = Math.random()<0.25;
+    const dur = rnd(1.6,3.6).toFixed(2), del = (-rnd(0,3)).toFixed(2);
+    const style = `${amber?'--led:#ffb347;':''}--led-dur:${dur}s;--led-delay:${del}s;`;
+    bits.push(`<span class="crt-led${steady?' steady':''}" style="${style}"></span>`);
+  }
+  // shuffle the knobs/buttons/lights so the layout varies
+  for(let i=bits.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [bits[i],bits[j]]=[bits[j],bits[i]]; }
+  return `<div class="crt-chrome">${left}<span class="spc"></span>${bits.join('')}</div>`;
+}
+
+/* Reusable "CRT TV" treatment (see the .crt-tv CSS block). Turns `host` into a
+   retro television wrapping `bodyHTML`, wiring up the accent colour and the
+   randomised flicker/jitter timing. Generic on purpose — any surface can reuse
+   it, not just the lobby cards.
+     opts.accent    accent colour for --crt (default: leave as-is / CSS default)
+     opts.jitter    true|false to force the gentle picture wobble (default: ~1/3 random)
+     opts.flickerDur flicker cycle length in seconds (default: random 24–42s, rare)
+     opts.chrome    false to omit the knobs/buttons/lights control strip       */
+function crtDressTV(host, bodyHTML, opts){
+  opts = opts || {};
+  const dur = (opts.flickerDur || rnd(24,42)).toFixed(2);   // long, infrequent flicker
+  host.classList.add('crt-tv');
+  if(opts.accent) host.style.setProperty('--crt', opts.accent);
+  host.style.setProperty('--crt-dur', dur+'s');
+  host.style.setProperty('--crt-delay', (-rnd(0,dur)).toFixed(2)+'s');   // desync
+  const jitter = ('jitter' in opts) ? opts.jitter : (Math.random()<0.35);
+  if(jitter){
+    host.style.setProperty('--jit-dur', rnd(8,16).toFixed(2)+'s');
+    host.style.setProperty('--jit-delay', (-rnd(0,16)).toFixed(2)+'s');
+  }
+  host.innerHTML = `<div class="crt-screen">
+      <div class="crt-content${jitter?' jitter':''}">${bodyHTML}</div>
+    </div>${opts.chrome===false ? '' : crtChrome()}`;
+  return host;
+}
+
 Views.home = function(c){
   const panel = el('div',{class:'panel'});
   panel.append(
@@ -1670,7 +1906,8 @@ Views.home = function(c){
   const labs = [];
   CABINETS.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
   labs.forEach(lab=>{
-    panel.append(el('h2',{class:'sub', text:lab}));
+    const col = labColor(lab);
+    panel.append(el('h2',{class:'sub', text:lab, style:`color:${col}; border-left-color:${col};`}));
     const grid = el('div',{class:'cab-grid'});
     CABINETS.filter(x=>x.lab===lab).forEach(cab=> grid.append(cabCard(cab)));
     panel.append(grid);
@@ -1679,12 +1916,18 @@ Views.home = function(c){
 };
 
 function cabCard(cab){
-  const card = el('a',{class:'cab'+(cab.locked?' locked':''), href: cab.locked?'javascript:void 0':cab.route});
+  // Each lobby card is a CRT television via the reusable .crt-tv treatment. The
+  // accent colour comes from its lab; locked sets never jitter (dead picture).
   const tagHtml = cab.locked ? '<span class="tag soon">soon</span>' : '';
-  card.innerHTML = `<div class="cab-icon">${cab.icon}</div>
-    <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
-    <div class="cab-desc">${cab.desc||''}</div>
-    ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}`;
+  const body = `<div class="cab-icon">${cab.icon}</div>
+        <div class="cab-name">${cab.name}${tagHtml?' '+tagHtml:''}</div>
+        <div class="cab-desc">${cab.desc||''}</div>
+        ${cab.dna?`<div class="cab-dna">${cab.dna}</div>`:''}`;
+  const card = el('a',{
+    class:'cab'+(cab.locked?' locked':''),
+    href: cab.locked?'javascript:void 0':cab.route
+  });
+  crtDressTV(card, body, { accent: labColor(cab.lab), jitter: !cab.locked && Math.random()<0.35 });
   if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
   return card;
 }
