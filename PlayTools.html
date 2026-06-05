@@ -61,8 +61,11 @@
   body{
     margin:0;
     background:
-      radial-gradient(1200px 600px at 50% -10%, rgba(124,92,255,0.18), transparent 60%),
-      radial-gradient(900px 500px at 90% 10%, rgba(255,61,240,0.10), transparent 55%),
+      /* top-right purple glow (violet + magenta blend) — pushed up into the corner, echoes the magenta "TOOLS" side of the logo */
+      radial-gradient(1200px 600px at 100% -14%, rgba(124,92,255,0.18), transparent 60%),
+      radial-gradient(900px 500px at 100% 2%, rgba(255,61,240,0.10), transparent 55%),
+      /* complementary top-left light-blue glow — echoes the teal "PLAY" side of the logo */
+      radial-gradient(1200px 600px at 0% -14%, rgba(80,165,255,0.17), transparent 60%),
       linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
     color:var(--ink);
     font-family:var(--mono);
