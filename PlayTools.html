@@ -61,8 +61,11 @@
   body{
     margin:0;
     background:
-      radial-gradient(1200px 600px at 50% -10%, rgba(124,92,255,0.18), transparent 60%),
-      radial-gradient(900px 500px at 90% 10%, rgba(255,61,240,0.10), transparent 55%),
+      /* top-right purple glow (violet + magenta blend) — pushed up into the corner, echoes the magenta "TOOLS" side of the logo */
+      radial-gradient(1200px 600px at 92% -14%, rgba(124,92,255,0.18), transparent 60%),
+      radial-gradient(900px 500px at 92% 2%, rgba(255,61,240,0.10), transparent 55%),
+      /* complementary top-left light-blue glow — echoes the teal "PLAY" side of the logo */
+      radial-gradient(900px 500px at 8% 2%, rgba(80,165,255,0.11), transparent 60%),
       linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
     color:var(--ink);
     font-family:var(--mono);
@@ -70,6 +73,12 @@
     line-height:1.6;
     letter-spacing:0.2px;
     min-height:100vh;
+  }
+  /* The two top glows are the neon sign's spill — when the sign is switched
+     off (body.sign-off, set by the header's "Turn On/Off Sign" button), they
+     go dark too, leaving only the base vertical fill. */
+  body.sign-off{
+    background:linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
   }
   a{color:var(--neon); text-decoration:none;}
 
@@ -148,6 +157,7 @@
   }
   .score-strip{font-size:12px; color:var(--ink-dim); letter-spacing:1px;}
   .score-strip b{color:var(--neon); font-family:var(--pixel);}
+  .score-strip b#ssScore{color:var(--neon-3);}
   .score-strip .sep{opacity:0.4; margin:0 4px;}
   .controls-actions{display:flex; gap:8px; flex-wrap:wrap;}
   .btn{
@@ -959,7 +969,7 @@
     <div class="score-strip" id="scoreStrip">
       RANK <b id="ssRank">NEWBIE</b>
       <span class="sep">·</span> CLASS <b id="ssClass">UNRANKED</b>
-      <span class="sep">·</span> SCORE <b id="ssScore">0000000</b>
+      <span class="sep">·</span> SCORE <b id="ssScore">0</b>
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
@@ -1897,7 +1907,7 @@ const CABINETS = [
   { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
     desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_packer', lab:'Arcade', name:'Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
-    desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6' }
+    desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6 - Designed by Aysha!' }
 ];
 
 /* ============================================================================
@@ -2026,7 +2036,7 @@ Views.home = function(c){
   panel.append(
     el('div',{class:'view-head', html:'<span class="lab-tag">Insert Coin</span>'}),
     el('h1',{class:'title', html:'Welcome to the Arcade'}),
-    el('p',{class:'view-desc', html:'Pick a cabinet. Every scored run feeds your <strong>Gamer DNA</strong> — attributes, class, rank, and a shareable hi-score card. No login, no server; your profile lives only in this browser.'})
+    el('p',{class:'view-desc', html:'Pick a screen. Everything feeds your Gamer DNA with Attributes, Class, Rank, and a Shareable Hi-score Card. No login, no server; your profile lives only in this browser. Enjoy!'})
   );
   // group by lab
   const labs = [];
@@ -2069,7 +2079,7 @@ Views.dna = function(c){
   idHeadMain.append(
     el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
     el('h1',{class:'title', html:'🧬 Gamer DNA'}),
-    el('p',{class:'view-desc', html:'Your anonymous local profile. Edit your identity, watch your seven attribute vectors grow, and track your class & rank as you play.'})
+    el('p',{class:'view-desc', html:'Your local profile lives here. Edit your identity, watch your seven attribute vectors grow, and track your rank/class as you play.'})
   );
   const avBtn = el('a',{class:'dna-avatar-tv', href:'javascript:void 0', title:'Customize your profile image'});
   // Dress the profile image as a little CRT television (reuses the .crt-tv
@@ -2101,7 +2111,7 @@ Views.dna = function(c){
   const stats = el('div',{class:'stat-cards'});
   stats.innerHTML = `
     <div class="stat-card"><div class="k">Gamer Score</div><div class="v gold">${score.toLocaleString()}</div></div>
-    <div class="stat-card"><div class="k">Rank</div><div class="v">${rank.name}</div></div>
+    <div class="stat-card"><div class="k">Rank</div><div class="v" style="color:${rank.color}">${rank.name}</div></div>
     <div class="stat-card"><div class="k">Class</div><div class="v">${klass}</div></div>
     <div class="stat-card"><div class="k">Tools Done</div><div class="v">${d.toolsCompleted}</div></div>
     <div class="stat-card"><div class="k">Achievements</div><div class="v">${d.achievements.length}/${Ach.DEFS.length}</div></div>`;
@@ -2616,7 +2626,7 @@ Views.friends = function(c){
   panel.append(
     el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
     el('h1',{class:'title', html:'👥 Friends'}),
-    el('p',{class:'view-desc', html:'Import your friends\' Gamer DNA files to build a local roster — sort it, jot private notes, and overlay their attributes against your own. Everything stays in this browser; you can only ever export <em>your own</em> profile.'})
+    el('p',{class:'view-desc', html:'Safe, Secure, and Social. Invite and Import your Friends to build a local roster. You can sort it, jot private notes, and overlay their attributes against your own. Everything stays in this browser.'})
   );
 
   // ---- import / export toolbar ----
@@ -3075,7 +3085,7 @@ Views.platforms = function(c){
     panel.append(
       el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
       el('h1',{class:'title', html:'🔗 Platform Link'}),
-      el('p',{class:'view-desc', html:'Connect your gaming platforms to your Gamer DNA — handle, library and per-game stats — <strong>no login, no account linking</strong>, and nothing ever leaves this browser.'})
+      el('p',{class:'view-desc', html:'Connect your gaming platform info to your Gamer DNA. No login, no network required, and nothing ever leaves this browser.'})
     );
     const linked = Store.platformCount();
     const cw = Math.min(3, linked);
@@ -7675,7 +7685,7 @@ const UI = (function(){
   function refreshStrip(){
     const d=Store.get(), score=Attr.gamerScore(d), rank=Attr.rankFor(score);
     document.getElementById('ssClass').textContent=Attr.classFor(d).toUpperCase();
-    document.getElementById('ssScore').textContent=String(score).padStart(7,'0');
+    document.getElementById('ssScore').textContent=score.toLocaleString();
     const rk=document.getElementById('ssRank'); rk.textContent=rank.name.toUpperCase(); rk.style.color=rank.color;
   }
 
