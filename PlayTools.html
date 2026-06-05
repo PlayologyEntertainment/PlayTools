@@ -1319,8 +1319,10 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='sequence' && (c.grade==='A'||c.grade==='S') },
     { id:'packer_ace', name:'Packer Ace', icon:'📦', desc:'Earn an A grade or better in Packer.',
       test:(d,c)=> c && c.tool==='packer' && (c.grade==='A'||c.grade==='S') },
-    // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded test
-    //      (Reaction Time already has the stricter S-grade 'Reaction Master') ----
+    // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded
+    //      test (complements Reaction's stricter S-grade 'Reaction Master') ----
+    { id:'reaction_ace', name:'Reaction Ace', icon:'⚡', desc:'Earn an A grade or better on Reaction Time.',
+      test:(d,c)=> c && c.tool==='reaction' && (c.grade==='A'||c.grade==='S') },
     { id:'doubleclick_ace', name:'Double-Click Ace', icon:'👆', desc:'Earn an A grade or better on the Double Click Test.',
       test:(d,c)=> c && c.tool==='doubleclick' && (c.grade==='A'||c.grade==='S') },
     { id:'spacebar_ace', name:'Spacebar Ace', icon:'⌨️', desc:'Earn an A grade or better on Spacebar Speed.',
