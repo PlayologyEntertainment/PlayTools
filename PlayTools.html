@@ -707,14 +707,21 @@
      ============================================================ */
   .dna-id-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px;}
   .dna-id-head-main{flex:1; min-width:0;}
-  .dna-avatar-btn{
-    flex:0 0 auto; width:64px; height:64px; border-radius:12px; border:2px solid var(--line);
-    cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; line-height:1;
-    font-family:var(--pixel); font-size:28px; font-weight:800; color:#04120a;
-    transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  /* The profile image, dressed as a little CRT television via the reusable
+     .crt-tv treatment. The chosen avatar color becomes the set's --crt accent,
+     and the emoji / handle initial lives on the recessed glass screen. */
+  .dna-avatar-tv{
+    flex:0 0 auto; width:128px; cursor:pointer; color:inherit; font:inherit; text-align:left;
+    text-decoration:none; padding:10px 10px 8px;
   }
-  .dna-avatar-btn.is-emoji{font-size:32px; color:#04120a;}
-  .dna-avatar-btn:hover{transform:translateY(-2px); border-color:var(--neon); box-shadow:0 0 18px rgba(22,242,200,0.35);}
+  .dna-avatar-tv .crt-screen{ padding:7px; margin-bottom:8px; }
+  .dna-avatar-tv .crt-content{ display:flex; }
+  .dna-avatar-tv .av-face{
+    width:100%; aspect-ratio:1 / 1; display:flex; align-items:center; justify-content:center;
+    border-radius:10px / 8px; line-height:1;
+    font-family:var(--pixel); font-weight:800; font-size:34px; color:#04120a;
+  }
+  .dna-avatar-tv .av-face.is-emoji{ font-size:40px; }
 
   .av-picker .av-preview{display:flex; justify-content:center; margin:0 0 16px;}
   .av-picker .av-preview-box{
@@ -2014,13 +2021,21 @@ Views.dna = function(c){
     el('h1',{class:'title', html:'🧬 Gamer DNA'}),
     el('p',{class:'view-desc', html:'Your anonymous local profile. Edit your identity, watch your seven attribute vectors grow, and track your class & rank as you play.'})
   );
-  const avBtn = el('button',{class:'dna-avatar-btn', title:'Customize your Friend Card avatar'});
+  const avBtn = el('a',{class:'dna-avatar-tv', href:'javascript:void 0', title:'Customize your profile image'});
+  // Dress the profile image as a little CRT television (reuses the .crt-tv
+  // treatment). crtDressTV() rewrites innerHTML, so dress once up front, then
+  // just repaint the screen face on refresh — keeps the chrome/flicker stable.
+  crtDressTV(avBtn, '<div class="av-face"></div>', {
+    accent: avatarFace(Store.get().profile, Store.get().profile.gamerTag).bg, jitter:true
+  });
+  const avFace = avBtn.querySelector('.av-face');
   function refreshAvatarBtn(){
     const pr = Store.get().profile;
     const face = avatarFace(pr, pr.gamerTag);
-    avBtn.className = 'dna-avatar-btn'+(face.isEmoji?' is-emoji':'');
-    avBtn.style.background = face.bg;
-    avBtn.innerHTML = avatarInner(face);
+    avBtn.style.setProperty('--crt', face.bg);
+    avFace.className = 'av-face'+(face.isEmoji?' is-emoji':'');
+    avFace.style.background = face.bg;
+    avFace.innerHTML = avatarInner(face);
   }
   refreshAvatarBtn();
   avBtn.onclick = ()=> openAvatarPicker(refreshAvatarBtn);
