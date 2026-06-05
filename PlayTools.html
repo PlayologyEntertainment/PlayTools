@@ -1319,6 +1319,22 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='sequence' && (c.grade==='A'||c.grade==='S') },
     { id:'packer_ace', name:'Packer Ace', icon:'📦', desc:'Earn an A grade or better in Packer.',
       test:(d,c)=> c && c.tool==='packer' && (c.grade==='A'||c.grade==='S') },
+    // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded test
+    //      (Reaction Time already has the stricter S-grade 'Reaction Master') ----
+    { id:'doubleclick_ace', name:'Double-Click Ace', icon:'👆', desc:'Earn an A grade or better on the Double Click Test.',
+      test:(d,c)=> c && c.tool==='doubleclick' && (c.grade==='A'||c.grade==='S') },
+    { id:'spacebar_ace', name:'Spacebar Ace', icon:'⌨️', desc:'Earn an A grade or better on Spacebar Speed.',
+      test:(d,c)=> c && c.tool==='spacebar' && (c.grade==='A'||c.grade==='S') },
+    { id:'polling_ace', name:'Polling Ace', icon:'🖲️', desc:'Earn an A grade or better on the Polling Rate test.',
+      test:(d,c)=> c && c.tool==='mouse_polling' && (c.grade==='A'||c.grade==='S') },
+    { id:'liftoff_ace', name:'Lift-Off Ace', icon:'📏', desc:'Earn an A grade or better on the Lift-Off Distance Test.',
+      test:(d,c)=> c && c.tool==='mouse_liftoff' && (c.grade==='A'||c.grade==='S') },
+    { id:'dragclick_ace', name:'Drag-Click Ace', icon:'🥁', desc:'Earn an A grade or better on the Drag Click Test.',
+      test:(d,c)=> c && c.tool==='mouse_dragclick' && (c.grade==='A'||c.grade==='S') },
+    { id:'jitter_ace', name:'Jitter Ace', icon:'〽️', desc:'Earn an A grade or better on the Jitter Click Test.',
+      test:(d,c)=> c && c.tool==='mouse_jitter' && (c.grade==='A'||c.grade==='S') },
+    { id:'stability_ace', name:'Stability Ace', icon:'📉', desc:'Earn an A grade or better on the Mouse Stability Test.',
+      test:(d,c)=> c && c.tool==='mouse_stability' && (c.grade==='A'||c.grade==='S') },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -3871,7 +3887,7 @@ Views.doubleClick = function(c){
     const quality=clamp01((400-avg)/(400-40));
     recordRun('doubleclick', {best:'min', value:best});
     Attr.applyVector({speed:8, reflex:6}, quality);
-    Ach.evaluate({tool:'doubleclick', best, avg});
+    Ach.evaluate({tool:'doubleclick', grade:g, best, avg});
 
     result.innerHTML='';
     const r=el('div',{class:'results'});
@@ -3950,7 +3966,7 @@ Views.spacebar = function(c){
     const quality=clamp01(tps/9);
     recordRun('spacebar', {best:'max', value:+tps.toFixed(2)});
     Attr.applyVector({speed:13, consistency:5}, quality);
-    Ach.evaluate({tool:'spacebar', tps});
+    Ach.evaluate({tool:'spacebar', grade:g, tps});
 
     result.innerHTML='';
     const r=el('div',{class:'results'});
@@ -4051,7 +4067,7 @@ Views.polling = function(c){
     const quality = clamp01(hz/1000) * clamp01(0.2 + consistency/100);
     recordRun('mouse_polling', {best:'max', value:hz});
     Attr.applyVector({control:6, consistency:4}, quality);
-    Ach.evaluate({tool:'mouse_polling', hz, consistency});
+    Ach.evaluate({tool:'mouse_polling', grade:g, hz, consistency});
 
     result.innerHTML='';
     const r=el('div',{class:'results'});
@@ -4240,7 +4256,7 @@ Views.liftoff = function(c){
     const quality=clamp01(score/100);
     recordRun('mouse_liftoff', {best:'max', value:score});
     Attr.applyVector({control:8, consistency:6}, quality);
-    Ach.evaluate({tool:'mouse_liftoff', score, avgDrift});
+    Ach.evaluate({tool:'mouse_liftoff', grade:g, score, avgDrift});
 
     result.innerHTML='';
     const r=el('div',{class:'results'});
@@ -4325,7 +4341,7 @@ Views.dragClick = function(c){
     const quality=clamp01(peak/25);
     recordRun('mouse_dragclick', {best:'max', value:peak});
     Attr.applyVector({speed:12, reflex:5}, quality);
-    Ach.evaluate({tool:'mouse_dragclick', peak, avg});
+    Ach.evaluate({tool:'mouse_dragclick', grade:g, peak, avg});
 
     result.innerHTML='';
     const r=el('div',{class:'results'});
@@ -4412,7 +4428,7 @@ Views.jitterClick = function(c){
     const quality=clamp01(cps/14)*clamp01(0.4+stability/100*0.6);
     recordRun('mouse_jitter', {best:'max', value:jitterScore});
     Attr.applyVector({speed:10, consistency:6}, quality);
-    Ach.evaluate({tool:'mouse_jitter', cps, stability, jitterScore});
+    Ach.evaluate({tool:'mouse_jitter', grade:g, cps, stability, jitterScore});
 
     result.innerHTML='';
     const r=el('div',{class:'results'});
@@ -4516,7 +4532,7 @@ Views.mouseStability = function(c){
     const quality=clamp01(score/100);
     recordRun('mouse_stability', {best:'max', value:score});
     Attr.applyVector({precision:10, control:8}, quality);
-    Ach.evaluate({tool:'mouse_stability', score, avgDev});
+    Ach.evaluate({tool:'mouse_stability', grade:g, score, avgDev});
 
     info.textContent='';
     result.innerHTML='';
