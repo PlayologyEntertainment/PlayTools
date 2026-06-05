@@ -703,6 +703,56 @@
   .modal-close:hover{color:var(--danger);}
 
   /* ============================================================
+     GAMER DNA AVATAR — header button + picker modal
+     ============================================================ */
+  .dna-id-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px;}
+  .dna-id-head-main{flex:1; min-width:0;}
+  /* The profile image, dressed as a little CRT television via the reusable
+     .crt-tv treatment. The chosen avatar color becomes the set's --crt accent,
+     and the emoji / handle initial lives on the recessed glass screen. */
+  .dna-avatar-tv{
+    flex:0 0 auto; width:128px; cursor:pointer; color:inherit; font:inherit; text-align:left;
+    text-decoration:none; padding:10px 10px 8px;
+  }
+  .dna-avatar-tv .crt-screen{ padding:7px; margin-bottom:8px; }
+  .dna-avatar-tv .crt-content{ display:flex; }
+  .dna-avatar-tv .av-face{
+    width:100%; aspect-ratio:1 / 1; display:flex; align-items:center; justify-content:center;
+    border-radius:10px / 8px; line-height:1;
+    font-family:var(--pixel); font-weight:800; font-size:34px; color:#04120a;
+  }
+  .dna-avatar-tv .av-face.is-emoji{ font-size:40px; }
+
+  .av-picker .av-preview{display:flex; justify-content:center; margin:0 0 16px;}
+  .av-picker .av-preview-box{
+    width:84px; height:84px; border-radius:16px; border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; line-height:1;
+    font-family:var(--pixel); font-size:36px; font-weight:800; color:#04120a;
+  }
+  .av-picker .av-preview-box.is-emoji{font-size:46px;}
+  .av-picker .av-section-label{
+    font:600 11px/1 monospace; letter-spacing:1px; text-transform:uppercase; color:var(--neon-3); margin:0 0 8px;
+  }
+  .av-picker .av-swatches{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px;}
+  .av-picker .av-swatch{
+    width:30px; height:30px; border-radius:8px; border:2px solid transparent; cursor:pointer; padding:0;
+    transition:transform .1s ease;
+  }
+  .av-picker .av-swatch:hover{transform:scale(1.12);}
+  .av-picker .av-swatch.sel{border-color:#fff; box-shadow:0 0 0 2px var(--neon);}
+  .av-picker .av-emoji-grid{
+    display:grid; grid-template-columns:repeat(8,1fr); gap:6px; margin:0 0 18px; max-height:200px; overflow:auto;
+  }
+  .av-picker .av-emoji{
+    height:36px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); cursor:pointer;
+    font-size:20px; display:flex; align-items:center; justify-content:center; padding:0;
+    transition:border-color .1s ease, background .1s ease;
+  }
+  .av-picker .av-emoji:hover{border-color:var(--neon);}
+  .av-picker .av-emoji.sel{border-color:var(--neon); background:rgba(22,242,200,0.18); box-shadow:0 0 0 1px var(--neon) inset;}
+  .av-picker .av-emoji .av-none{font-family:var(--pixel); font-size:15px; font-weight:800; color:var(--ink);}
+
+  /* ============================================================
      FRIENDS LIST (DD §3.2)
      ============================================================ */
   .friend-toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:10px 0 4px;}
@@ -722,6 +772,7 @@
     width:42px; height:42px; flex:0 0 42px; border-radius:8px; display:flex; align-items:center; justify-content:center;
     font-family:var(--pixel); font-size:18px; color:#04120a; font-weight:800;
   }
+  .friend-card .fc-avatar.is-emoji{font-size:22px;}
   .friend-card .fc-tag{font-weight:700; font-size:16px; line-height:1.1;}
   .friend-card .fc-sub{font-size:11px; color:var(--ink-dim); font-family:monospace; margin-top:2px;}
   .friend-card .fc-chips{display:flex; gap:6px; flex-wrap:wrap;}
@@ -953,6 +1004,7 @@ const Store = (function(){
         gamerTag: '', url: '', dob: '',
         city: '', state: '', country: '',
         accent: '#16f2c8', car: '', character: '',
+        avatar: { emoji:'', bg:'' },   // Friend Card avatar — emoji overrides the handle initial, bg overrides accent
         archetype: null,   // resolved Gamer Quiz personality tag {key,name,at}
         contacts: { discord:'', email:'', phone:'' },
         socials: { twitch:'', youtube:'', x:'', tiktok:'', instagram:'' }
@@ -1960,11 +2012,35 @@ function cabCard(cab){
 Views.dna = function(c){
   const d = Store.get();
   const panel = el('div',{class:'panel'});
-  panel.append(
+
+  // identity header — title/description on the left, customizable avatar on the right
+  const idHead = el('div',{class:'dna-id-head'});
+  const idHeadMain = el('div',{class:'dna-id-head-main'});
+  idHeadMain.append(
     el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
     el('h1',{class:'title', html:'🧬 Gamer DNA'}),
     el('p',{class:'view-desc', html:'Your anonymous local profile. Edit your identity, watch your seven attribute vectors grow, and track your class & rank as you play.'})
   );
+  const avBtn = el('a',{class:'dna-avatar-tv', href:'javascript:void 0', title:'Customize your profile image'});
+  // Dress the profile image as a little CRT television (reuses the .crt-tv
+  // treatment). crtDressTV() rewrites innerHTML, so dress once up front, then
+  // just repaint the screen face on refresh — keeps the chrome/flicker stable.
+  crtDressTV(avBtn, '<div class="av-face"></div>', {
+    accent: avatarFace(Store.get().profile, Store.get().profile.gamerTag).bg, jitter:true
+  });
+  const avFace = avBtn.querySelector('.av-face');
+  function refreshAvatarBtn(){
+    const pr = Store.get().profile;
+    const face = avatarFace(pr, pr.gamerTag);
+    avBtn.style.setProperty('--crt', face.bg);
+    avFace.className = 'av-face'+(face.isEmoji?' is-emoji':'');
+    avFace.style.background = face.bg;
+    avFace.innerHTML = avatarInner(face);
+  }
+  refreshAvatarBtn();
+  avBtn.onclick = ()=> openAvatarPicker(refreshAvatarBtn);
+  idHead.append(idHeadMain, avBtn);
+  panel.append(idHead);
 
   // ---- headline stats ----
   const score = Attr.gamerScore(d);
@@ -2059,6 +2135,7 @@ Views.dna = function(c){
       dd.profile.socials.x=g('x'); dd.profile.socials.instagram=g('instagram');
     });
     UI.applyAccent(Store.get().profile.accent);
+    refreshAvatarBtn();
     UI.toast('Saved','Gamer DNA profile updated.');
   };
   dummyBtn.onclick = ()=> Router.go('#/dna/platforms');
@@ -2547,11 +2624,105 @@ Views.friends = function(c){
   c.append(panel);
 };
 
+/* ----------------------------------------------------------------------------
+   FRIEND CARD AVATAR — shared between the Friend Card box and the Gamer DNA
+   header. Defaults to the handle's first initial on the persona accent color;
+   a custom emoji and/or background color (set via the Gamer DNA hub) override it.
+   The emoji set mirrors the Memory Match deck (MEM_SYMBOLS) by design.
+   ---------------------------------------------------------------------------- */
+const AVATAR_SWATCHES = ['#16f2c8','#7c5cff','#ff5cc8','#ffd23d','#2d9bff','#ff6b3d','#3dff7c','#ff3d6b','#b56cff','#5cf0ff','#f5f7ff','#9aa3c0'];
+
+function avatarInitial(tag){ return (tag||'?').trim().charAt(0).toUpperCase() || '?'; }
+function avatarFace(profile, tag){
+  const av = (profile && profile.avatar) || {};
+  const emoji = av.emoji || '';
+  const bg = av.bg || (profile && profile.accent) || '#16f2c8';
+  return { bg, emoji, initial: avatarInitial(tag), isEmoji: !!emoji };
+}
+// Inner HTML for an avatar box. Emoji comes from a fixed curated list so it's
+// safe to inject; the initial is escaped defensively.
+function avatarInner(face){ return face.isEmoji ? face.emoji : escAttr(face.initial); }
+
+// Picker modal: choose a background swatch + an emoji (or keep the initial).
+// onDone() fires after a successful save so callers can refresh their preview.
+function openAvatarPicker(onDone){
+  const root = document.getElementById('modal-root');
+  if(!root) return;
+  root.innerHTML='';
+  const d = Store.get();
+  const initial = avatarInitial(d.profile.gamerTag);
+  const cur = d.profile.avatar || {};
+  let selEmoji = cur.emoji || '';
+  let selBg = cur.bg || d.profile.accent || '#16f2c8';
+
+  const backdrop = el('div',{class:'modal-backdrop'});
+  const modal = el('div',{class:'modal av-picker', style:'max-width:460px;'});
+  const close = el('button',{class:'modal-close', html:'✕'});
+  const h3 = el('h3',{html:'🎨 YOUR AVATAR'});
+  const intro = el('p',{class:'muted', style:'margin:0 0 16px; font-size:12px;',
+    html:'Shown on your Friend Card. Pick a background color and an emoji — or keep your handle initial.'});
+
+  const preview = el('div',{class:'av-preview'});
+  const previewBox = el('div',{class:'av-preview-box'});
+  preview.append(previewBox);
+  function syncPreview(){
+    previewBox.style.background = selBg;
+    previewBox.className = 'av-preview-box'+(selEmoji?' is-emoji':'');
+    previewBox.innerHTML = selEmoji || escAttr(initial);
+  }
+
+  const colLabel = el('div',{class:'av-section-label', html:'Background'});
+  const swatches = el('div',{class:'av-swatches'});
+  function renderSwatches(){
+    swatches.innerHTML='';
+    AVATAR_SWATCHES.forEach(hex=>{
+      const sw = el('button',{class:'av-swatch'+(hex.toLowerCase()===selBg.toLowerCase()?' sel':''),
+        style:'background:'+hex, title:hex});
+      sw.onclick = ()=>{ selBg=hex; renderSwatches(); syncPreview(); };
+      swatches.append(sw);
+    });
+  }
+
+  const emoLabel = el('div',{class:'av-section-label', html:'Emoji'});
+  const grid = el('div',{class:'av-emoji-grid'});
+  function renderGrid(){
+    grid.innerHTML='';
+    const none = el('button',{class:'av-emoji'+(selEmoji===''?' sel':''), title:'Use my initial'});
+    none.innerHTML = '<span class="av-none">'+escAttr(initial)+'</span>';
+    none.onclick = ()=>{ selEmoji=''; renderGrid(); syncPreview(); };
+    grid.append(none);
+    MEM_SYMBOLS.forEach(sym=>{
+      const b = el('button',{class:'av-emoji'+(selEmoji===sym?' sel':''), html:sym});
+      b.onclick = ()=>{ selEmoji=sym; renderGrid(); syncPreview(); };
+      grid.append(b);
+    });
+  }
+
+  const actions = el('div',{class:'modal-actions'});
+  const saveBtn = el('button',{class:'btn primary', html:'💾 Save'});
+  const cancelBtn = el('button',{class:'btn ghost', html:'Cancel'});
+  actions.append(saveBtn, cancelBtn);
+
+  modal.append(close, h3, intro, preview, colLabel, swatches, emoLabel, grid, actions);
+  backdrop.append(modal); root.append(backdrop);
+  renderSwatches(); renderGrid(); syncPreview();
+
+  function dismiss(){ root.innerHTML=''; }
+  close.onclick = dismiss; cancelBtn.onclick = dismiss;
+  backdrop.onclick = e=>{ if(e.target===backdrop) dismiss(); };
+  saveBtn.onclick = ()=>{
+    Store.update(dd=>{ dd.profile.avatar = { emoji:selEmoji, bg:selBg }; });
+    dismiss();
+    if(typeof onDone==='function') onDone();
+    UI.toast('Avatar saved', selEmoji ? 'Your Friend Card avatar is now '+selEmoji : 'Using your initial “'+initial+'”.');
+  };
+}
+
 function friendCard(f){
   const accent = (f.profile && f.profile.accent) || '#16f2c8';
   const p = f.profile || {};
   const loc = [p.city,p.state,p.country].filter(Boolean).join(', ');
-  const initial = (f.tag||'?').trim().charAt(0).toUpperCase() || '?';
+  const face = avatarFace(f.profile, f.tag);
   const card = el('div',{class:'friend-card'});
   card.style.borderLeftColor = accent;
 
@@ -2564,7 +2735,7 @@ function friendCard(f){
 
   card.innerHTML =
     `<div class="fc-head">
-       <div class="fc-avatar" style="background:${accent}">${initial}</div>
+       <div class="fc-avatar${face.isEmoji?' is-emoji':''}" style="background:${face.bg}">${avatarInner(face)}</div>
        <div>
          <div class="fc-tag">@${escAttr(f.tag)}</div>
          <div class="fc-sub">${escAttr(f.klass||'Unranked')} · ${escAttr(f.rankName||'Newbie')}${loc?' · '+escAttr(loc):''}</div>
