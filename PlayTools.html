@@ -1304,6 +1304,21 @@ const Ach = (function(){
       test:(d)=> !!(d.counters && d.counters.platformsLinked>=3) },
     { id:'master_packer', name:'Master Packer', icon:'📦', desc:'Clear 3+ lines with a single block in Packer.',
       test:(d,c)=> (c && c.tool==='packer' && c.maxClear>=3) || !!(d.counters && d.counters.packerBigClears>=1) },
+    // ---- Arcade "Ace" set: earn an A grade or better in each cabinet ----
+    { id:'memory_ace', name:'Memory Ace', icon:'🧠', desc:'Earn an A grade or better in Memory Match.',
+      test:(d,c)=> c && c.tool==='memory' && (c.grade==='A'||c.grade==='S') },
+    { id:'dodge_ace', name:'Dodge Ace', icon:'👾', desc:'Earn an A grade or better in Pixel Dodge.',
+      test:(d,c)=> c && c.tool==='dodge' && (c.grade==='A'||c.grade==='S') },
+    { id:'snake_ace', name:'Snake Ace', icon:'🐍', desc:'Earn an A grade or better in Neon Snake.',
+      test:(d,c)=> c && c.tool==='snake' && (c.grade==='A'||c.grade==='S') },
+    { id:'brick_ace', name:'Brick Ace', icon:'🧱', desc:'Earn an A grade or better in Brick Breaker.',
+      test:(d,c)=> c && c.tool==='bricks' && (c.grade==='A'||c.grade==='S') },
+    { id:'whack_ace', name:'Whack Ace', icon:'🔨', desc:'Earn an A grade or better in Whack-a-Mole.',
+      test:(d,c)=> c && c.tool==='whack' && (c.grade==='A'||c.grade==='S') },
+    { id:'sequence_ace', name:'Sequence Ace', icon:SEQ_ICON, desc:'Earn an A grade or better in Sequence.',
+      test:(d,c)=> c && c.tool==='sequence' && (c.grade==='A'||c.grade==='S') },
+    { id:'packer_ace', name:'Packer Ace', icon:'📦', desc:'Earn an A grade or better in Packer.',
+      test:(d,c)=> c && c.tool==='packer' && (c.grade==='A'||c.grade==='S') },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -5997,7 +6012,7 @@ Views.snake = function(c){
     const comp=clamp01(score/300), g=arcadeGrade(comp);
     Attr.applyVector({control:14, focus:6, consistency:4}, comp);
     recordSnakeRun(score, {length:len});
-    Ach.evaluate({tool:'snake', score, length:len});
+    Ach.evaluate({tool:'snake', grade:g, score, length:len});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Length ${len} · Score ${score}</div>`;
@@ -6145,7 +6160,7 @@ Views.brickBreaker = function(c){
     const g=arcadeGrade(clamp01(comp));
     Attr.applyVector({precision:12, reflex:6, consistency:4}, clamp01(comp));
     recordBrickRun(score, {cleared});
-    Ach.evaluate({tool:'bricks', score, cleared});
+    Ach.evaluate({tool:'bricks', grade:g, score, cleared});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">${cleared?'WALL CLEARED':'GAME OVER'}</div><div class="small">Score ${score}${cleared?' · flawless wall!':''}</div>`;
@@ -6437,7 +6452,7 @@ Views.whackMole = function(c){
     const comp=clamp01(hits/lvl.target), g=arcadeGrade(comp);
     Attr.applyVector({reflex:14, speed:6, focus:4}, comp*lvl.reward);
     recordWhackRun(hits, {misses, diff:lvl.key});
-    Ach.evaluate({tool:'whack', hits, difficulty:lvl.key});
+    Ach.evaluate({tool:'whack', grade:g, hits, difficulty:lvl.key});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${lvl.name} · ${hits} whacked · ${misses} missed</div>`;
@@ -6556,7 +6571,7 @@ Views.sequence = function(c){
     const comp=clamp01(score/12), g=arcadeGrade(comp);
     Attr.applyVector({focus:14, consistency:6}, comp);
     recordSimonRun(score, {});
-    Ach.evaluate({tool:'sequence', length:score});
+    Ach.evaluate({tool:'sequence', grade:g, length:score});
     active=-1; draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Recalled ${score} step${score===1?'':'s'}</div>`;
@@ -6866,7 +6881,7 @@ Views.packer = function(c){
     const g=arcadeGrade(comp);
     Attr.applyVector({strategy:14, control:6}, comp);
     recordPackerRun(score, {maxClear, lines:linesCleared});
-    Ach.evaluate({tool:'packer', score, maxClear, lines:linesCleared});
+    Ach.evaluate({tool:'packer', grade:g, score, maxClear, lines:linesCleared});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">NO ROOM</div><div class="small">${score} pts · ${linesCleared} lines cleared</div>`;
