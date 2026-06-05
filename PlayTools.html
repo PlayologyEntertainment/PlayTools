@@ -603,6 +603,19 @@
   .pd-overlay .small{color:var(--ink-dim); font-size:12px; margin-top:8px; letter-spacing:1px;}
   .pd-hint{color:var(--ink-dim); font-size:11px; letter-spacing:1px; text-align:center; margin:2px 0 4px;}
 
+  /* ---- Packer (block-packing puzzle) — neon tray + floating drag ghost ---- */
+  .pk-tray{display:flex; gap:12px; justify-content:center; align-items:stretch; flex-wrap:wrap; margin:10px auto 2px; max-width:432px;}
+  .pk-slot{flex:1 1 0; min-width:92px; max-width:132px; min-height:88px; display:flex; align-items:center; justify-content:center;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:8px;
+    box-shadow:inset 0 0 24px rgba(124,92,255,0.06);}
+  .pk-slot.used{opacity:0.18;}
+  .pk-piece{cursor:grab; touch-action:none; display:inline-block; line-height:0; transition:transform .12s;}
+  .pk-piece:hover{transform:scale(1.06);}
+  .pk-piece:active{cursor:grabbing;}
+  .pk-piece canvas{display:block; image-rendering:pixelated; image-rendering:crisp-edges;}
+  .pk-ghost{position:fixed; left:0; top:0; pointer-events:none; z-index:9999; display:none;}
+  .pk-ghost canvas{display:block; image-rendering:pixelated; opacity:0.92; filter:drop-shadow(0 6px 14px rgba(0,0,0,0.55));}
+
   /* ---- Gamer Quiz (Fun Lab) ---- */
   .quiz-progress{height:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:6px 0 18px;}
   .quiz-progress .bar{height:100%; background:linear-gradient(90deg,var(--neon-4),var(--neon)); width:0; transition:width .4s ease;}
@@ -1289,6 +1302,8 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='sequence' && c.length>=12 },
     { id:'controller_wizard', name:'Controller Wizard', icon:'🎮', desc:'Link 3 platforms in Platform Link.',
       test:(d)=> !!(d.counters && d.counters.platformsLinked>=3) },
+    { id:'master_packer', name:'Master Packer', icon:'📦', desc:'Clear 3+ lines with a single block in Packer.',
+      test:(d,c)=> (c && c.tool==='packer' && c.maxClear>=3) || !!(d.counters && d.counters.packerBigClears>=1) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -1847,7 +1862,9 @@ const CABINETS = [
   { id:'arcade_whack', lab:'Arcade', name:'Whack-a-Mole', railName:'Whack', icon:'🔨', tag:'mvp', route:'#/arcade/whack',
     desc:'Thirty seconds, nine holes — smack every mole the instant it pops up.', dna:'Reflex +14 · Speed +6' },
   { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
-    desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' }
+    desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' },
+  { id:'arcade_packer', lab:'Arcade', name:'Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
+    desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6' }
 ];
 
 /* ============================================================================
@@ -6574,6 +6591,326 @@ Views.sequence = function(c){
   return ()=>{ playing=false; clearTimers(); canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
 };
 
+/* ---- ARCADE.7 Packer (block-packing puzzle, Block-Blast / 1010!-style) ----
+   Drag one of three neon blocks onto a 10×10 grid; completing any full row or
+   column clears it. Consecutive clears stack a ×combo multiplier. The run ends
+   when none of the remaining tray pieces can fit anywhere — endless until stuck.
+   Trains Strategy (spatial planning) + Control. */
+const PK_PIECES = [
+  [[1,1],[1,1]], [[1,1,1]], [[1],[1],[1]], [[1,1,1,1]], [[1],[1],[1],[1]],
+  [[1,1],[1,0]], [[1,0],[1,1]], [[0,1],[1,1]], [[1,1],[0,1]],
+  [[1,0],[1,0],[1,1]], [[0,1],[0,1],[1,1]], [[1,1],[1,0],[1,0]], [[1,1],[0,1],[0,1]],
+  [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], [[1,0,0],[1,1,1]], [[0,0,1],[1,1,1]],
+  [[1,1,1],[0,1,0]], [[0,1,0],[1,1,1]], [[1,0],[1,1],[0,1]], [[0,1],[1,1],[1,0]],
+  [[1,1,1],[1,1,1]], [[1,1],[1,1],[1,1]],
+  [[1]], [[1,1]], [[1],[1]],
+];
+const PK_COLORS = ['#16f2c8','#ff3df0','#ffd23d','#7c5cff','#37e35b','#ff9f1c','#6ee7ff'];
+
+Views.packer = function(c){
+  const cab = getCab('arcade_packer');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('packerMute');
+  const sndPlace =()=> blip(330,0.05,'square',0.04);
+  const sndClear =()=> [523,784].forEach((f,i)=> setTimeout(()=>blip(f,0.09,'square',0.05), i*70));
+  const sndCombo =(n)=> [523,659,784,988,1175].slice(0,Math.max(2,Math.min(5,n))).forEach((f,i)=> setTimeout(()=>blip(f,0.08,'triangle',0.045), i*60));
+  const sndOver  =()=> [392,330,262].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'sawtooth',0.05), i*120));
+
+  const COLS=10, ROWS=10, GAP=2, PAD=4, W=360, H=360;
+  const CELL=(W-PAD*2-GAP*(COLS-1))/COLS;   // logical px per cell on the board canvas
+
+  // ---- state ----
+  let board, pieces=[], score=0, best=0, combo=1, playing=false, over=false;
+  let linesCleared=0, maxCombo=1, maxClear=0;
+  let drag=null;        // { pieceIdx, anchorX, anchorY, pointerId }
+  let preview=null;     // { r, c, valid }
+  let clearing=null;    // { cells:Set<idx>, t0, dur } flash animation
+  let rafClear=null;
+
+  // ---- DOM ----
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('packerMute'));
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H; canvas.style.cursor='default';
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  const tray = el('div',{class:'pk-tray'});
+  const hint = el('div',{class:'pd-hint', html:'Drag a block onto the grid · fill a full row or column to clear it'});
+  const result = el('div',{});
+  panel.append(startRow, hud, stageTV, tray, hint, result);
+  const ctx = canvas.getContext('2d');
+  const ghost = el('div',{class:'pk-ghost'});
+  document.body.appendChild(ghost);
+
+  const bestScore =()=>{ const b=Store.get().bests.arcade_packer; return (b&&b.value)||0; };
+
+  // ---- neon block rendering ----
+  function pkShade(hex,f){
+    const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+    return '#'+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x*f))).toString(16).padStart(2,'0')).join('');
+  }
+  function rr(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+  function drawBlock(g,x,y,s,color,alpha){
+    g.save(); g.globalAlpha=alpha==null?1:alpha;
+    const grad=g.createLinearGradient(x,y,x,y+s);
+    grad.addColorStop(0,pkShade(color,1.28)); grad.addColorStop(1,pkShade(color,0.72));
+    g.fillStyle=grad; rr(g,x+0.5,y+0.5,s-1,s-1,Math.max(2,s*0.2)); g.fill();
+    g.lineWidth=1.5; g.strokeStyle=pkShade(color,1.5); g.shadowColor=color; g.shadowBlur=Math.min(8,s*0.3); g.stroke(); g.shadowBlur=0;
+    g.globalAlpha=(alpha==null?1:alpha)*0.45; g.fillStyle='#ffffff';
+    rr(g,x+s*0.2,y+s*0.16,s*0.6,s*0.16,s*0.07); g.fill();
+    g.restore();
+  }
+  const cellX=(c)=> PAD+c*(CELL+GAP);
+  const cellY=(r)=> PAD+r*(CELL+GAP);
+
+  function draw(){
+    const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#0a0618'); bg.addColorStop(1,'#05030f');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+    const flashP = clearing ? clamp01((performance.now()-clearing.t0)/clearing.dur) : 0;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      const x=cellX(c), y=cellY(r), cell=board[r][c];
+      if(cell){
+        drawBlock(ctx,x,y,CELL,cell);
+        if(clearing && clearing.cells.has(r*COLS+c)){
+          ctx.save(); ctx.globalAlpha=0.75*(1-flashP); ctx.fillStyle='#ffffff';
+          rr(ctx,x+0.5,y+0.5,CELL-1,CELL-1,CELL*0.2); ctx.fill(); ctx.restore();
+        }
+      } else {
+        ctx.fillStyle='rgba(124,92,255,0.06)'; rr(ctx,x,y,CELL,CELL,CELL*0.16); ctx.fill();
+        ctx.strokeStyle='rgba(124,92,255,0.16)'; ctx.lineWidth=1; rr(ctx,x+0.5,y+0.5,CELL-1,CELL-1,CELL*0.16); ctx.stroke();
+      }
+    }
+    if(preview && drag){
+      const p=pieces[drag.pieceIdx];
+      p.shape.forEach((row,dr)=>row.forEach((v,dc)=>{ if(!v) return;
+        const nr=preview.r+dr, nc=preview.c+dc;
+        if(nr<0||nr>=ROWS||nc<0||nc>=COLS) return;
+        const x=cellX(nc), y=cellY(nr);
+        if(preview.valid) drawBlock(ctx,x,y,CELL,p.color,0.55);
+        else { ctx.save(); ctx.globalAlpha=0.45; ctx.fillStyle='#ff4d6d'; rr(ctx,x+0.5,y+0.5,CELL-1,CELL-1,CELL*0.2); ctx.fill(); ctx.restore(); }
+      }));
+    }
+  }
+
+  function renderHud(){
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Best <b>${Math.max(best,bestScore())}</b></span>
+      <span class="pill">Combo <b>×${combo}</b></span>`;
+  }
+
+  // ---- tray ----
+  function makePieceCanvas(p){
+    const rows=p.shape.length, cols=p.shape[0].length, maxDim=Math.max(rows,cols);
+    const cs=Math.max(15,Math.min(24,Math.floor(92/maxDim))), gap=3;
+    const w=cols*(cs+gap)-gap, h=rows*(cs+gap)-gap;
+    const cv=el('canvas'); cv.width=w; cv.height=h;
+    const g=cv.getContext('2d');
+    p.shape.forEach((row,r)=>row.forEach((v,c)=>{ if(v) drawBlock(g, c*(cs+gap), r*(cs+gap), cs, p.color); }));
+    return cv;
+  }
+  function renderTray(){
+    tray.innerHTML='';
+    const list = pieces.length ? pieces : [null,null,null];
+    list.forEach((p,i)=>{
+      const slot=el('div',{class:'pk-slot'+(p&&p.used?' used':'')});
+      if(p && !p.used){
+        const wrap=el('div',{class:'pk-piece'});
+        wrap.appendChild(makePieceCanvas(p));
+        wrap.addEventListener('pointerdown', e=> onPieceDown(e,i,wrap));
+        slot.appendChild(wrap);
+      }
+      tray.append(slot);
+    });
+  }
+
+  // ---- drag & drop ----
+  function buildGhost(p){
+    const rect=canvas.getBoundingClientRect(), scale=rect.width/W;
+    const cs=CELL*scale, gap=GAP*scale, rows=p.shape.length, cols=p.shape[0].length;
+    const w=Math.ceil(cols*(cs+gap)-gap), h=Math.ceil(rows*(cs+gap)-gap);
+    const cv=el('canvas'); cv.width=w; cv.height=h;
+    const g=cv.getContext('2d');
+    p.shape.forEach((row,r)=>row.forEach((v,c)=>{ if(v) drawBlock(g, c*(cs+gap), r*(cs+gap), cs, p.color); }));
+    ghost.innerHTML=''; ghost.appendChild(cv); ghost.style.display='block';
+    drag.anchorX=w/2; drag.anchorY=h/2;
+  }
+  function hideGhost(){ ghost.style.display='none'; ghost.innerHTML=''; }
+  function cellUnderPointer(e){
+    const rect=canvas.getBoundingClientRect(), scale=rect.width/W;
+    const gx=(e.clientX-rect.left)/scale - PAD, gy=(e.clientY-rect.top)/scale - PAD;
+    return { r:Math.floor(gy/(CELL+GAP)), c:Math.floor(gx/(CELL+GAP)) };
+  }
+  // origin = cell under pointer, offset so the piece sits centred on the cursor
+  function originFor(p,e){
+    const u=cellUnderPointer(e), rows=p.shape.length, cols=p.shape[0].length;
+    return { r:u.r-Math.floor((rows-1)/2), c:u.c-Math.floor((cols-1)/2) };
+  }
+  function canPlace(shape,r,c){
+    return shape.every((row,dr)=>row.every((v,dc)=>{
+      if(!v) return true;
+      const nr=r+dr, nc=c+dc;
+      return nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!board[nr][nc];
+    }));
+  }
+  function onPieceDown(e,i,wrap){
+    if(!playing || over || !pieces[i] || pieces[i].used) return;
+    e.preventDefault();
+    drag={ pieceIdx:i, anchorX:0, anchorY:0, pointerId:e.pointerId };
+    preview=null;
+    buildGhost(pieces[i]);
+    try{ wrap.setPointerCapture(e.pointerId); }catch(_){}
+    moveDrag(e);
+  }
+  function moveDrag(e){
+    if(!drag) return;
+    ghost.style.left=(e.clientX-drag.anchorX)+'px';
+    ghost.style.top=(e.clientY-drag.anchorY)+'px';
+    const p=pieces[drag.pieceIdx], o=originFor(p,e);
+    preview={ r:o.r, c:o.c, valid:canPlace(p.shape,o.r,o.c) };
+    draw();
+  }
+  function endDrag(){ drag=null; preview=null; hideGhost(); }
+  function onPointerMove(e){ if(drag) moveDrag(e); }
+  function onPointerUp(e){
+    if(!drag) return;
+    const idx=drag.pieceIdx, p=pieces[idx], o=originFor(p,e);
+    const ok=canPlace(p.shape,o.r,o.c);
+    endDrag();
+    if(ok) commitPlace(idx,o.r,o.c); else draw();
+  }
+  function onPointerCancel(){ if(drag){ endDrag(); draw(); } }
+
+  // ---- placement / clears ----
+  function commitPlace(idx,r,c){
+    const p=pieces[idx];
+    let cells=0;
+    p.shape.forEach((row,dr)=>row.forEach((v,dc)=>{ if(v){ board[r+dr][c+dc]=p.color; cells++; } }));
+    p.used=true; sndPlace();
+
+    const fullRows=[], fullCols=[];
+    for(let rr2=0;rr2<ROWS;rr2++){ if(board[rr2].every(v=>v)) fullRows.push(rr2); }
+    for(let cc2=0;cc2<COLS;cc2++){ let full=true; for(let rr2=0;rr2<ROWS;rr2++){ if(!board[rr2][cc2]){ full=false; break; } } if(full) fullCols.push(cc2); }
+    const totalLines=fullRows.length+fullCols.length;
+
+    let gained=cells;
+    if(totalLines>0){
+      const cleared=new Set();
+      fullRows.forEach(rr2=>{ for(let cc2=0;cc2<COLS;cc2++) cleared.add(rr2*COLS+cc2); });
+      fullCols.forEach(cc2=>{ for(let rr2=0;rr2<ROWS;rr2++) cleared.add(rr2*COLS+cc2); });
+      combo=Math.min(combo+1,5); maxCombo=Math.max(maxCombo,combo);
+      maxClear=Math.max(maxClear,totalLines); linesCleared+=totalLines;
+      const lineBonus=totalLines*totalLines*10;   // 1→10, 2→40, 3→90, 4→160
+      gained=Math.round((cells + cleared.size + lineBonus) * combo);
+      if(totalLines>=2) sndCombo(totalLines+combo); else sndClear();
+      const removeCleared=()=>{ cleared.forEach(i=>{ board[Math.floor(i/COLS)][i%COLS]=0; }); clearing=null; };
+      if(prefersReducedMotion()){ removeCleared(); }
+      else { clearing={ cells:cleared, t0:performance.now(), dur:340 }; runClearAnim(removeCleared); }
+    } else { combo=1; }
+
+    score+=gained; if(score>best) best=score;
+    renderTray(); renderHud(); if(!clearing) draw();
+
+    const delay = (totalLines && !prefersReducedMotion()) ? 380 : 60;
+    if(pieces.every(pp=>pp.used)){
+      setTimeout(()=>{ if(over) return; genPieces(); renderTray(); draw(); checkStuck(); }, delay);
+    } else {
+      setTimeout(()=>{ if(!over) checkStuck(); }, delay);
+    }
+  }
+  function runClearAnim(done){
+    if(rafClear) cancelAnimationFrame(rafClear);
+    (function step(){
+      draw();
+      if(clearing && performance.now()-clearing.t0 < clearing.dur){ rafClear=requestAnimationFrame(step); }
+      else { rafClear=null; done(); draw(); }
+    })();
+  }
+  function genPieces(){
+    pieces=[0,1,2].map(()=>({
+      shape: PK_PIECES[Math.floor(Math.random()*PK_PIECES.length)],
+      color: PK_COLORS[Math.floor(Math.random()*PK_COLORS.length)],
+      used:false
+    }));
+  }
+  function checkStuck(){
+    if(over) return;
+    const avail=pieces.filter(p=>!p.used);
+    if(!avail.length) return;
+    const stuck=avail.every(p=>{
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ if(canPlace(p.shape,r,c)) return false; }
+      return true;
+    });
+    if(stuck) gameOver();
+  }
+
+  // ---- lifecycle ----
+  function startGame(){
+    if(rafClear){ cancelAnimationFrame(rafClear); rafClear=null; }
+    board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+    score=0; best=bestScore(); combo=1;
+    linesCleared=0; maxCombo=1; maxClear=0;
+    over=false; playing=true; drag=null; preview=null; clearing=null;
+    hideGhost(); result.innerHTML=''; overlay.style.display='none';
+    startBtn.innerHTML='⟳ Restart';
+    genPieces(); renderTray(); renderHud(); draw();
+  }
+  function gameOver(){
+    if(over) return;
+    over=true; playing=false; endDrag(); sndOver();
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(linesCleared/18*0.7 + (maxCombo-1)/4*0.3);
+    const g=arcadeGrade(comp);
+    Attr.applyVector({strategy:14, control:6}, comp);
+    recordPackerRun(score, {maxClear, lines:linesCleared});
+    Ach.evaluate({tool:'packer', score, maxClear, lines:linesCleared});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">NO ROOM</div><div class="small">${score} pts · ${linesCleared} lines cleared</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Lines</div><div class="v">${linesCleared}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Math.max(best,bestScore())}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Packer', glyph:'📦', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Lines', v:String(linesCleared)}, {k:'Best Combo', v:'×'+maxCombo}],
+      designation: g==='S'?'Master Packer': g==='A'?'Space Optimizer': g==='B'?'Tidy Stacker': g==='C'?'Block Juggler':'Box Fumbler',
+      badge: maxClear>=3 ? 'Multi-Line Master' : null
+    }));
+  }
+
+  // ---- wiring ----
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerCancel);
+  function onStartKey(e){ if((e.key===' '||e.key==='Enter') && !playing){ e.preventDefault(); startGame(); } }
+  window.addEventListener('keydown', onStartKey);
+  startBtn.onclick=startGame;
+
+  // idle state
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  best=bestScore(); renderTray(); renderHud(); draw();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">PACKER</div><div class="small">Press START to play</div>`;
+
+  return ()=>{
+    playing=false; over=true;
+    if(rafClear){ cancelAnimationFrame(rafClear); rafClear=null; }
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerCancel);
+    window.removeEventListener('keydown', onStartKey);
+    if(ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+  };
+};
+
 /* ============================================================================
    shared helpers for tool views
    ============================================================================ */
@@ -6678,6 +7015,16 @@ function recordSimonRun(score, ctx){
     else if(score>d.bests.arcade_seq.value){ d.bests.arcade_seq.value=score; }
     d.arcadePoints += Math.round(score*2);
     d.counters.simonRuns=(d.counters.simonRuns||0)+1;
+  });
+}
+function recordPackerRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_packer){ d.toolsCompleted++; d.bests.arcade_packer={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_packer.value){ d.bests.arcade_packer.value=score; }
+    d.arcadePoints += Math.round(score/30);   // modest metagame contribution — avoids grind-farming the Gamer Score
+    d.counters.packerRuns=(d.counters.packerRuns||0)+1;
+    if(ctx && ctx.maxClear>=3) d.counters.packerBigClears=(d.counters.packerBigClears||0)+1;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -7408,6 +7755,7 @@ Router.add('#/arcade/snake', Views.snake);
 Router.add('#/arcade/bricks', Views.brickBreaker);
 Router.add('#/arcade/whack', Views.whackMole);
 Router.add('#/arcade/sequence', Views.sequence);
+Router.add('#/arcade/packer', Views.packer);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/report', Views.dnaReport);
 Router.add('#/fun/challenge', Views.genChallenge);
