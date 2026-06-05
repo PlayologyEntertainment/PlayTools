@@ -6738,15 +6738,16 @@ Views.packer = function(c){
     drag.anchorX=w/2; drag.anchorY=h/2;
   }
   function hideGhost(){ ghost.style.display='none'; ghost.innerHTML=''; }
-  function cellUnderPointer(e){
-    const rect=canvas.getBoundingClientRect(), scale=rect.width/W;
-    const gx=(e.clientX-rect.left)/scale - PAD, gy=(e.clientY-rect.top)/scale - PAD;
-    return { r:Math.floor(gy/(CELL+GAP)), c:Math.floor(gx/(CELL+GAP)) };
-  }
-  // origin = cell under pointer, offset so the piece sits centred on the cursor
+  // Placement origin is read straight off the floating ghost's top-left corner so
+  // the preview/drop always line up with exactly the squares drawn under the
+  // cursor. The ghost renders piece-cell (0,0) at its own origin using the same
+  // per-cell stride as the board, so snapping that corner to the nearest grid
+  // cell keeps even- and odd-sized pieces perfectly registered.
   function originFor(p,e){
-    const u=cellUnderPointer(e), rows=p.shape.length, cols=p.shape[0].length;
-    return { r:u.r-Math.floor((rows-1)/2), c:u.c-Math.floor((cols-1)/2) };
+    const rect=canvas.getBoundingClientRect(), scale=rect.width/W, stride=CELL+GAP;
+    const lx=(e.clientX-drag.anchorX-rect.left)/scale - PAD;
+    const ly=(e.clientY-drag.anchorY-rect.top)/scale - PAD;
+    return { r:Math.round(ly/stride), c:Math.round(lx/stride) };
   }
   function canPlace(shape,r,c){
     return shape.every((row,dr)=>row.every((v,dc)=>{
