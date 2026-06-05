@@ -74,6 +74,12 @@
     letter-spacing:0.2px;
     min-height:100vh;
   }
+  /* The two top glows are the neon sign's spill — when the sign is switched
+     off (body.sign-off, set by the header's "Turn On/Off Sign" button), they
+     go dark too, leaving only the base vertical fill. */
+  body.sign-off{
+    background:linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+  }
   a{color:var(--neon); text-decoration:none;}
 
   /* ---- CRT scanline + vignette overlay ---- */
