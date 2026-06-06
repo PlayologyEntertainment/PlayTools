@@ -170,6 +170,7 @@
   .btn.primary{background:var(--neon); color:#04120a; border-color:var(--neon); font-weight:700;}
   .btn.primary:hover{box-shadow:0 0 16px rgba(22,242,200,0.5); color:#04120a;}
   .btn.ghost{background:transparent;}
+  .btn.icon{padding:7px 10px; font-size:14px; line-height:1;}
   .btn.danger:hover{border-color:var(--danger); color:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.25);}
 
   /* ============================================================
@@ -973,6 +974,7 @@
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
+      <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-label="Mute music" title="Mute music">🔊</button>
       <button class="btn ghost" id="crtToggle">💡 Turn On/Off Sign</button>
     </div>
   </div>
@@ -7726,6 +7728,87 @@ const UI = (function(){
 window.UI = UI; window.Router = Router;
 
 /* ============================================================================
+   BACKGROUND MUSIC — optional, non-embedded.
+   Looks for a file named "Music01.mp3" sitting next to PlayTools.html. If the
+   file isn't present (or can't be played), the speaker button stays hidden and
+   nothing plays — the app behaves exactly as it does today. When the file is
+   available the music loops continuously; we attempt to autoplay on the splash
+   screen and, if the browser blocks that, start it the moment the user clicks
+   to enter the app. The header button then toggles between mute and play, and
+   its glyph reflects the current audio state (🔊 = playing, 🔇 = muted).
+   ============================================================================ */
+const Music = (function(){
+  const SRC = 'Music01.mp3';
+  const btn = document.getElementById('musicBtn');
+  const audio = new Audio();
+  audio.loop = true;
+  audio.preload = 'auto';
+
+  const GLYPH_AUDIBLE = '🔊'; // current state: playing (click will mute)
+  const GLYPH_MUTED   = '🔇'; // current state: muted   (click will play)
+
+  let available = false;    // file confirmed loadable
+  let muted = false;        // current user-facing state
+  let started = false;      // playback has begun at least once
+  let pendingEnter = false; // autoplay was blocked; start on first app entry
+
+  function render(){
+    if(!btn) return;
+    const label = muted ? 'Play music' : 'Mute music';
+    btn.textContent = muted ? GLYPH_MUTED : GLYPH_AUDIBLE;
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
+
+  function startPlayback(){
+    const p = audio.play();
+    if(p && typeof p.then === 'function'){
+      return p.then(()=>{ started = true; });
+    }
+    started = true;
+    return Promise.resolve();
+  }
+
+  // File-presence probe: 'canplay' => exists & playable; 'error' => absent.
+  audio.addEventListener('canplay', function onReady(){
+    if(available) return;
+    available = true;
+    if(btn) btn.hidden = false;
+    render();
+    // Try to autoplay right away; works only if the page already has user
+    // activation, otherwise fall back to starting when the user enters.
+    startPlayback().catch(()=>{ pendingEnter = true; });
+  });
+  // A missing/unplayable file is expected and silent — keep the button hidden.
+  audio.addEventListener('error', ()=>{});
+  audio.src = SRC;
+  audio.load();
+
+  // Called when the splash is dismissed ("enter the app"). That click is a
+  // genuine user gesture, so blocked autoplay can now begin.
+  function handleEnter(){
+    if(!available || started || muted || !pendingEnter) return;
+    startPlayback().then(render).catch(()=>{});
+  }
+
+  function toggle(){
+    if(!available) return;
+    if(!started){           // never played yet (autoplay blocked, no entry) — start it
+      muted = false;
+      startPlayback().then(render).catch(()=>{});
+      return;
+    }
+    muted = !muted;
+    audio.muted = muted;
+    render();
+  }
+
+  if(btn) btn.addEventListener('click', toggle);
+
+  return { handleEnter, toggle };
+})();
+
+/* ============================================================================
    SPLASH — boot screen shown once on startup; advance via key/click/tap
    ============================================================================ */
 const APP_VERSION = '1.0.0';
@@ -7752,6 +7835,7 @@ const APP_VERSION = '1.0.0';
   let dismissed = false;
   function dismiss(){
     if(dismissed) return; dismissed = true;
+    Music.handleEnter();   // start background music if autoplay was blocked
     splash.classList.add('hide');
     window.removeEventListener('keydown', onKey, true);
     setTimeout(()=>{ splash.remove(); }, 600);
