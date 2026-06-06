@@ -974,7 +974,7 @@
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
-      <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-label="Mute music" title="Mute music">🔇</button>
+      <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-label="Mute music" title="Mute music">🔊</button>
       <button class="btn ghost" id="crtToggle">💡 Turn On/Off Sign</button>
     </div>
   </div>
@@ -7735,8 +7735,7 @@ window.UI = UI; window.Router = Router;
    available the music loops continuously; we attempt to autoplay on the splash
    screen and, if the browser blocks that, start it the moment the user clicks
    to enter the app. The header button then toggles between mute and play, and
-   its glyph reflects the action a click will perform (🔇 = will mute, 🔊 = will
-   play).
+   its glyph reflects the current audio state (🔊 = playing, 🔇 = muted).
    ============================================================================ */
 const Music = (function(){
   const SRC = 'Music01.mp3';
@@ -7745,8 +7744,8 @@ const Music = (function(){
   audio.loop = true;
   audio.preload = 'auto';
 
-  const GLYPH_MUTE = '🔇'; // shown while audible → clicking will mute
-  const GLYPH_PLAY = '🔊'; // shown while muted   → clicking will play
+  const GLYPH_AUDIBLE = '🔊'; // current state: playing (click will mute)
+  const GLYPH_MUTED   = '🔇'; // current state: muted   (click will play)
 
   let available = false;    // file confirmed loadable
   let muted = false;        // current user-facing state
@@ -7756,7 +7755,7 @@ const Music = (function(){
   function render(){
     if(!btn) return;
     const label = muted ? 'Play music' : 'Mute music';
-    btn.textContent = muted ? GLYPH_PLAY : GLYPH_MUTE;
+    btn.textContent = muted ? GLYPH_MUTED : GLYPH_AUDIBLE;
     btn.title = label;
     btn.setAttribute('aria-label', label);
   }
