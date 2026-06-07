@@ -171,6 +171,11 @@
   .btn.primary:hover{box-shadow:0 0 16px rgba(22,242,200,0.5); color:#04120a;}
   .btn.ghost{background:transparent;}
   .btn.icon{padding:7px 10px; font-size:14px; line-height:1;}
+  /* Lightbulb sign toggle: the 💡 glyph is lit (warm yellow glow) while the
+     sign is on, and dims to a dark gray when the sign is switched off
+     (body.sign-off, set by the toggle itself). */
+  #crtToggle{filter:drop-shadow(0 0 5px rgba(255,209,102,0.8)); transition:filter .25s;}
+  body.sign-off #crtToggle{filter:grayscale(1) brightness(0.45);}
   .btn.danger:hover{border-color:var(--danger); color:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.25);}
 
   /* ============================================================
@@ -975,7 +980,7 @@
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
       <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-label="Mute music" title="Mute music">🔊</button>
-      <button class="btn ghost" id="crtToggle">💡 Turn On/Off Sign</button>
+      <button class="btn ghost icon" id="crtToggle" type="button" aria-label="Turn sign off" title="Turn sign off">💡</button>
     </div>
   </div>
 
@@ -7699,6 +7704,8 @@ const UI = (function(){
   function applySign(){
     const off=Store.getPrefs().signOff;
     document.body.classList.toggle('sign-off', off);
+    const btn=document.getElementById('crtToggle');
+    if(btn){ const label = off ? 'Turn sign on' : 'Turn sign off'; btn.title=label; btn.setAttribute('aria-label', label); }
   }
 
   function toast(title, body){
