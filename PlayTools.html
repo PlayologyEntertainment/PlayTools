@@ -7827,30 +7827,27 @@ const UI = (function(){
 window.UI = UI; window.Router = Router;
 
 /* ============================================================================
-   BACKGROUND MUSIC — optional, non-embedded.
-   Looks for a file named "Music01.mp3" sitting next to PlayTools.html. If the
-   file isn't present (or can't be played), the speaker button stays hidden and
-   nothing plays — the app behaves exactly as it does today. When the file is
-   available the music loops continuously; we attempt to autoplay on the splash
-   screen and, if the browser blocks that, start it the moment the user clicks
-   to enter the app. The header button then toggles between mute and play, and
-   its glyph reflects the current audio state (🔊 = playing, 🔇 = muted).
+   BACKGROUND MUSIC — two looping sections sitting next to PlayTools.html.
+   "Intro.MP3" loops through the splash sequence (started by the tap-to-begin
+   play button); the moment the user leaves the splash into the app we hard-cut
+   to "Body.MP3", which then loops continuously. The header button toggles
+   mute/play for whichever section is active (🔊 = playing, 🔇 = muted) and
+   stays hidden until a track is confirmed playable, so a missing file just
+   means silence with no visible control.
    ============================================================================ */
 const Music = (function(){
-  const SRC = 'Music01.mp3';
+  const INTRO_SRC = 'Intro.MP3';
+  const BODY_SRC  = 'Body.MP3';
   const btn = document.getElementById('musicBtn');
-  const audio = new Audio();
-  audio.loop = true;
-  audio.preload = 'auto';
+
+  const intro = new Audio(); intro.loop = true; intro.preload = 'auto';
+  const body  = new Audio(); body.loop  = true; body.preload  = 'auto';
 
   const GLYPH_AUDIBLE = '🔊'; // current state: playing (click will mute)
   const GLYPH_MUTED   = '🔇'; // current state: muted   (click will play)
 
-  let available = false;    // file confirmed loadable
-  let muted = false;        // current user-facing state
-  let started = false;      // playback has begun at least once
-  let pendingEnter = false; // autoplay was blocked; start on first app entry
-  let wantStart = false;    // user tapped the splash "play" gate before the file loaded
+  let muted = false;     // user-facing state, applied to whichever section is active
+  let current = null;    // the <audio> currently in charge
 
   function render(){
     if(!btn) return;
@@ -7860,62 +7857,46 @@ const Music = (function(){
     btn.setAttribute('aria-label', label);
   }
 
-  function startPlayback(){
-    const p = audio.play();
-    if(p && typeof p.then === 'function'){
-      return p.then(()=>{ started = true; });
-    }
-    started = true;
-    return Promise.resolve();
-  }
-
-  // File-presence probe: 'canplay' => exists & playable; 'error' => absent.
-  audio.addEventListener('canplay', function onReady(){
-    if(available) return;
-    available = true;
-    if(btn) btn.hidden = false;
-    render();
-    // No autoplay: playback is gated behind the splash "play" button, so the
-    // page stays silent until the user taps to begin. If they tapped before the
-    // file finished loading, honor that intent now.
-    if(wantStart && !muted) startPlayback().then(render).catch(()=>{});
-  });
-  // A missing/unplayable file is expected and silent — keep the button hidden.
-  audio.addEventListener('error', ()=>{});
-  audio.src = SRC;
-  audio.load();
-
-  // Called when the splash is dismissed ("enter the app"). That click is a
-  // genuine user gesture, so blocked autoplay can now begin.
-  function handleEnter(){
-    if(!available || started || muted || !pendingEnter) return;
-    startPlayback().then(render).catch(()=>{});
-  }
-
-  // Begin playback from the splash "play" gate — a genuine user gesture, so it
-  // always succeeds. If the file isn't ready yet, remember the intent and start
-  // the moment it loads (see the canplay handler above).
-  function start(){
-    if(muted || started) return;
-    if(!available){ wantStart = true; return; }
-    startPlayback().then(render).catch(()=>{});
-  }
-
-  function toggle(){
-    if(!available) return;
-    if(!started){           // never played yet (autoplay blocked, no entry) — start it
-      muted = false;
-      startPlayback().then(render).catch(()=>{});
-      return;
-    }
-    muted = !muted;
+  function play(audio){
+    current = audio;
     audio.muted = muted;
+    const p = audio.play();
+    if(p && typeof p.catch === 'function') p.catch(()=>{});
+  }
+
+  // Reveal the mute button once the Body track is confirmed playable (the
+  // header is hidden behind the splash anyway, so Intro readiness needn't show
+  // it). A missing/unplayable file is expected and silent — button stays hidden.
+  body.addEventListener('canplay', function onReady(){
+    if(btn){ btn.hidden = false; render(); }
+  }, { once:true });
+  body.addEventListener('error', ()=>{});
+
+  intro.src = INTRO_SRC; intro.load();
+  body.src  = BODY_SRC;  body.load();
+
+  // Splash "play" gate (a user gesture) → start the looping Intro.
+  function startIntro(){ play(intro); render(); }
+
+  // Leaving the splash (also a user gesture) → hard-cut to the looping Body.
+  function startBody(){
+    try{ intro.pause(); intro.currentTime = 0; }catch(e){}
+    try{ body.currentTime = 0; }catch(e){}
+    play(body);
+    render();
+  }
+
+  // Header button: mute/unmute the active section.
+  function toggle(){
+    muted = !muted;
+    intro.muted = muted; body.muted = muted;
+    if(!muted && current && current.paused){ const p = current.play(); if(p && p.catch) p.catch(()=>{}); }
     render();
   }
 
   if(btn) btn.addEventListener('click', toggle);
 
-  return { handleEnter, toggle, start };
+  return { startIntro, startBody, toggle };
 })();
 
 /* ============================================================================
@@ -8010,6 +7991,7 @@ const APP_VERSION = '1.0.0';
   let dismissed = false;
   function dismiss(){
     if(dismissed) return; dismissed = true;
+    Music.startBody();     // hard-cut from the looping Intro to the looping Body track
     splash.classList.add('hide');
     window.removeEventListener('keydown', onKey, true);
     setTimeout(()=>{ splash.remove(); }, 600);
@@ -8022,7 +8004,7 @@ const APP_VERSION = '1.0.0';
   let begun = false;
   function begin(){
     if(begun) return; begun = true;
-    Music.start();                              // user gesture → start the music
+    Music.startIntro();                         // user gesture → loop the Intro track
     if(playBtn) playBtn.classList.add('gone');  // fade the play button away
     beat(2000, ()=>{ reveal(kickerEl); reveal(logoImg); }); // "Presents" + logo (slow fade)
     beat(4000, ()=> reveal(signEl));                        // neon sign appears, unlit
