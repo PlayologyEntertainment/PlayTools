@@ -968,6 +968,10 @@
   #splash.intro .splash-tagline,
   #splash.intro .splash-cta,
   #splash.intro .splash-legal{ opacity:0; transition:opacity 1.2s ease; }
+  /* The Playology "Presents" line and logo open the intro, so they fade in
+     more slowly than the later beats for a softer reveal. */
+  #splash.intro .splash-kicker,
+  #splash.intro .splash-logo{ transition:opacity 2.4s ease; }
   #splash.intro .splash-reveal{ opacity:1; }
   #splash.intro .splash-legal.splash-reveal{ opacity:0.55; } /* keep it dim */
   /* The neon sign appears switched OFF — desaturated, dim, flicker killed —
@@ -7938,8 +7942,8 @@ const APP_VERSION = '1.0.0';
   // On load the screen is black with a pulsing play triangle and nothing else
   // happens. Tapping it (a genuine user gesture, so audio is allowed to start)
   // begins the music and the scripted ~8s reveal:
-  //   t2  the neon sign appears, switched OFF (dim/desaturated).
-  //   t4  "Playology Entertainment Presents" + the Playology logo fade in.
+  //   t2  "Playology Entertainment Presents" + the Playology logo fade in (slow).
+  //   t4  the neon sign appears, switched OFF (dim/desaturated).
   //   t6  the sign powers ON and the purple gradient lights up behind it.
   //   t8  the remaining text fades in; the screen is now clickable to enter.
   // During the reveal a click/tap/key fast-forwards to the finished intro
@@ -7985,8 +7989,8 @@ const APP_VERSION = '1.0.0';
     if(begun) return; begun = true;
     Music.start();                              // user gesture → start the music
     if(playBtn) playBtn.classList.add('gone');  // fade the play button away
-    beat(2000, ()=> reveal(signEl));            // sign appears, unlit
-    beat(4000, ()=>{ reveal(kickerEl); reveal(logoImg); });
+    beat(2000, ()=>{ reveal(kickerEl); reveal(logoImg); }); // "Presents" + logo (slow fade)
+    beat(4000, ()=> reveal(signEl));                        // neon sign appears, unlit
     beat(6000, ()=> splash.classList.add('sign-lit','lit'));
     beat(8000, finishIntro);                    // remaining text + enterable
     // Only now does click/tap/key skip-or-enter; before this they do nothing.
