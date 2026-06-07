@@ -632,6 +632,36 @@
   .pk-ghost{position:fixed; left:0; top:0; pointer-events:none; z-index:9999; display:none;}
   .pk-ghost canvas{display:block; image-rendering:pixelated; opacity:0.92; filter:drop-shadow(0 6px 14px rgba(0,0,0,0.55));}
 
+  /* ---- Sudoku (Retro Arcade) — DOM 9×9 grid + neon number pad ---- */
+  .sk-stage{position:relative; width:100%; max-width:400px; margin:10px auto 4px;}
+  .sk-board{display:grid; grid-template-columns:repeat(9,1fr); aspect-ratio:1/1; width:100%;
+    background:#05030f; border:2px solid var(--neon-4); border-radius:8px; overflow:hidden;
+    box-shadow:0 0 26px rgba(124,92,255,0.28), inset 0 0 60px rgba(124,92,255,0.08); touch-action:manipulation;}
+  .sk-cell{display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;
+    font-family:var(--pixel); font-size:clamp(15px,4.6vw,24px); color:var(--neon-3);
+    background:transparent; border:1px solid rgba(124,92,255,0.14); aspect-ratio:1/1; transition:background .08s;}
+  .sk-cell.given{color:#cdd6ff; cursor:default;}
+  .sk-cell.hintv{color:var(--neon-5);}
+  .sk-cell.peer{background:rgba(124,92,255,0.10);}
+  .sk-cell.same{background:rgba(22,242,200,0.16);}
+  .sk-cell.error{color:var(--danger); background:rgba(255,77,109,0.16);}
+  .sk-cell.selected{background:rgba(22,242,200,0.30); box-shadow:inset 0 0 0 2px var(--neon);}
+  /* 3×3 box separators */
+  .sk-cell:nth-child(3n){border-right:2px solid rgba(124,92,255,0.5);}
+  .sk-cell:nth-child(9n){border-right:none;}
+  .sk-cell:nth-child(n+28):nth-child(-n+36),
+  .sk-cell:nth-child(n+55):nth-child(-n+63){border-top:2px solid rgba(124,92,255,0.5);}
+  .sk-pad{display:flex; gap:7px; justify-content:center; flex-wrap:wrap; margin:10px auto 4px; max-width:400px;}
+  .sk-pad button{flex:1 1 0; min-width:32px; max-width:44px; aspect-ratio:1/1; font-family:var(--pixel);
+    font-size:18px; color:var(--neon-3); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:6px; cursor:pointer; transition:transform .08s, background .1s;}
+  .sk-pad button:hover{background:rgba(124,92,255,0.18);}
+  .sk-pad button:active{transform:scale(0.94);}
+  .sk-pad button.done{opacity:0.25; pointer-events:none;}
+  .sk-tools{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:6px auto;}
+  .sk-tools .btn{padding:8px 12px; font-size:12px;}
+  .sk-tools .btn:disabled{opacity:0.35; pointer-events:none;}
+
   /* ---- Gamer Quiz (Fun Lab) ---- */
   .quiz-progress{height:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:6px 0 18px;}
   .quiz-progress .bar{height:100%; background:linear-gradient(90deg,var(--neon-4),var(--neon)); width:0; transition:width .4s ease;}
@@ -1444,6 +1474,10 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='sequence' && (c.grade==='A'||c.grade==='S') },
     { id:'packer_ace', name:'Packer Ace', icon:'📦', desc:'Earn an A grade or better in Packer.',
       test:(d,c)=> c && c.tool==='packer' && (c.grade==='A'||c.grade==='S') },
+    { id:'sudoku_ace', name:'Sudoku Ace', icon:'🔢', desc:'Earn an A grade or better in Sudoku.',
+      test:(d,c)=> c && c.tool==='sudoku' && (c.grade==='A'||c.grade==='S') },
+    { id:'sudoku_purist', name:'Sudoku Purist', icon:'🧩', desc:'Solve a Hard Sudoku with no hints.',
+      test:(d,c)=> (c && c.tool==='sudoku' && c.difficulty==='hard' && c.hints===0) || !!(d.counters && d.counters.sudokuHardClean>=1) },
     // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded
     //      test (complements Reaction's stricter S-grade 'Reaction Master') ----
     { id:'reaction_ace', name:'Reaction Ace', icon:'⚡', desc:'Earn an A grade or better on Reaction Time.',
@@ -2022,7 +2056,9 @@ const CABINETS = [
   { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
     desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_packer', lab:'Arcade', name:'Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
-    desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6 - Designed by Aysha!' }
+    desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6 - Designed by Aysha!' },
+  { id:'arcade_sudoku', lab:'Arcade', name:'Sudoku', railName:'Sudoku', icon:'🔢', tag:'mvp', route:'#/arcade/sudoku',
+    desc:'Fill the 9×9 grid so every row, column & box holds 1–9 — pick a difficulty, beat the clock & lean on hints only if you must.', dna:'Focus +12 · Strategy +8' }
 ];
 
 /* ============================================================================
@@ -7142,6 +7178,311 @@ Views.packer = function(c){
   };
 };
 
+/* ---- ARCADE.8 Sudoku (classic 9×9 logic puzzle) ----
+   Generated puzzles with a guaranteed-unique solution, three difficulties, live
+   mistake highlighting, hints, undo/redo, keyboard play and a solve timer.
+   Forgiving: mistakes never end the run — they only cost you time toward your
+   grade. Trains Focus (sustained attention) + Strategy (deduction). */
+const SK_LEVELS = [
+  { key:'easy',   name:'Easy',   givens:42, parA:240, reward:0.5,  base:600  },
+  { key:'medium', name:'Medium', givens:34, parA:420, reward:0.75, base:1200 },
+  { key:'hard',   name:'Hard',   givens:27, parA:720, reward:1.0,  base:2400 },
+];
+const SK_HINT_PENALTY = 30;   // seconds added to your effective time per hint used
+
+Views.sudoku = function(c){
+  const cab = getCab('arcade_sudoku');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('sudokuMute');
+  const sndPlace =()=> blip(420,0.04,'square',0.035);
+  const sndErase =()=> blip(220,0.04,'triangle',0.03);
+  const sndHint  =()=> blip(660,0.06,'sine',0.04);
+  const sndWin   =()=> [523,659,784,1047].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'square',0.05), i*110));
+  const sndBad   =()=> blip(140,0.08,'sawtooth',0.04);
+
+  let levelIdx=0;                                   // default Easy
+  // ---- puzzle state ----
+  let solution=null, given=null, cells=null;        // 81-length arrays
+  let selected=null, hintsUsed=0, mistakes=0;
+  let playing=false, solved=false;
+  let history=[], future=[];                         // undo / redo stacks of {idx,prev,next}
+  // ---- timer ----
+  let elapsedMs=0, startMs=0, timerId=null;
+
+  // ---- sudoku helpers ----
+  const idxRC=(r,c)=> r*9+c;
+  function fits(g,idx,n){
+    const r=Math.floor(idx/9), c=idx%9, br=r-r%3, bc=c-c%3;
+    for(let k=0;k<9;k++){
+      if(g[r*9+k]===n || g[k*9+c]===n) return false;
+      if(g[(br+Math.floor(k/3))*9 + bc + (k%3)]===n) return false;
+    }
+    return true;
+  }
+  function shuffled(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+  // backtracking fill with randomized candidates -> a complete valid solution
+  function fillSolution(g){
+    const idx=g.indexOf(0);
+    if(idx<0) return true;
+    for(const n of shuffled([1,2,3,4,5,6,7,8,9])){
+      if(fits(g,idx,n)){ g[idx]=n; if(fillSolution(g)) return true; g[idx]=0; }
+    }
+    return false;
+  }
+  // count solutions up to `limit` (early-out) — used to keep dug puzzles unique
+  function countSolutions(g, limit){
+    const grid=g.slice(); let count=0;
+    (function rec(){
+      if(count>=limit) return;
+      const idx=grid.indexOf(0);
+      if(idx<0){ count++; return; }
+      for(let n=1;n<=9;n++){
+        if(fits(grid,idx,n)){ grid[idx]=n; rec(); grid[idx]=0; if(count>=limit) return; }
+      }
+    })();
+    return count;
+  }
+  function generate(givensTarget){
+    const sol=Array(81).fill(0); fillSolution(sol);
+    const puz=sol.slice();
+    let removed=0; const toRemove=81-givensTarget;
+    for(const idx of shuffled([...Array(81).keys()])){
+      if(removed>=toRemove) break;
+      const backup=puz[idx]; puz[idx]=0;
+      if(countSolutions(puz,2)!==1){ puz[idx]=backup; }   // must stay unique
+      else removed++;
+    }
+    return { sol, puz };
+  }
+
+  // ---- DOM ----
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('sudokuMute'));
+
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  SK_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; levelIdx=i; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'sk-stage'});
+  const board = el('div',{class:'sk-board'});
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(board, overlay);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+
+  // 81 reusable cell elements
+  const cellEls=[];
+  for(let i=0;i<81;i++){
+    const cell=el('div',{class:'sk-cell'});
+    cell.addEventListener('pointerdown', ()=> onCellTap(i));
+    board.append(cell); cellEls.push(cell);
+  }
+
+  // number pad 1–9 + erase
+  const pad = el('div',{class:'sk-pad'});
+  const padBtns=[];
+  for(let n=1;n<=9;n++){
+    const b=el('button',{html:String(n)});
+    b.onclick=()=> place(selected, n);
+    pad.append(b); padBtns.push(b);
+  }
+  const eraseBtn = el('button',{class:'erase', html:'⌫'});
+  eraseBtn.onclick=()=> place(selected, 0);
+  pad.append(eraseBtn);
+
+  // tools: undo / redo / hint / new board / reset
+  const tools = el('div',{class:'sk-tools'});
+  const undoBtn = el('button',{class:'btn ghost', html:'↶ Undo'}); undoBtn.onclick=undo;
+  const redoBtn = el('button',{class:'btn ghost', html:'↷ Redo'}); redoBtn.onclick=redo;
+  const hintBtn = el('button',{class:'btn ghost', html:'💡 Hint'}); hintBtn.onclick=hint;
+  const resetBtn= el('button',{class:'btn ghost', html:'⟲ Reset'}); resetBtn.onclick=resetBoard;
+  const newBtn  = el('button',{class:'btn ghost', html:'✦ New Board'}); newBtn.onclick=()=> startGame();
+  tools.append(undoBtn, redoBtn, hintBtn, resetBtn, newBtn);
+
+  const hint2 = el('div',{class:'pd-hint', html:'Tap a cell, then a number · arrow keys move · 1–9 to fill · ⌫/0 erases'});
+  const result = el('div',{});
+  panel.append(diffField, startRow, hud, stageTV, pad, tools, hint2, result);
+
+  // ---- time / score ----
+  const fmt=(s)=>{ s=Math.max(0,Math.floor(s)); const m=Math.floor(s/60); return m+':'+String(s%60).padStart(2,'0'); };
+  const bestTime=(key)=>{ const b=Store.get().bests.arcade_sudoku; return (b&&b.times&&b.times[key])||null; };
+  function renderHud(){
+    const lv=SK_LEVELS[levelIdx];
+    const bt=bestTime(lv.key);
+    hud.innerHTML = `<span class="pill">Mode <b>${lv.name}</b></span>
+      <span class="pill">Time <b>${fmt(elapsedMs/1000)}</b></span>
+      <span class="pill">Hints <b>${hintsUsed}</b></span>
+      <span class="pill">Best <b>${bt!=null?fmt(bt):'—'}</b></span>`;
+  }
+  function startTimer(){ startMs=performance.now()-elapsedMs; if(timerId) clearInterval(timerId); timerId=setInterval(()=>{ elapsedMs=performance.now()-startMs; renderHud(); }, 1000); }
+  function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+
+  // ---- rendering ----
+  function isEditable(idx){ return playing && !solved && !given[idx]; }
+  function render(){
+    const sel=selected;
+    const selR = sel!=null? Math.floor(sel/9):-1, selC = sel!=null? sel%9:-1;
+    const selBr = selR-((selR%3+3)%3), selBc = selC-((selC%3+3)%3);
+    const selVal = sel!=null? cells[sel]:0;
+    const counts=Array(10).fill(0);
+    for(let i=0;i<81;i++){ if(cells[i]) counts[cells[i]]++; }
+    for(let i=0;i<81;i++){
+      const v=cells[i], cell=cellEls[i];
+      cell.textContent = v? String(v):'';
+      let cls='sk-cell';
+      if(given[i]) cls+=' given';
+      else if(v && solution && v===solution[i]) cls+=' hintv';  // your own correct entries glow green
+      if(v && solution && !given[i] && v!==solution[i]) cls+=' error';
+      if(sel!=null){
+        const r=Math.floor(i/9), c=i%9;
+        if(i===sel) cls+=' selected';
+        else if(selVal && v===selVal) cls+=' same';
+        else if(r===selR || c===selC || (r>=selBr&&r<selBr+3 && c>=selBc&&c<selBc+3)) cls+=' peer';
+      }
+      cell.className=cls;
+    }
+    for(let n=1;n<=9;n++){ padBtns[n-1].classList.toggle('done', counts[n]>=9); }
+    undoBtn.disabled = !playing || solved || !history.length;
+    redoBtn.disabled = !playing || solved || !future.length;
+    hintBtn.disabled = !playing || solved;
+    eraseBtn.disabled = !isEditable(selected);
+  }
+
+  // ---- moves ----
+  function commit(idx, val, isHint){
+    if(idx==null || !isEditable(idx)) return;
+    const prev=cells[idx];
+    if(prev===val) return;
+    cells[idx]=val;
+    history.push({idx, prev, next:val}); future.length=0;
+    if(val===0) sndErase();
+    else if(solution && val!==solution[idx]){ mistakes++; if(!isHint) sndBad(); }
+    else sndPlace();
+    render();
+    checkSolved();
+  }
+  function place(idx, val){ if(idx==null){ return; } commit(idx, val, false); }
+  function undo(){
+    if(!history.length) return;
+    const m=history.pop(); cells[m.idx]=m.prev; future.push(m);
+    selected=m.idx; render();
+  }
+  function redo(){
+    if(!future.length) return;
+    const m=future.pop(); cells[m.idx]=m.next; history.push(m);
+    selected=m.idx; render();
+  }
+  function hint(){
+    if(!playing || solved) return;
+    // hint the selected empty/incorrect cell, else the first one that needs it
+    let idx = (selected!=null && isEditable(selected) && cells[selected]!==solution[selected]) ? selected : -1;
+    if(idx<0){ for(let i=0;i<81;i++){ if(!given[i] && cells[i]!==solution[i]){ idx=i; break; } } }
+    if(idx<0) return;
+    selected=idx; hintsUsed++; sndHint();
+    commit(idx, solution[idx], true);
+    renderHud();
+  }
+  function onCellTap(idx){
+    if(!playing || solved) return;
+    selected=idx; render();
+  }
+
+  function checkSolved(){
+    for(let i=0;i<81;i++){ if(cells[i]!==solution[i]) return; }
+    finish();
+  }
+
+  // ---- lifecycle ----
+  function startGame(){
+    const lv=SK_LEVELS[levelIdx];
+    const { sol, puz } = generate(lv.givens);
+    solution=sol; cells=puz.slice(); given=puz.map(v=> v!==0);
+    selected=null; hintsUsed=0; mistakes=0; history=[]; future=[];
+    playing=true; solved=false;
+    elapsedMs=0; startTimer();
+    result.innerHTML=''; overlay.style.display='none';
+    startBtn.innerHTML='⟳ Restart';
+    diffField.style.opacity='0.5'; diffField.style.pointerEvents='none';
+    render(); renderHud();
+  }
+  function resetBoard(){
+    if(!playing) return;
+    cells=given.map((g,i)=> g? solution[i]:0);  // keep only original clues
+    selected=null; hintsUsed=0; mistakes=0; history=[]; future=[];
+    solved=false; elapsedMs=0; startTimer();
+    result.innerHTML=''; overlay.style.display='none';
+    render(); renderHud();
+  }
+  function finish(){
+    if(solved) return;
+    solved=true; playing=false; stopTimer(); sndWin();
+    startBtn.innerHTML='▶ START';
+    diffField.style.opacity=''; diffField.style.pointerEvents='';
+    const lv=SK_LEVELS[levelIdx];
+    const seconds=elapsedMs/1000;
+    const effective=seconds + hintsUsed*SK_HINT_PENALTY;          // hints cost time toward your grade
+    const comp=clamp01(0.8 * lv.parA / Math.max(1, effective));   // solving at par-A time ≈ A grade
+    const g=arcadeGrade(comp);
+    const score=Math.round(lv.base * comp);
+    Attr.applyVector({focus:12, strategy:8}, comp*lv.reward);
+    recordSudokuRun(score, {diff:lv.key, seconds, hints:hintsUsed});
+    Ach.evaluate({tool:'sudoku', grade:g, score, difficulty:lv.key, hints:hintsUsed, seconds});
+    selected=null; render(); renderHud();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">SOLVED!</div><div class="small">${lv.name} · ${fmt(seconds)} · ${hintsUsed} hint${hintsUsed===1?'':'s'}</div>`;
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Time</div><div class="v">${fmt(seconds)}</div></div>
+      <div class="result-tile"><div class="k">Hints</div><div class="v">${hintsUsed}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ New Board'}); again.onclick=()=> startGame();
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Sudoku', glyph:'🔢', grade:g,
+      metric:[{k:'Mode', v:lv.name}, {k:'Time', v:fmt(seconds)}, {k:'Hints', v:String(hintsUsed)}],
+      designation: g==='S'?'Grid Master': g==='A'?'Logic Ace': g==='B'?'Steady Solver': g==='C'?'Casual Puzzler':'Pencil Pusher',
+      badge: (lv.key==='hard' && hintsUsed===0) ? 'Sudoku Purist' : null
+    }));
+  }
+
+  // ---- keyboard ----
+  function onKey(e){
+    if(!playing){ if((e.key===' '||e.key==='Enter')){ e.preventDefault(); startGame(); } return; }
+    if(solved) return;
+    const k=e.key;
+    if(k==='ArrowUp'||k==='ArrowDown'||k==='ArrowLeft'||k==='ArrowRight'){
+      e.preventDefault();
+      if(selected==null){ selected=40; render(); return; }
+      let r=Math.floor(selected/9), c=selected%9;
+      if(k==='ArrowUp') r=(r+8)%9; else if(k==='ArrowDown') r=(r+1)%9;
+      else if(k==='ArrowLeft') c=(c+8)%9; else c=(c+1)%9;
+      selected=idxRC(r,c); render(); return;
+    }
+    if(k>='1'&&k<='9'){ place(selected, parseInt(k,10)); return; }
+    if(k==='0'||k==='Backspace'||k==='Delete'){ e.preventDefault(); place(selected, 0); return; }
+  }
+  window.addEventListener('keydown', onKey);
+  startBtn.onclick=()=> startGame();
+
+  // ---- idle state ----
+  solution=null; given=Array(81).fill(false); cells=Array(81).fill(0);
+  render(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">SUDOKU</div><div class="small">Pick a difficulty · Press START</div>`;
+
+  return ()=>{
+    playing=false; solved=true; stopTimer();
+    window.removeEventListener('keydown', onKey);
+  };
+};
+
 /* ============================================================================
    shared helpers for tool views
    ============================================================================ */
@@ -7256,6 +7597,23 @@ function recordPackerRun(score, ctx){
     d.arcadePoints += Math.round(score/30);   // modest metagame contribution — avoids grind-farming the Gamer Score
     d.counters.packerRuns=(d.counters.packerRuns||0)+1;
     if(ctx && ctx.maxClear>=3) d.counters.packerBigClears=(d.counters.packerBigClears||0)+1;
+  });
+}
+// record a solved Sudoku board. Replayable puzzle, so toolsCompleted is credited
+// only on the first-ever solve to keep Gamer Score honest; best score, per-difficulty
+// best solve time, modest arcade points and counters update every solve.
+function recordSudokuRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_sudoku){ d.toolsCompleted++; d.bests.arcade_sudoku={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_sudoku.value){ d.bests.arcade_sudoku.value=score; }
+    const bt = d.bests.arcade_sudoku.times || (d.bests.arcade_sudoku.times={});  // best (min) seconds per difficulty
+    if(ctx && ctx.diff && ctx.seconds!=null){
+      if(!(ctx.diff in bt) || ctx.seconds<bt[ctx.diff]) bt[ctx.diff]=ctx.seconds;
+    }
+    d.arcadePoints += Math.round(score/30);   // modest metagame contribution — avoids grind-farming the Gamer Score
+    d.counters.sudokuSolves=(d.counters.sudokuSolves||0)+1;
+    if(ctx && ctx.diff==='hard' && ctx.hints===0) d.counters.sudokuHardClean=(d.counters.sudokuHardClean||0)+1;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -8181,6 +8539,7 @@ Router.add('#/arcade/bricks', Views.brickBreaker);
 Router.add('#/arcade/whack', Views.whackMole);
 Router.add('#/arcade/sequence', Views.sequence);
 Router.add('#/arcade/packer', Views.packer);
+Router.add('#/arcade/sudoku', Views.sudoku);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/report', Views.dnaReport);
 Router.add('#/fun/challenge', Views.genChallenge);
