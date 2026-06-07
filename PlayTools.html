@@ -732,6 +732,25 @@
   .modal-close:hover{color:var(--danger);}
 
   /* ============================================================
+     HELP / ONBOARDING FRAME — "What is PlayTools?" (#helpBtn)
+     ============================================================ */
+  .help-modal{max-width:560px; text-align:left;}
+  .help-modal .help-lede{color:var(--ink); font-size:13px; line-height:1.6; margin:0 0 18px;}
+  .help-section{margin:0 0 16px;}
+  .help-section:last-of-type{margin-bottom:6px;}
+  .help-section h4{
+    font-family:var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--neon); margin:0 0 6px;
+  }
+  .help-section p{color:var(--ink-dim); font-size:13px; line-height:1.6; margin:0;}
+  .help-steps{margin:0; padding:0 0 0 18px; color:var(--ink-dim); font-size:13px; line-height:1.7;}
+  .help-steps li{margin:0 0 4px;}
+  .help-features{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;}
+  .help-features li{color:var(--ink-dim); font-size:12.5px; line-height:1.4;}
+  .help-features b{color:var(--ink); font-weight:600;}
+  @media (max-width:520px){ .help-features{grid-template-columns:1fr;} }
+
+  /* ============================================================
      GAMER DNA AVATAR — header button + picker modal
      ============================================================ */
   .dna-id-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px;}
@@ -1069,6 +1088,7 @@
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
       <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-label="Mute music" title="Mute music">🔊</button>
       <button class="btn ghost icon" id="crtToggle" type="button" aria-label="Turn sign off" title="Turn sign off">💡</button>
+      <button class="btn ghost icon" id="helpBtn" type="button" aria-label="What is PlayTools?" title="What is PlayTools?">❓</button>
     </div>
   </div>
 
@@ -2871,6 +2891,71 @@ function openAvatarPicker(onDone){
     if(typeof onDone==='function') onDone();
     UI.toast('Avatar saved', selEmoji ? 'Your Friend Card avatar is now '+selEmoji : 'Using your initial “'+initial+'”.');
   };
+}
+
+// Help / onboarding frame: a minimal "what is this?" explainer for newcomers.
+// Copy below is a first-draft placeholder — easy to find and edit in one place.
+function openHelp(){
+  const root = document.getElementById('modal-root');
+  if(!root) return;
+  root.innerHTML='';
+
+  const backdrop = el('div',{class:'modal-backdrop'});
+  const modal = el('div',{class:'modal help-modal'});
+  const close = el('button',{class:'modal-close', html:'✕', 'aria-label':'Close'});
+  const h3 = el('h3',{html:'❓ WELCOME TO PLAYTOOLS'});
+
+  modal.append(close, h3);
+
+  // --- What is PlayTools ---
+  modal.append(el('p',{class:'help-lede',
+    html:'PlayTools is a free suite of gamified browser tools that measure and sharpen your gaming skills — reflexes, mouse control, and hardware setup — then roll the results up into a single profile called your <b>Gamer DNA</b>. No downloads, no sign-up.'}));
+
+  // --- Who it's for ---
+  const whoSec = el('div',{class:'help-section'});
+  whoSec.append(el('h4',{html:'Who it\'s for'}));
+  whoSec.append(el('p',{html:'Anyone who games and is curious how they stack up — from casual players to competitive grinders. If you want to know your real reaction time, test your mouse, or dial in your sensitivity, you\'re in the right place.'}));
+  modal.append(whoSec);
+
+  // --- How to get started ---
+  const startSec = el('div',{class:'help-section'});
+  startSec.append(el('h4',{html:'How to get started'}));
+  const steps = el('ol',{class:'help-steps'});
+  steps.append(el('li',{html:'Pick a tool from the menu on the left — start with a <b>Reflex</b> test like Reaction Time.'}));
+  steps.append(el('li',{html:'Run it a few times. Each result feeds your <b>Gamer DNA</b> profile and score.'}));
+  steps.append(el('li',{html:'Open <b>Gamer DNA</b> (top left) to see your attributes, class, and rank grow.'}));
+  steps.append(el('li',{html:'Add friends to compare stats — and keep testing to climb the ranks.'}));
+  startSec.append(steps);
+  modal.append(startSec);
+
+  // --- Feature highlights ---
+  const featSec = el('div',{class:'help-section'});
+  featSec.append(el('h4',{html:'What\'s inside'}));
+  const feats = el('ul',{class:'help-features'});
+  [
+    ['🧬 Gamer DNA','Your profile, 7 attributes, class & rank.'],
+    ['⚡ Reflex Lab','Reaction, CPS, precision, flick & tracking drills.'],
+    ['🖱️ Hardware Lab','Mouse polling, accuracy, jitter & stability tests.'],
+    ['🛠️ Setup Lab','eDPI & sensitivity calculators to dial in your aim.'],
+    ['👥 Friends','Import, compare & sort your roster\'s stats.'],
+    ['🏆 Progress','Earn score, achievements, and rank up over time.'],
+  ].forEach(([t,d])=>{
+    feats.append(el('li',{html:'<b>'+t+'</b><br>'+d}));
+  });
+  featSec.append(feats);
+  modal.append(featSec);
+
+  // --- Actions ---
+  const actions = el('div',{class:'modal-actions', style:'margin-top:18px;'});
+  const okBtn = el('button',{class:'btn primary', html:'Let\'s play 🎮'});
+  actions.append(okBtn);
+  modal.append(actions);
+
+  backdrop.append(modal); root.append(backdrop);
+
+  function dismiss(){ root.innerHTML=''; }
+  close.onclick = dismiss; okBtn.onclick = dismiss;
+  backdrop.onclick = e=>{ if(e.target===backdrop) dismiss(); };
 }
 
 function friendCard(f){
@@ -7817,6 +7902,8 @@ const UI = (function(){
       if(!nowOff) SignSfx.play();   // play the power-on sound only when switching the sign back ON
     };
     document.getElementById('dnaBtn').onclick=()=> Router.go('#/dna');
+    const helpBtn=document.getElementById('helpBtn');
+    if(helpBtn) helpBtn.onclick=()=> openHelp();
     document.getElementById('logoHome').onclick=()=> Router.go('#/');
   }
 
