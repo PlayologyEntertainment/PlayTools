@@ -2894,7 +2894,7 @@ function openAvatarPicker(onDone){
 }
 
 // Help / onboarding frame: a minimal "what is this?" explainer for newcomers.
-// Copy below is a first-draft placeholder — easy to find and edit in one place.
+// All copy lives here in one place so it's easy to find and edit.
 function openHelp(){
   const root = document.getElementById('modal-root');
   if(!root) return;
@@ -2909,36 +2909,42 @@ function openHelp(){
 
   // --- What is PlayTools ---
   modal.append(el('p',{class:'help-lede',
-    html:'PlayTools is a free suite of gamified browser tools that measure and sharpen your gaming skills — reflexes, mouse control, and hardware setup — then roll the results up into a single profile called your <b>Gamer DNA</b>. No downloads, no sign-up.'}));
+    html:'PlayTools is a free suite of gamified browser toys that sharpen and organize your gaming skills. Start with reflexes, mouse control, hardware setup, mental acuity, and DM gear — then roll the results up into a single profile called your <b>Gamer DNA</b>. No downloads, no sign-up, no cost.'}));
 
   // --- Who it's for ---
   const whoSec = el('div',{class:'help-section'});
-  whoSec.append(el('h4',{html:'Who it\'s for'}));
-  whoSec.append(el('p',{html:'Anyone who games and is curious how they stack up — from casual players to competitive grinders. If you want to know your real reaction time, test your mouse, or dial in your sensitivity, you\'re in the right place.'}));
+  whoSec.append(el('h4',{html:'Who is it for?'}));
+  const whoList = el('ul',{class:'help-steps', style:'list-style:none; padding-left:0;'});
+  whoList.append(el('li',{html:'Are you a n00b gamer who lacks skill?'}));
+  whoList.append(el('li',{html:'Are you a parent getting pwned by their kids?'}));
+  whoList.append(el('li',{html:'Are you a disorganized DM who needs a Digital Makeover?'}));
+  whoSec.append(whoList);
+  whoSec.append(el('p',{style:'color:var(--neon); font-weight:600; margin:6px 0 10px;', html:'PlayTools is for YOU!'}));
+  whoSec.append(el('p',{html:'It\'s for everyone who games and wants a one-stop-shop for their gaming needs — from casual players to competitive grinders to TTRPG\'ers. If you want to know your real reaction time, test your mouse, or dial in your sensitivity, you\'re in the right place.'}));
   modal.append(whoSec);
 
   // --- How to get started ---
   const startSec = el('div',{class:'help-section'});
-  startSec.append(el('h4',{html:'How to get started'}));
+  startSec.append(el('h4',{html:'How do you get started?'}));
   const steps = el('ol',{class:'help-steps'});
-  steps.append(el('li',{html:'Pick a tool from the menu on the left — start with a <b>Reflex</b> test like Reaction Time.'}));
+  steps.append(el('li',{html:'Pick a tool from the menu on the left. Start by measuring your <b>Latency</b>, then try a <b>Reflex</b> test like Reaction Time.'}));
   steps.append(el('li',{html:'Run it a few times. Each result feeds your <b>Gamer DNA</b> profile and score.'}));
-  steps.append(el('li',{html:'Open <b>Gamer DNA</b> (top left) to see your attributes, class, and rank grow.'}));
-  steps.append(el('li',{html:'Add friends to compare stats — and keep testing to climb the ranks.'}));
+  steps.append(el('li',{html:'Open <b>Gamer DNA</b> to see your attributes, class, and rank grow.'}));
+  steps.append(el('li',{html:'Add friends to compare stats, and keep testing with new experiences to climb the ranks.'}));
   startSec.append(steps);
   modal.append(startSec);
 
   // --- Feature highlights ---
   const featSec = el('div',{class:'help-section'});
-  featSec.append(el('h4',{html:'What\'s inside'}));
+  featSec.append(el('h4',{html:'What\'s inside?'}));
   const feats = el('ul',{class:'help-features'});
   [
-    ['🧬 Gamer DNA','Your profile, 7 attributes, class & rank.'],
-    ['⚡ Reflex Lab','Reaction, CPS, precision, flick & tracking drills.'],
-    ['🖱️ Hardware Lab','Mouse polling, accuracy, jitter & stability tests.'],
-    ['🛠️ Setup Lab','eDPI & sensitivity calculators to dial in your aim.'],
-    ['👥 Friends','Import, compare & sort your roster\'s stats.'],
-    ['🏆 Progress','Earn score, achievements, and rank up over time.'],
+    ['🧬 Gamer DNA','Your Profile, 7 attributes, Class, Rank, and Score.'],
+    ['⚡ Reflex Lab','Reaction, CPS, Precision, Flick & Tracking Drills.'],
+    ['🖱️ Hardware Lab','Mouse Polling, Accuracy, Jitter & Stability Tests.'],
+    ['🛠️ Setup Lab','eDPI & Sensitivity Calculators to Dial in Your Aim.'],
+    ['👥 Friends','Import, Compare & Sort your Roster\'s Stats.'],
+    ['🏆 Progress','Earn Points, Achievements, and Rank Up Over Time.'],
   ].forEach(([t,d])=>{
     feats.append(el('li',{html:'<b>'+t+'</b><br>'+d}));
   });
@@ -2946,7 +2952,8 @@ function openHelp(){
   modal.append(featSec);
 
   // --- Actions ---
-  const actions = el('div',{class:'modal-actions', style:'margin-top:18px;'});
+  modal.append(el('p',{style:'text-align:center; color:var(--neon); font-weight:600; margin:18px 0 0;', html:'Now Go and Have FUN!!!'}));
+  const actions = el('div',{class:'modal-actions', style:'margin-top:14px;'});
   const okBtn = el('button',{class:'btn primary', html:'Let\'s play 🎮'});
   actions.append(okBtn);
   modal.append(actions);
