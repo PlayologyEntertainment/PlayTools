@@ -7952,8 +7952,10 @@ const APP_VERSION = '1.0.0';
   //   t4  the neon sign appears, switched OFF (dim/desaturated).
   //   t7  the sign powers ON (with sound) and the purple gradient lights up.
   //   t9  the remaining text fades in; the screen is now clickable to enter.
-  // Clicks/keys are ignored until the intro finishes and the "Insert Coin to
-  // Start" CTA appears; after that, any click/tap/key enters the app.
+  // On a user's first-ever play the intro can't be skipped: clicks/keys do
+  // nothing until it finishes and the "Insert Coin to Start" CTA appears. On
+  // every later visit (remembered via Store) a click/tap/key completes the
+  // sequence early. Either way, once finished a gesture enters the app.
   // #splash carries .intro in the markup so the hidden state applies on the
   // first paint (no flash); re-asserting here is a harmless guard.
   splash.classList.add('intro');
@@ -7965,6 +7967,9 @@ const APP_VERSION = '1.0.0';
                     splash.querySelector('.splash-cta'),
                     splash.querySelector('.splash-legal')];
   const reveal = el => { if(el) el.classList.add('splash-reveal'); };
+  // The no-skip lock-out applies only the first time the user ever plays the
+  // intro; afterward (remembered in prefs) they can click to complete it early.
+  const firstPlay = !Store.getPrefs().introSeen;
 
   let introComplete = false;
   const timers = [];
@@ -7986,6 +7991,7 @@ const APP_VERSION = '1.0.0';
     [signEl, kickerEl, logoImg, ...restEls].forEach(reveal);
     lightSign();
     introComplete = true;
+    Store.setPref('introSeen', true);  // once seen, later loads allow click-to-complete
   }
 
   let dismissed = false;
@@ -7996,9 +8002,13 @@ const APP_VERSION = '1.0.0';
     window.removeEventListener('keydown', onKey, true);
     setTimeout(()=>{ splash.remove(); }, 600);
   }
-  // No skipping: clicks/keys do nothing until the intro finishes and the
-  // "Insert Coin to Start" CTA appears; after that, any gesture enters the app.
-  function advance(){ if(introComplete) dismiss(); }
+  // Once finished, a gesture enters the app. Before that, a gesture completes
+  // the intro early — except on the very first play, which stays locked until
+  // the sequence finishes on its own.
+  function advance(){
+    if(introComplete){ dismiss(); return; }
+    if(!firstPlay) finishIntro();
+  }
   function onKey(e){ if(e.key==='Tab') return; advance(); }
 
   let begun = false;
