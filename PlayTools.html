@@ -186,17 +186,17 @@
   /* Moth: a small dark body with two wings that flap; a faint violet rim
      catches the neon it's drawn to. */
   .bug.moth .bug-art{
-    width:4px; height:6px; margin:-3px -2px; border-radius:50%; background:#0b0a13;
+    width:2px; height:3px; margin:-1.5px -1px; border-radius:50%; background:#0b0a13;
   }
   .bug.moth .bug-art::before,
   .bug.moth .bug-art::after{
-    content:""; position:absolute; top:-1px;
-    width:6px; height:8px; background:rgba(23,20,32,0.6);
-    border-radius:60% 60% 50% 50%; box-shadow:0 0 3px rgba(124,92,255,.45);
+    content:""; position:absolute; top:-.5px;
+    width:3px; height:4px; background:rgba(23,20,32,0.6);
+    border-radius:60% 60% 50% 50%; box-shadow:0 0 1.5px rgba(124,92,255,.45);
     animation:mothFlap .13s ease-in-out infinite;
   }
-  .bug.moth .bug-art::before{ left:-5px; transform-origin:right center; }
-  .bug.moth .bug-art::after { left: 3px; transform-origin:left  center; }
+  .bug.moth .bug-art::before{ left:-2.5px; transform-origin:right center; }
+  .bug.moth .bug-art::after { left: 1.5px; transform-origin:left  center; }
   @keyframes mothFlap{ 0%,100%{ transform:scaleX(1); } 50%{ transform:scaleX(.4); } }
   /* Don't appear when the sign is switched off or the user prefers less motion. */
   body.sign-off .bug{ display:none; }
@@ -10397,7 +10397,7 @@ Router.start();
 (function(){
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var CORNERS = ['tl','tr','bl','br'];
-  function gap(){ return 8000 + Math.random()*15000; }   // 8–23s between visits
+  function gap(){ return 6400 + Math.random()*12000; }   // ~6.4–18.4s between visits
   function buildBug(img){
     var stage = document.createElement('span');
     stage.className = 'sign-stage';
