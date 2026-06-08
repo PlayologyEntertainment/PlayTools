@@ -176,6 +176,10 @@
      (body.sign-off, set by the toggle itself). */
   #crtToggle{filter:drop-shadow(0 0 5px rgba(255,209,102,0.8)); transition:filter .25s;}
   body.sign-off #crtToggle{filter:grayscale(1) brightness(0.45);}
+  /* Music toggle mirrors the sign toggle: the note glows violet while music is
+     playing and dims to gray once muted (.muted set by the Music engine). */
+  #musicBtn{filter:drop-shadow(0 0 5px rgba(124,92,255,0.8)); transition:filter .25s;}
+  #musicBtn.muted{filter:grayscale(1) brightness(0.45);}
   .btn.danger:hover{border-color:var(--danger); color:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.25);}
 
   /* ============================================================
@@ -1298,7 +1302,7 @@
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
-      <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-label="Mute music" title="Mute music">🔊</button>
+      <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-label="Mute music" title="Mute music">🎵</button>
       <button class="btn ghost icon" id="crtToggle" type="button" aria-label="Turn sign off" title="Turn sign off">💡</button>
       <button class="btn ghost icon" id="helpBtn" type="button" aria-label="What is PlayTools?" title="What is PlayTools?">❓</button>
     </div>
@@ -8752,8 +8756,9 @@ window.UI = UI; window.Router = Router;
    "Intro.MP3" loops through the splash sequence (started by the tap-to-begin
    play button); the moment the user leaves the splash into the app we hard-cut
    to "Body.MP3", which then loops continuously. The header button toggles
-   mute/play for whichever section is active (🔊 = playing, 🔇 = muted) and
-   stays hidden until a track is confirmed playable, so a missing file just
+   mute/play for whichever section is active — a musical note that glows violet
+   while playing and dims to gray when muted (the .muted class drives the CSS) —
+   and stays hidden until a track is confirmed playable, so a missing file just
    means silence with no visible control.
    ============================================================================ */
 const Music = (function(){
@@ -8764,8 +8769,7 @@ const Music = (function(){
   const intro = new Audio(); intro.loop = true; intro.preload = 'auto';
   const body  = new Audio(); body.loop  = true; body.preload  = 'auto';
 
-  const GLYPH_AUDIBLE = '🔊'; // current state: playing (click will mute)
-  const GLYPH_MUTED   = '🔇'; // current state: muted   (click will play)
+  const GLYPH_NOTE = '🎵'; // single glyph in both states; CSS handles the colour/dim
 
   let muted = false;     // user-facing state, applied to whichever section is active
   let current = null;    // the <audio> currently in charge
@@ -8773,7 +8777,8 @@ const Music = (function(){
   function render(){
     if(!btn) return;
     const label = muted ? 'Play music' : 'Mute music';
-    btn.textContent = muted ? GLYPH_MUTED : GLYPH_AUDIBLE;
+    btn.textContent = GLYPH_NOTE;
+    btn.classList.toggle('muted', muted); // violet glow when playing, gray + dim when muted
     btn.title = label;
     btn.setAttribute('aria-label', label);
   }
