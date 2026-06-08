@@ -1191,6 +1191,49 @@
   .death-track .dt-pip{width:16px; height:16px; border-radius:50%; border:1.5px solid var(--ink-dim); cursor:pointer; background:transparent;}
   .death-track.succ .dt-pip.on{background:var(--neon-5); border-color:var(--neon-5);}
   .death-track.fail .dt-pip.on{background:var(--danger); border-color:var(--danger);}
+
+  /* ---- Create chooser ---- */
+  .forge-create-opts{display:flex; flex-direction:column; gap:10px; margin:6px 0;}
+  .forge-create-opt{
+    display:flex; gap:12px; align-items:flex-start; text-align:left; cursor:pointer;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:13px 14px; color:var(--ink);
+  }
+  .forge-create-opt:hover{border-color:var(--neon); box-shadow:0 0 14px rgba(22,242,200,0.2);}
+  .forge-create-opt .fco-ic{font-size:26px; line-height:1;}
+  .forge-create-opt .fco-txt{display:flex; flex-direction:column; gap:3px;}
+  .forge-create-opt .fco-txt b{color:var(--neon); font-size:15px;}
+  .forge-create-opt .fco-txt span{font-size:12.5px; color:var(--ink-dim);}
+
+  /* ---- Wizard ---- */
+  .wiz-steps{display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 18px;}
+  .wiz-step{display:flex; align-items:center; gap:7px; padding:7px 12px; border:1px solid var(--line); border-radius:20px; color:var(--ink-dim); font-size:12px;}
+  .wiz-step .ws-num{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--panel-2); border:1px solid var(--line); font-size:11px;}
+  .wiz-step.on{color:var(--neon); border-color:var(--neon);}
+  .wiz-step.on .ws-num{background:var(--neon); color:#04120a; border-color:var(--neon); font-weight:700;}
+  .wiz-step.done{color:var(--neon-5); border-color:var(--neon-5);}
+  .wiz-step.done .ws-num{background:var(--neon-5); color:#04120a; border-color:var(--neon-5);}
+  .wiz-abil{display:flex; flex-direction:column; gap:8px; max-width:420px;}
+  .abil-assign{display:flex; align-items:center; gap:12px;}
+  .abil-assign .aa-name{flex:1 1 auto; font-size:14px;}
+  .abil-assign .aa-mod{font-family:var(--pixel); font-size:15px; color:var(--neon); min-width:38px; text-align:right;}
+  .abil-assign select, .abil-assign .aa-input{font-family:var(--mono); font-size:14px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:7px 9px; min-width:90px;}
+  .abil-assign .aa-input{width:90px;}
+  .stepper{display:inline-flex; align-items:center; gap:0; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .stepper button{background:var(--panel-2); border:none; color:var(--neon); font-size:16px; width:30px; height:32px; cursor:pointer;}
+  .stepper button:hover{background:rgba(22,242,200,0.12);}
+  .stepper .st-v{display:inline-flex; align-items:center; justify-content:center; width:42px; font-family:var(--pixel); font-size:15px; color:var(--ink);}
+  .wiz-budget{font-size:13px; color:var(--ink-dim); margin:0 0 12px;} .wiz-budget b{color:var(--neon); font-family:var(--pixel);}
+  .wiz-budget.over b{color:var(--danger);}
+  .wiz-skills{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:6px; margin-top:8px;}
+  .wiz-skill{display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:5px; background:var(--panel-2); font-size:13px; cursor:pointer;}
+  .wiz-skill.granted{opacity:0.7; cursor:default; border-color:var(--neon-3);}
+  .wiz-skill input{accent-color:var(--neon);}
+
+  /* ---- Custom sheet ---- */
+  .custom-sec{border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:12px 0; background:var(--panel-2);}
+  .custom-sec-head{display:flex; gap:10px; align-items:center; margin-bottom:6px;}
+  .custom-sec-head .cs-title{flex:1 1 auto; font-family:var(--pixel); font-size:15px; color:var(--neon); background:transparent; border:none; border-bottom:1px solid var(--line); padding:4px 2px;}
+  .custom-sec-head .cs-title:focus{outline:none; border-color:var(--neon);}
 </style>
 </head>
 <body>
@@ -8674,6 +8717,47 @@ const DnD5e = (function(){
   const CLASS_ICON = {Barbarian:'🪓',Bard:'🎵',Cleric:'✨',Druid:'🍃',Fighter:'⚔️',
     Monk:'👊',Paladin:'🛡️',Ranger:'🏹',Rogue:'🗡️',Sorcerer:'🔮',Warlock:'👁️',Wizard:'📜'};
 
+  // Lean SRD class skill proficiencies: how many to pick + the eligible list.
+  const ALL_SKILL_KEYS = SKILLS.map(s=>s[0]);
+  const CLASS_SKILLS = {
+    'Barbarian':{count:2, list:['animalHandling','athletics','intimidation','nature','perception','survival']},
+    'Bard':     {count:3, list:ALL_SKILL_KEYS},
+    'Cleric':   {count:2, list:['history','insight','medicine','persuasion','religion']},
+    'Druid':    {count:2, list:['arcana','animalHandling','insight','medicine','nature','perception','religion','survival']},
+    'Fighter':  {count:2, list:['acrobatics','animalHandling','athletics','history','insight','intimidation','perception','survival']},
+    'Monk':     {count:2, list:['acrobatics','athletics','history','insight','religion','stealth']},
+    'Paladin':  {count:2, list:['athletics','insight','intimidation','medicine','persuasion','religion']},
+    'Ranger':   {count:3, list:['animalHandling','athletics','insight','investigation','nature','perception','stealth','survival']},
+    'Rogue':    {count:4, list:['acrobatics','athletics','deception','insight','intimidation','investigation','perception','performance','persuasion','sleightOfHand','stealth']},
+    'Sorcerer': {count:2, list:['arcana','deception','insight','intimidation','persuasion','religion']},
+    'Warlock':  {count:2, list:['arcana','deception','history','intimidation','investigation','nature','religion']},
+    'Wizard':   {count:2, list:['arcana','history','insight','investigation','medicine','religion']}
+  };
+  // Lean SRD background skill grants (2 fixed skills each).
+  const BG_SKILLS = {
+    'Acolyte':['insight','religion'], 'Charlatan':['deception','sleightOfHand'],
+    'Criminal':['deception','stealth'], 'Entertainer':['acrobatics','performance'],
+    'Folk Hero':['animalHandling','survival'], 'Guild Artisan':['insight','persuasion'],
+    'Hermit':['medicine','religion'], 'Noble':['history','persuasion'],
+    'Outlander':['athletics','survival'], 'Sage':['arcana','history'],
+    'Sailor':['athletics','perception'], 'Soldier':['athletics','intimidation'],
+    'Urchin':['sleightOfHand','stealth']
+  };
+  const STANDARD_ARRAY = [15,14,13,12,10,8];
+  // Point-buy cost of a score 8–15 (5e SRD variant rule), 27-point budget.
+  const POINT_COST = {8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9};
+  function pointBuySpent(abilities){
+    return ABILS.reduce((s,a)=> s + (POINT_COST[abilities[a[0]]]||0), 0);
+  }
+  function skillName(key){ const e=SKILLS.find(s=>s[0]===key); return e?e[1]:key; }
+  // Starting HP from class hit die + CON mod, taking average per level after 1st.
+  function startingHP(klass, level, conScore){
+    const hd=(CLASSES[klass]&&CLASSES[klass].hd)||8, cm=mod(conScore);
+    let hp=hd+cm; const avg=Math.floor(hd/2)+1;
+    for(let l=2; l<=Math.max(1,level); l++) hp+=avg+cm;
+    return Math.max(1,hp);
+  }
+
   const mod = s => Math.floor(((+s||10)-10)/2);
   const fmtMod = m => (m>=0?'+':'')+m;
   const profBonus = lvl => Math.ceil(Math.max(1,Math.min(20,+lvl||1))/4)+1;
@@ -8693,6 +8777,7 @@ const DnD5e = (function(){
   function spellAttack(ch){ return ch.spellAbility ? profBonus(ch.level) + spellMod(ch) : null; }
 
   return { SKILLS, ABILS, CLASSES, SPECIES, BACKGROUNDS, ALIGNMENTS, CLASS_ICON,
+    CLASS_SKILLS, BG_SKILLS, STANDARD_ARRAY, POINT_COST, pointBuySpent, skillName, startingHP,
     mod, fmtMod, profBonus, abilMod, saveBonus, skillBonus, passivePerception,
     initiative, armorClass, spellMod, spellSaveDC, spellAttack };
 })();
@@ -8726,6 +8811,22 @@ const CharForge = (function(){
     };
   }
 
+  // Flexible, system-agnostic character: free-form sections of typed fields plus
+  // a notes area. Powers the "Custom / Other System" mode (Phase 3).
+  function blankCustomChar(){
+    return {
+      id:'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      createdAt:Date.now(), updatedAt:Date.now(), system:'custom',
+      name:'', accent:'#7c5cff', systemName:'Custom System',
+      sections:[
+        { id:'s'+Date.now().toString(36), title:'Attributes', fields:[] },
+        { id:'s'+(Date.now()+1).toString(36), title:'Skills & Abilities', fields:[] }
+      ],
+      notes:''
+    };
+  }
+  function newId(p){ return (p||'x')+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
   function load(){
     try{ const raw=localStorage.getItem(KEY); if(!raw) return {chars:[]};
       const p=JSON.parse(raw); return {chars:Array.isArray(p.chars)?p.chars:[]};
@@ -8746,13 +8847,22 @@ const CharForge = (function(){
     get(id){ return state.chars.find(c=>c.id===id) || null; },
     active(){ return this.get(activeId); },
     setActive(id){ activeId=id; },
-    create(){
-      const c=blankChar(); const first = state.chars.length===0;
+    // First-ever character credits a completed tool + a Strategy/Focus DNA bump.
+    creditFirst(){
+      if(state.chars.length!==1) return;   // call right after the first push
+      Store.update(d=>{ if(!d.bests.char_forge){ d.toolsCompleted++; d.runs++; d.bests.char_forge={value:1,mode:'max'}; } });
+      Attr.applyVector({strategy:8, focus:4}, 1);
+    },
+    create(kind){
+      const c = kind==='custom' ? blankCustomChar() : blankChar();
       state.chars.push(c); activeId=c.id;
-      // First-ever character credits a completed tool + a Strategy/Focus DNA bump.
-      if(first){ Store.update(d=>{ if(!d.bests.char_forge){ d.toolsCompleted++; d.runs++; d.bests.char_forge={value:1,mode:'max'}; } });
-        Attr.applyVector({strategy:8, focus:4}, 1); }
-      persist(); return c;
+      this.creditFirst(); persist(); return c;
+    },
+    // Register a fully-built character (e.g. from the guided builder wizard).
+    addBuilt(ch){
+      ch.id = newId('c'); ch.createdAt = ch.updatedAt = Date.now();
+      state.chars.push(ch); activeId=ch.id;
+      this.creditFirst(); persist(); return ch;
     },
     save(ch){ ch.updatedAt=Date.now(); persist(); },
     remove(id){ state.chars=state.chars.filter(c=>c.id!==id); if(activeId===id) activeId=null; persist(); },
@@ -8767,14 +8877,15 @@ const CharForge = (function(){
       let n=0;
       (Array.isArray(arr)?arr:[arr]).forEach(raw=>{
         if(!raw || typeof raw!=='object') return;
-        const c=Object.assign(blankChar(), raw);
+        const base = raw.system==='custom' ? blankCustomChar() : blankChar();
+        const c=Object.assign(base, raw);
         c.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+(n++);
         c.createdAt=c.updatedAt=Date.now();
         state.chars.push(c);
       });
       persist(); return n;
     },
-    blankChar
+    blankChar, blankCustomChar, newId
   };
 })();
 
@@ -8862,17 +8973,30 @@ Views.charForge = function(c){
     }
     const grid = el('div',{class:'forge-roster'});
     list.slice().sort((a,b)=>b.updatedAt-a.updatedAt).forEach(ch=>{
-      const icon = DnD5e.CLASS_ICON[ch.klass]||'📖';
+      const custom = ch.system==='custom';
+      const icon = custom ? '🎲' : (DnD5e.CLASS_ICON[ch.klass]||'📖');
       const card = el('div',{class:'forge-char', style:'--cc:'+(ch.accent||'#16f2c8')});
-      card.innerHTML =
-        `<div class="fc-emoji">${icon}</div>`+
-        `<div class="fc-name">${esc(ch.name||'Unnamed Hero')}</div>`+
-        `<div class="fc-sub">${esc(ch.species||'')} ${esc(ch.klass||'')} · Level ${ch.level||1}</div>`+
-        `<div class="fc-stats">`+
-          `<span>HP<b>${ch.curHp||0}/${ch.maxHp||0}</b></span>`+
-          `<span>AC<b>${DnD5e.armorClass(ch)}</b></span>`+
-          `<span>PROF<b>${DnD5e.fmtMod(DnD5e.profBonus(ch.level))}</b></span>`+
-        `</div>`;
+      if(custom){
+        const fieldCount = (ch.sections||[]).reduce((n,s)=> n+(s.fields||[]).length, 0);
+        card.innerHTML =
+          `<div class="fc-emoji">${icon}</div>`+
+          `<div class="fc-name">${esc(ch.name||'Unnamed Character')}</div>`+
+          `<div class="fc-sub">${esc(ch.systemName||'Custom System')}</div>`+
+          `<div class="fc-stats">`+
+            `<span>SECTIONS<b>${(ch.sections||[]).length}</b></span>`+
+            `<span>FIELDS<b>${fieldCount}</b></span>`+
+          `</div>`;
+      } else {
+        card.innerHTML =
+          `<div class="fc-emoji">${icon}</div>`+
+          `<div class="fc-name">${esc(ch.name||'Unnamed Hero')}</div>`+
+          `<div class="fc-sub">${esc(ch.species||'')} ${esc(ch.klass||'')} · Level ${ch.level||1}</div>`+
+          `<div class="fc-stats">`+
+            `<span>HP<b>${ch.curHp||0}/${ch.maxHp||0}</b></span>`+
+            `<span>AC<b>${DnD5e.armorClass(ch)}</b></span>`+
+            `<span>PROF<b>${DnD5e.fmtMod(DnD5e.profBonus(ch.level))}</b></span>`+
+          `</div>`;
+      }
       const del = el('button',{class:'fc-del', html:'🗑', title:'Delete'});
       del.onclick=(e)=>{ e.stopPropagation();
         if(confirm('Delete "'+(ch.name||'this character')+'"? This cannot be undone.')){ CharForge.remove(ch.id); render(); }
@@ -8884,8 +9008,33 @@ Views.charForge = function(c){
     roster.append(grid);
   }
 
-  newBtn.onclick=()=>{ CharForge.create(); Router.go('#/rpg/forge/sheet'); };
+  newBtn.onclick=()=> openCreateChooser();
   importBtn.onclick=()=> fileIn.click();
+
+  // Choose how to start a new character: guided 5e builder, blank 5e sheet, or
+  // a system-agnostic custom sheet.
+  function openCreateChooser(){
+    const root=document.getElementById('modal-root'); if(!root) return; root.innerHTML='';
+    const backdrop=el('div',{class:'modal-backdrop'});
+    const modal=el('div',{class:'modal', style:'max-width:480px'});
+    const close=el('button',{class:'modal-close', html:'✕'});
+    const h3=el('h3',{html:'▶ NEW CHARACTER'});
+    const opts=el('div',{class:'forge-create-opts'});
+    const OPTS=[
+      ['🧙','Guided Builder','Step-by-step D&D 5e creation — class, race, scores & skills, with the math done for you.', ()=>{ Router.go('#/rpg/forge/new'); }],
+      ['📖','Blank 5e Sheet','Jump straight into a full auto-calculating D&D 5e sheet and fill it in yourself.', ()=>{ CharForge.create('dnd5e'); Router.go('#/rpg/forge/sheet'); }],
+      ['🎲','Custom / Other System','A flexible, system-agnostic sheet — build your own sections & fields for any TTRPG.', ()=>{ CharForge.create('custom'); Router.go('#/rpg/forge/sheet'); }]
+    ];
+    OPTS.forEach(([ic,title,desc,fn])=>{
+      const b=el('button',{class:'forge-create-opt'});
+      b.innerHTML=`<span class="fco-ic">${ic}</span><span class="fco-txt"><b>${title}</b><span>${desc}</span></span>`;
+      b.onclick=()=>{ root.innerHTML=''; fn(); };
+      opts.append(b);
+    });
+    modal.append(close,h3,opts); backdrop.append(modal); root.append(backdrop);
+    close.onclick=()=> root.innerHTML='';
+    backdrop.onclick=e=>{ if(e.target===backdrop) root.innerHTML=''; };
+  }
   fileIn.onchange=()=>{
     const f=fileIn.files[0]; if(!f) return;
     const r=new FileReader();
@@ -8907,6 +9056,7 @@ Views.charForge = function(c){
 Views.charSheet = function(c){
   const ch = CharForge.active();
   if(!ch){ Router.go('#/rpg/forge'); return; }
+  if(ch.system==='custom'){ return Views.customSheet(c, ch); }
   const D = DnD5e;
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
   const commit = ()=> CharForge.save(ch);
@@ -9376,6 +9526,416 @@ Views.charSheet = function(c){
 };
 
 /* ============================================================================
+   VIEW: Guided Builder wizard (D&D 5e) — SRD-seeded step-by-step creation
+   ============================================================================ */
+Views.charWizard = function(c){
+  const D = DnD5e;
+  const draft = CharForge.blankChar();
+  draft.name=''; draft.level=1;
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+  // ability assignment working state
+  let abilMethod = 'array';
+  let rolledPool = null;                       // values from the 4d6 roller
+  const assign = {str:'',dex:'',con:'',int:'',wis:'',cha:''};
+  const chosenSkills = {};                      // class skill picks (key->true)
+
+  const panel = el('div',{class:'panel'});
+  c.append(panel);
+  panel.append(el('div',{class:'view-head', html:`<span class="lab-tag">RPG · D&D 5e</span>`}),
+    el('h1',{class:'title', html:'🧙 Guided Builder'}),
+    el('p',{class:'view-desc', html:'Four quick steps and the Forge assembles a ready-to-play sheet — with the math done for you.'}));
+
+  const STEPS=['Identity','Ability Scores','Skills','Review'];
+  let step=0;
+  const stepNav=el('div',{class:'wiz-steps'});
+  const bodyEl=el('div',{});
+  const navRow=el('div',{class:'forge-bar', style:'margin-top:18px'});
+  const cancel=el('button',{class:'btn ghost', html:'✕ Cancel'});
+  const backBtn=el('button',{class:'btn', html:'← Back'});
+  const nextBtn=el('button',{class:'btn primary', html:'Next →'});
+  cancel.onclick=()=> Router.go('#/rpg/forge');
+  backBtn.onclick=()=>{ if(step>0){ step--; render(); } };
+  nextBtn.onclick=()=>{ if(!validateStep()) return; if(step<STEPS.length-1){ step++; render(); } else { finish(); } };
+  navRow.append(cancel, el('span',{class:'spc'}), backBtn, nextBtn);
+  panel.append(stepNav, bodyEl, navRow);
+
+  function render(){
+    stepNav.innerHTML='';
+    STEPS.forEach((s,i)=>{
+      const chip=el('div',{class:'wiz-step'+(i===step?' on':'')+(i<step?' done':'')});
+      chip.innerHTML=`<span class="ws-num">${i<step?'✓':(i+1)}</span><span class="ws-lbl">${s}</span>`;
+      stepNav.append(chip);
+    });
+    backBtn.style.visibility = step===0 ? 'hidden':'visible';
+    nextBtn.innerHTML = step===STEPS.length-1 ? '✓ Create Character' : 'Next →';
+    bodyEl.innerHTML='';
+    [stepIdentity, stepAbilities, stepSkills, stepReview][step](bodyEl);
+  }
+
+  function field(label, node){ const f=el('div',{class:'field'}); f.append(el('label',{html:label}), node); return f; }
+  function sel(value, options, onChange){
+    const s=el('select');
+    options.forEach(o=>{ const v=Array.isArray(o)?o[0]:o, lbl=Array.isArray(o)?o[1]:o;
+      const opt=el('option',{value:v, html:lbl}); if(String(value)===String(v)) opt.selected=true; s.append(opt); });
+    s.onchange=()=> onChange(s.value); return s;
+  }
+
+  /* ---- Step 1: Identity ---- */
+  function stepIdentity(root){
+    const grid=el('div',{class:'sheet-grid'});
+    const nameI=el('input',{type:'text', value:draft.name, placeholder:'e.g. Lyra Stormcrest'});
+    nameI.oninput=()=> draft.name=nameI.value;
+    grid.append(
+      field('Character Name', nameI),
+      field('Class', sel(draft.klass, Object.keys(D.CLASSES), v=>{ draft.klass=v; })),
+      field('Species', sel(draft.species, Object.keys(D.SPECIES), v=>{ draft.species=v; })),
+      field('Background', sel(draft.background, D.BACKGROUNDS, v=>{ draft.background=v; })),
+      field('Alignment', sel(draft.alignment, D.ALIGNMENTS, v=>{ draft.alignment=v; })),
+      field('Level', (()=>{ const i=el('input',{type:'number', min:'1', max:'20', value:draft.level});
+        i.oninput=()=> draft.level=Math.max(1,Math.min(20,+i.value||1)); return i; })())
+    );
+    root.append(grid);
+    root.append(el('p',{class:'muted', style:'font-size:12px; margin-top:10px',
+      html:'Class sets your hit die, saving throws and (if a caster) spellcasting ability automatically. Background grants two skill proficiencies.'}));
+  }
+
+  /* ---- Step 2: Ability Scores ---- */
+  function stepAbilities(root){
+    const seg=el('div',{class:'seg', style:'margin-bottom:14px; flex-wrap:wrap'});
+    [['array','Standard Array'],['pointbuy','Point Buy'],['roll','Roll 4d6'],['manual','Manual']].forEach(([k,lbl])=>{
+      const b=el('button',{html:lbl}); if(k===abilMethod) b.className='on';
+      b.onclick=()=>{ abilMethod=k; D.ABILS.forEach(a=> assign[a[0]]=''); rolledPool=null; render(); };
+      seg.append(b);
+    });
+    root.append(field('Method', seg));
+
+    const note=el('p',{class:'muted', style:'font-size:12px; margin:0 0 12px'});
+    root.append(note);
+    const rows=el('div',{class:'wiz-abil'});
+    root.append(rows);
+
+    function modBadge(k){ const v=+assign[k]; return assign[k]===''?'—':D.fmtMod(D.mod(v)); }
+    function drawRows(buildControl){
+      rows.innerHTML='';
+      D.ABILS.forEach(([k,name])=>{
+        const row=el('div',{class:'abil-assign'});
+        row.append(el('span',{class:'aa-name', html:name}));
+        row.append(buildControl(k));
+        row.append(el('span',{class:'aa-mod', html:modBadge(k)}));
+        rows.append(row);
+      });
+    }
+    function refreshMods(){ [...rows.querySelectorAll('.abil-assign')].forEach((r,i)=>{
+      r.querySelector('.aa-mod').innerHTML = modBadge(D.ABILS[i][0]); }); }
+
+    if(abilMethod==='array' || abilMethod==='roll'){
+      let pool;
+      if(abilMethod==='array'){ pool=D.STANDARD_ARRAY.slice(); note.innerHTML='Assign each value from the standard array <b>['+D.STANDARD_ARRAY.join(', ')+']</b> — one per ability.'; }
+      else {
+        if(!rolledPool){
+          note.innerHTML='Roll six sets of 4d6 (drop lowest), then assign them.';
+          const rollBtn=el('button',{class:'btn', html:'🎲 Roll Ability Scores'});
+          rollBtn.onclick=()=>{ rolledPool=[]; for(let i=0;i<6;i++) rolledPool.push(DiceEngine.roll({n:4,sides:6,op:'kh',k:3,mod:0}).total); render(); };
+          root.append(rollBtn); return;
+        }
+        pool=rolledPool.slice(); note.innerHTML='Rolled pool: <b>['+rolledPool.join(', ')+']</b> — assign each to an ability.';
+      }
+      const counts=()=>{ const m={}; pool.forEach(v=> m[v]=(m[v]||0)+1); return m; };
+      function buildSelect(k){
+        const used={}; D.ABILS.forEach(a=>{ if(a[0]!==k && assign[a[0]]!=='') used[assign[a[0]]]=(used[assign[a[0]]]||0)+1; });
+        const avail=counts();
+        const s=el('select');
+        s.append(el('option',{value:'', html:'—'}));
+        Object.keys(avail).map(Number).sort((a,b)=>b-a).forEach(v=>{
+          const remaining=avail[v]-(used[v]||0);
+          if(remaining>0 || String(assign[k])===String(v)){ const o=el('option',{value:v, html:String(v)}); if(String(assign[k])===String(v)) o.selected=true; s.append(o); }
+        });
+        s.onchange=()=>{ assign[k]= s.value===''?'':+s.value; drawRows(buildSelect); };
+        return s;
+      }
+      drawRows(buildSelect);
+    } else if(abilMethod==='pointbuy'){
+      D.ABILS.forEach(a=>{ if(assign[a[0]]==='') assign[a[0]]=8; });
+      const budget=el('div',{class:'wiz-budget'});
+      root.insertBefore(budget, rows);
+      function drawBudget(){ const spent=D.pointBuySpent({str:+assign.str,dex:+assign.dex,con:+assign.con,int:+assign.int,wis:+assign.wis,cha:+assign.cha});
+        budget.innerHTML=`Points spent: <b>${spent}</b> / 27`; budget.className='wiz-budget'+(spent>27?' over':''); }
+      note.innerHTML='Each ability starts at 8. Raise scores (8–15); costs rise above 13. Budget is 27 points.';
+      function buildStepper(k){
+        const wrap=el('div',{class:'stepper'});
+        const minus=el('button',{html:'−'}), plus=el('button',{html:'+'}), val=el('span',{class:'st-v'});
+        function draw(){ val.textContent=assign[k]; }
+        minus.onclick=()=>{ if(assign[k]>8){ assign[k]--; draw(); drawBudget(); refreshMods(); } };
+        plus.onclick=()=>{ if(assign[k]<15){ const test=Object.assign({},assign); test[k]++;
+          if(D.pointBuySpent({str:+test.str,dex:+test.dex,con:+test.con,int:+test.int,wis:+test.wis,cha:+test.cha})<=27){ assign[k]++; draw(); drawBudget(); refreshMods(); }
+          else UI.toast('Not enough points','That would exceed the 27-point budget.'); } };
+        draw(); wrap.append(minus, val, plus); return wrap;
+      }
+      drawRows(buildStepper); drawBudget();
+    } else { // manual
+      note.innerHTML='Enter any scores you like (e.g. from a different roll method).';
+      function buildInput(k){ const i=el('input',{type:'number', class:'aa-input', value:assign[k]===''?10:assign[k]});
+        assign[k]= assign[k]===''?10:assign[k];
+        i.oninput=()=>{ assign[k]= i.value===''?'':+i.value; refreshMods(); }; return i; }
+      drawRows(buildInput);
+    }
+  }
+
+  /* ---- Step 3: Skills ---- */
+  function stepSkills(root){
+    const bg=D.BG_SKILLS[draft.background]||[];
+    const cs=D.CLASS_SKILLS[draft.klass]||{count:0,list:[]};
+    // background skills are auto-granted; remove any from the chosen set
+    bg.forEach(k=>{ delete chosenSkills[k]; });
+    root.append(el('p',{class:'muted', style:'font-size:12px; margin:0 0 6px',
+      html:`Your <b>${esc(draft.background)}</b> background grants: <b>${bg.map(D.skillName).join(', ')||'—'}</b>. Choose <b>${cs.count}</b> more from your ${esc(draft.klass)} class list.`}));
+    const counter=el('div',{class:'wiz-budget'}); root.append(counter);
+    const list=el('div',{class:'wiz-skills'}); root.append(list);
+
+    function chosenCount(){ return Object.keys(chosenSkills).filter(k=>chosenSkills[k]).length; }
+    function drawCounter(){ counter.innerHTML=`Selected: <b>${chosenCount()}</b> / ${cs.count}`; }
+    cs.list.forEach(key=>{
+      const granted=bg.includes(key);
+      const row=el('label',{class:'wiz-skill'+(granted?' granted':'')});
+      const cb=el('input',{type:'checkbox'});
+      cb.checked = granted || !!chosenSkills[key];
+      cb.disabled = granted;
+      cb.onchange=()=>{ if(cb.checked && chosenCount()>=cs.count){ cb.checked=false; UI.toast('Limit reached','Uncheck another skill first.'); return; }
+        chosenSkills[key]=cb.checked; drawCounter(); };
+      row.append(cb, el('span',{html:D.skillName(key)+(granted?' (background)':'')}));
+      list.append(row);
+    });
+    drawCounter();
+  }
+
+  /* ---- Step 4: Review ---- */
+  function stepReview(root){
+    const def=D.CLASSES[draft.klass]||{hd:8,saves:[],cast:''};
+    const con=+assign.con||10;
+    const hp=D.startingHP(draft.klass, draft.level, con);
+    const bg=D.BG_SKILLS[draft.background]||[];
+    const skills=[...new Set(bg.concat(Object.keys(chosenSkills).filter(k=>chosenSkills[k])))].map(D.skillName);
+    const abilTxt=D.ABILS.map(a=>`${a[1].slice(0,3)} ${assign[a[0]]||10} (${D.fmtMod(D.mod(+assign[a[0]]||10))})`).join(' · ');
+    const grid=el('div',{class:'results'});
+    [['Name', draft.name||'Unnamed Hero'],['Class', draft.klass+' · Lvl '+draft.level],
+     ['Species', draft.species],['Background', draft.background],
+     ['Hit Points', hp],['Hit Die', 'd'+def.hd],
+     ['Saves', def.saves.map(s=>s.toUpperCase()).join(', ')||'—'],
+     ['Spellcasting', def.cast?def.cast.toUpperCase():'None']
+    ].forEach(([k,v])=>{ const t=el('div',{class:'result-tile'}); t.innerHTML=`<div class="k">${k}</div><div class="v" style="font-size:15px">${esc(String(v))}</div>`; grid.append(t); });
+    root.append(grid);
+    root.append(el('div',{class:'section-title', html:'Abilities'}), el('p',{class:'muted', style:'font-size:13px', html:abilTxt}));
+    root.append(el('div',{class:'section-title', html:'Skill Proficiencies'}), el('p',{class:'muted', style:'font-size:13px', html:skills.join(', ')||'—'}));
+    root.append(el('p',{class:'muted', style:'font-size:12px; margin-top:14px', html:'Hit "Create Character" to drop this onto a full sheet — you can fine-tune anything afterwards.'}));
+  }
+
+  function validateStep(){
+    if(step===1){
+      if(abilMethod==='roll' && !rolledPool){ UI.toast('Roll first','Roll your ability scores before continuing.'); return false; }
+      if((abilMethod==='array'||abilMethod==='roll') && D.ABILS.some(a=> assign[a[0]]==='')){ UI.toast('Assign all scores','Every ability needs a value.'); return false; }
+    }
+    if(step===2){
+      const cs=D.CLASS_SKILLS[draft.klass]||{count:0};
+      const n=Object.keys(chosenSkills).filter(k=>chosenSkills[k]).length;
+      if(n<cs.count){ UI.toast('Pick more skills','Choose '+cs.count+' class skill'+(cs.count===1?'':'s')+'.'); return false; }
+    }
+    return true;
+  }
+
+  function finish(){
+    const def=D.CLASSES[draft.klass]||{hd:8,saves:[],cast:''};
+    // abilities
+    D.ABILS.forEach(a=> draft.abilities[a[0]] = +assign[a[0]]||10);
+    // class-derived
+    draft.hitDiceType=def.hd; draft.spellAbility=def.cast||'';
+    D.ABILS.forEach(a=> draft.saveProfs[a[0]] = def.saves.includes(a[0]));
+    // species
+    draft.speed = D.SPECIES[draft.species]||30;
+    // skills: background + chosen
+    const bg=D.BG_SKILLS[draft.background]||[];
+    D.SKILLS.forEach(s=> draft.skillProfs[s[0]]=0);
+    bg.forEach(k=> draft.skillProfs[k]=1);
+    Object.keys(chosenSkills).forEach(k=>{ if(chosenSkills[k]) draft.skillProfs[k]=1; });
+    // HP
+    const hp=D.startingHP(draft.klass, draft.level, draft.abilities.con);
+    draft.maxHp=hp; draft.curHp=hp;
+    CharForge.addBuilt(draft);
+    UI.toast('Character created', (draft.name||'Your hero')+' is ready!');
+    Router.go('#/rpg/forge/sheet');
+  }
+
+  render();
+};
+
+/* ============================================================================
+   VIEW: Custom / system-agnostic sheet (Phase 3 blank mode)
+   ============================================================================ */
+Views.customSheet = function(c, ch){
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const commit = ()=> CharForge.save(ch);
+  const FIELD_TYPES=[['text','Text'],['number','Number'],['long','Long Text'],['counter','Counter'],['roll','Roll (d20+)']];
+
+  const panel=el('div',{class:'panel'});
+  c.append(panel);
+  panel.append(el('div',{class:'view-head', html:`<span class="lab-tag">RPG · Custom Sheet</span>`}));
+
+  const topBar=el('div',{class:'forge-bar'});
+  const back=el('button',{class:'btn ghost', html:'← Roster'}); back.onclick=()=> Router.go('#/rpg/forge');
+  const exportBtn=el('button',{class:'btn', html:'⬇ Export'});
+  exportBtn.onclick=()=> forgeDownload('playtools_'+(ch.name||'character').toLowerCase().replace(/\s+/g,'-')+'.json', ch);
+  const shareBtn=el('button',{class:'btn', html:'↗ Share Card'}); shareBtn.onclick=()=> openShareCard();
+  const printBtn=el('button',{class:'btn', html:'🖨 Print / PDF'}); printBtn.onclick=()=> printSheet();
+  topBar.append(back, el('span',{class:'spc'}), exportBtn, shareBtn, printBtn);
+  panel.append(topBar);
+
+  // identity row
+  const idRow=el('div',{class:'sheet-grid', style:'margin-bottom:10px'});
+  idRow.append(
+    fieldInput('Character Name','name','text','e.g. Ezra Vance'),
+    fieldInput('System','systemName','text','e.g. Call of Cthulhu'),
+    fieldInput('Accent','accent','color')
+  );
+  panel.append(idRow);
+
+  const sectionsWrap=el('div',{}); panel.append(sectionsWrap);
+  const addSecBtn=el('button',{class:'btn', html:'＋ Add Section', style:'margin:8px 0 4px'});
+  addSecBtn.onclick=()=>{ ch.sections.push({id:CharForge.newId('s'), title:'New Section', fields:[]}); commit(); renderSections(); };
+  panel.append(addSecBtn);
+
+  // dice roller + notes
+  panel.append(el('div',{class:'section-title', html:'Quick Dice'}));
+  const diceRow=el('div',{class:'forge-bar'});
+  const diceIn=el('input',{type:'text', placeholder:'e.g. 1d100 · 2d6+3 · d20', style:'font-family:var(--mono); background:var(--panel-2); border:1px solid var(--line); border-radius:4px; color:var(--ink); padding:9px 11px; min-width:200px'});
+  const diceBtn=el('button',{class:'btn primary', html:'🎲 Roll'});
+  function rollNotation(){ const spec=DiceEngine.parse(diceIn.value); if(!spec){ UI.toast('Bad notation','Try 1d100, 2d6+3, d20…'); return; }
+    const res=DiceEngine.roll(spec); recordDiceRoll(res.total, res.sides===20 && res.kept.includes(20));
+    Ach.evaluate({tool:'dice', total:res.total, nat20:res.sides===20&&res.kept.includes(20), sides:res.sides});
+    forgeRollResult(res); }
+  diceBtn.onclick=rollNotation; diceIn.onkeydown=e=>{ if(e.key==='Enter') rollNotation(); };
+  diceRow.append(diceIn, diceBtn); panel.append(diceRow);
+
+  panel.append(el('div',{class:'section-title', html:'Notes'}));
+  const notes=el('textarea',{class:'forge-area', style:'min-height:120px', placeholder:'Backstory, gear, anything…'});
+  notes.value=ch.notes||''; notes.oninput=()=>{ ch.notes=notes.value; commit(); };
+  panel.append(notes);
+
+  function fieldInput(label, path, type, ph){
+    const f=el('div',{class:'field'}); f.append(el('label',{html:label}));
+    const inp=el('input',{type:type||'text'}); if(ph) inp.setAttribute('placeholder',ph);
+    inp.value=ch[path]==null?'':ch[path];
+    inp.oninput=()=>{ ch[path]=inp.value; commit(); }; f.append(inp); return f;
+  }
+
+  function renderSections(){
+    sectionsWrap.innerHTML='';
+    ch.sections.forEach((sec,si)=>{
+      const block=el('div',{class:'custom-sec'});
+      const head=el('div',{class:'custom-sec-head'});
+      const title=el('input',{class:'cs-title', value:sec.title||'', placeholder:'Section title'});
+      title.oninput=()=>{ sec.title=title.value; commit(); };
+      const delSec=el('button',{class:'tbtn', html:'🗑 Section'});
+      delSec.onclick=()=>{ if(confirm('Delete this section and its fields?')){ ch.sections.splice(si,1); commit(); renderSections(); } };
+      head.append(title, delSec); block.append(head);
+
+      const tbl=el('table',{class:'forge-table'});
+      tbl.innerHTML='<thead><tr><th>Field</th><th style="width:120px">Type</th><th>Value</th><th></th></tr></thead>';
+      const tb=el('tbody'); tbl.append(tb);
+      (sec.fields||[]).forEach((fld,fi)=>{
+        const tr=el('tr');
+        const labelI=el('input',{value:fld.label||'', placeholder:'e.g. Sanity'});
+        labelI.oninput=()=>{ fld.label=labelI.value; commit(); };
+        const typeSel=el('select');
+        FIELD_TYPES.forEach(([v,lbl])=>{ const o=el('option',{value:v, html:lbl}); if(fld.type===v) o.selected=true; typeSel.append(o); });
+        typeSel.onchange=()=>{ fld.type=typeSel.value; commit(); renderSections(); };
+        const valTd=el('td'); valTd.append(valueControl(fld));
+        const del=el('button',{class:'tbtn', html:'🗑'});
+        del.onclick=()=>{ sec.fields.splice(fi,1); commit(); renderSections(); };
+        const lt=el('td'); lt.append(labelI); const tt=el('td'); tt.append(typeSel); const dt=el('td'); dt.append(del);
+        tr.append(lt, tt, valTd, dt); tb.append(tr);
+      });
+      block.append(tbl);
+      const addField=el('button',{class:'btn', html:'＋ Add Field', style:'margin-top:4px'});
+      addField.onclick=()=>{ sec.fields.push({id:CharForge.newId('f'), label:'', type:'text', value:''}); commit(); renderSections(); };
+      block.append(addField);
+      sectionsWrap.append(block);
+    });
+  }
+
+  function valueControl(fld){
+    if(fld.type==='long'){
+      const ta=el('textarea',{class:'forge-area', style:'min-height:56px'}); ta.value=fld.value||'';
+      ta.oninput=()=>{ fld.value=ta.value; commit(); }; return ta;
+    }
+    if(fld.type==='counter'){
+      const wrap=el('div',{style:'display:flex; align-items:center; gap:6px'});
+      const cur=el('input',{type:'number', value:fld.value==null?0:fld.value, style:'width:64px'});
+      const max=el('input',{type:'number', value:fld.value2==null?0:fld.value2, style:'width:64px'});
+      cur.oninput=()=>{ fld.value=cur.value===''?0:+cur.value; commit(); };
+      max.oninput=()=>{ fld.value2=max.value===''?0:+max.value; commit(); };
+      wrap.append(cur, el('span',{class:'sl-sep', html:'/'}), max); return wrap;
+    }
+    if(fld.type==='roll'){
+      const wrap=el('div',{style:'display:flex; align-items:center; gap:8px'});
+      const bonus=el('input',{type:'number', value:fld.value==null?0:fld.value, style:'width:70px', placeholder:'+0'});
+      bonus.oninput=()=>{ fld.value=bonus.value===''?0:+bonus.value; commit(); };
+      const roll=el('button',{class:'btn ghost', html:'🎲 d20'});
+      roll.onclick=()=> forgeRoll((fld.label||'Roll'), +fld.value||0);
+      wrap.append(bonus, roll); return wrap;
+    }
+    const inp=el('input',{type: fld.type==='number'?'number':'text', value: fld.value==null?'':fld.value});
+    inp.oninput=()=>{ fld.value= fld.type==='number'? (inp.value===''?'':+inp.value) : inp.value; commit(); };
+    return inp;
+  }
+
+  // lightweight result toast for free-notation rolls (no bonus modal)
+  function forgeRollResult(res){
+    const root=document.getElementById('modal-root'); if(!root) return; root.innerHTML='';
+    const backdrop=el('div',{class:'modal-backdrop'});
+    const modal=el('div',{class:'modal roll-modal'});
+    const close=el('button',{class:'modal-close', html:'✕'});
+    const dice=res.rolls.map(r=> r.kept?('<b>'+r.v+'</b>'):('<s>'+r.v+'</s>')).join(', ');
+    modal.append(close, el('h3',{html:'🎲 '+res.descr}),
+      el('div',{class:'rd-die', html:String(res.total)}),
+      el('div',{class:'rd-break', html:'['+dice+']'+(res.modifier?(' '+DnD5e.fmtMod(res.modifier)):'')}));
+    const actions=el('div',{class:'modal-actions'}); const cl=el('button',{class:'btn ghost', html:'Close'}); actions.append(cl); modal.append(actions);
+    backdrop.append(modal); root.append(backdrop);
+    const dismiss=()=> root.innerHTML=''; close.onclick=dismiss; cl.onclick=dismiss; backdrop.onclick=e=>{ if(e.target===backdrop) dismiss(); };
+  }
+
+  function openShareCard(){
+    const metric=[{k:(ch.name||'Character'), v:(ch.systemName||'Custom System')}];
+    (ch.sections||[]).forEach(s=> (s.fields||[]).forEach(f=>{ if(metric.length<4 && f.label && f.type!=='long'){
+      const v = f.type==='counter' ? ((f.value||0)+'/'+(f.value2||0)) : String(f.value==null?'':f.value);
+      if(v!=='') metric.push({k:f.label, v}); } }));
+    ShareCard.open({lab:'RPG', tool:'Character Forge', glyph:'🎲', metric});
+  }
+
+  function printSheet(){
+    const w=window.open('','_blank'); if(!w){ UI.toast('Pop-up blocked','Allow pop-ups to print the sheet.'); return; }
+    const secs=(ch.sections||[]).map(s=>{
+      const rows=(s.fields||[]).filter(f=>f.label).map(f=>{
+        let v = f.type==='counter' ? ((f.value||0)+' / '+(f.value2||0)) : (f.value==null?'':f.value);
+        return `<tr><td class="l">${esc(f.label)}</td><td class="v">${esc(String(v))}</td></tr>`;
+      }).join('');
+      return rows?`<h2>${esc(s.title||'Section')}</h2><table>${rows}</table>`:'';
+    }).join('');
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(ch.name||'Character')} — Sheet</title>
+<style>body{font-family:Georgia,'Times New Roman',serif;color:#111;margin:32px;line-height:1.4;}
+h1{margin:0 0 2px;font-size:24px;} .sub{color:#555;margin-bottom:14px;}
+h2{font-size:14px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #999;padding-bottom:2px;margin:18px 0 6px;}
+table{border-collapse:collapse;margin:4px 0;} td.l{color:#555;padding-right:14px;} td.v{font-weight:bold;}
+p{white-space:pre-wrap;} @media print{body{margin:14px;}}</style></head><body>
+<h1>${esc(ch.name||'Unnamed Character')}</h1><div class="sub">${esc(ch.systemName||'Custom System')}</div>
+${secs}${ch.notes?`<h2>Notes</h2><p>${esc(ch.notes)}</p>`:''}
+<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>`;
+    w.document.write(html); w.document.close();
+  }
+
+  renderSections();
+};
+
+/* ============================================================================
    BOOT
    ============================================================================ */
 Router.add('#/', Views.home);
@@ -9407,6 +9967,7 @@ Router.add('#/rpg/npc', Views.npcGen);
 Router.add('#/rpg/initiative', Views.initiative);
 Router.add('#/rpg/quest', Views.questGen);
 Router.add('#/rpg/forge', Views.charForge);
+Router.add('#/rpg/forge/new', Views.charWizard);
 Router.add('#/rpg/forge/sheet', Views.charSheet);
 Router.add('#/arcade/memory', Views.memoryMatch);
 Router.add('#/arcade/dodge', Views.pixelDodge);
