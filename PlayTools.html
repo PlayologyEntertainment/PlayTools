@@ -203,6 +203,18 @@
   nav.rail a.active{color:var(--neon); background:rgba(22,242,200,0.10); border-color:var(--line);}
   nav.rail a.locked{opacity:0.5; cursor:not-allowed;}
   nav.rail a.locked:hover{color:var(--ink-dim); background:transparent; border-color:transparent;}
+  /* Category filters tint to their lab's CRT accent so the rail reads as shelves. */
+  nav.rail a.rail-cat{ color:var(--rail-accent, var(--ink-dim)); }
+  nav.rail a.rail-cat:hover,
+  nav.rail a.rail-cat.active{
+    color:var(--rail-accent); background:rgba(255,255,255,0.06);
+    border-color:var(--rail-accent);
+  }
+  /* Small tally badge (e.g. Favorites count) pinned to the right of a rail link. */
+  nav.rail a .rail-count{
+    flex:none; font-family:var(--pixel); font-size:9px; line-height:1;
+    color:#ffd23d;
+  }
   .mini-tag{font-size:9px; letter-spacing:1px; padding:1px 5px; border-radius:3px; text-transform:uppercase;}
   .mini-tag.soon{background:#2a3160; color:var(--ink-dim);}
   .mini-tag.mvp{background:var(--neon-5); color:#04120a;}
@@ -251,6 +263,29 @@
   .cab .cab-name{font-family:var(--pixel); color:#fff; font-size:15px; letter-spacing:.5px; display:flex; gap:6px; align-items:center;}
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
+
+  /* ---- Favorite controls ---- */
+  /* The lobby star sits in the CRT control-panel strip styled as a borderless
+     "knob/button", consistent with the display metaphor. It is the rightmost
+     control, so the decorative knobs/buttons/lights sit to its left. */
+  .crt-chrome .fav-star{
+    flex:0 0 auto; width:26px; height:26px; padding:0; margin:0;
+    border:none; background:none; box-shadow:none; cursor:pointer; outline:none;
+    line-height:26px; font-size:24px; text-align:center;
+    color:rgba(255,255,255,0.5); transition:.12s;
+  }
+  .crt-chrome .fav-star:hover{ color:#ffd23d; transform:scale(1.14); }
+  .crt-chrome .fav-star.on{ color:#ffd23d; text-shadow:0 0 6px #ffd23d; }
+  /* Labelled toggle dropped into an applet page header. */
+  .view-head .fav-toggle{
+    margin-left:auto; align-self:center; display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; padding:5px 10px; cursor:pointer; border-radius:5px;
+    background:var(--panel-2); color:var(--ink-dim);
+    border:1px solid var(--line); transition:.12s; white-space:nowrap;
+  }
+  .view-head .fav-toggle:hover{ color:#ffd23d; border-color:#ffd23d; }
+  .view-head .fav-toggle.on{ color:#ffd23d; border-color:#ffd23d; }
+  .view-head .fav-toggle .fav-ico{ font-size:14px; line-height:1; }
 
   /* ============================================================
      REUSABLE "CRT TV" TREATMENT  (.crt-tv)
@@ -1334,7 +1369,8 @@ const Store = (function(){
       calibration: null,       // measured system latency t_link (ms)
       sensitivity: null,       // Setup Lab sensitivity profile {dpi,inGame,edpi,cohort}
       friends: [],             // imported peer Gamer DNA snapshots (DD §3.2) — local only
-      platforms: {}            // Platform Link cards keyed by id (DD §3.1.2.1) — local only
+      platforms: {},           // Platform Link cards keyed by id (DD §3.1.2.1) — local only
+      favorites: []            // cabinet ids the user has starred — drives the Favorites sidebar filter
     };
   }
 
@@ -1352,7 +1388,8 @@ const Store = (function(){
         attributes: Object.assign(defaultDNA().attributes, parsed.attributes||{}),
         bests: parsed.bests||{}, counters: parsed.counters||{}, achievements: parsed.achievements||[],
         friends: Array.isArray(parsed.friends) ? parsed.friends : [],
-        platforms: (parsed.platforms && typeof parsed.platforms==='object') ? parsed.platforms : {}
+        platforms: (parsed.platforms && typeof parsed.platforms==='object') ? parsed.platforms : {},
+        favorites: Array.isArray(parsed.favorites) ? parsed.favorites : []
       });
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
   }
@@ -1437,7 +1474,19 @@ const Store = (function(){
       bumpPlatformAchievements();
       save();
     },
-    platformCount(){ return Object.keys(dna.platforms||{}).length; }
+    platformCount(){ return Object.keys(dna.platforms||{}).length; },
+
+    /* ---- Favorites — starred cabinet ids drive the Favorites sidebar filter ---- */
+    getFavorites(){ return dna.favorites || (dna.favorites=[]); },
+    isFavorite(id){ return (dna.favorites||[]).includes(id); },
+    favoriteCount(){ return (dna.favorites||[]).length; },
+    toggleFavorite(id){
+      if(!dna.favorites) dna.favorites=[];
+      const i = dna.favorites.indexOf(id);
+      if(i>=0) dna.favorites.splice(i,1); else dna.favorites.push(id);
+      save();
+      return i<0;   // true if it is now a favorite
+    }
   };
 
   // Lightweight summary kept for older snapshots (analytics-ready, tiny footprint).
@@ -2241,6 +2290,18 @@ const Router = (function(){
     try{ teardown = mount(screen); }catch(e){ console.error('view error', e); screen.innerHTML='<div class="panel"><h1 class="title">Glitch in the Matrix</h1><p class="muted">This cabinet failed to load.</p></div>'; }
     current = { teardown: typeof teardown==='function' ? teardown : null };
     UI.highlightRail(hash);
+    mountFavToggle(hash);
+  }
+
+  // If this route is an unlocked cabinet, drop a "Favorite" toggle into its
+  // page header so any applet can be starred from the page itself (mirrors the
+  // star on the lobby cards). Covers every view generically — no per-view edits.
+  function mountFavToggle(hash){
+    const cab = CABINETS.find(x=> x.route===hash && !x.locked);
+    if(!cab) return;
+    const head = screen.querySelector('.view-head');
+    if(!head || head.querySelector('.fav-toggle')) return;
+    head.append(favControl(cab.id, 'btn'));
   }
 
   function start(){ window.addEventListener('hashchange', resolve); resolve(); }
@@ -2267,6 +2328,14 @@ const LAB_CRT = {
   'Arcade'   :'#9d4edd'    // bright purple
 };
 function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
+
+/* Representative glyph for each lab — used by the sidebar category filters so the
+   rail reads as a colourful set of shelves rather than a flat word list. */
+const LAB_ICON = {
+  'Gamer DNA':'🧬', 'Reflex':'⚡', 'Hardware':'🖱️', 'Setup':'🛠️',
+  'Fun':'🎭', 'RPG':'🎲', 'Arcade':'👾'
+};
+function labIcon(lab){ return LAB_ICON[lab] || '🎮'; }
 
 /* Retro-TV brand names + decorations sprinkled onto each set's control panel. */
 const CRT_BRANDS = ['PLAYOTRON','VECTREX','NOVA-9','RETROVUE','ARC-80','PIXLCORP','TUBETEK','GAMMA-V','CRT-MAX','HYPERVUE','OMNIVOX','RASTERON'];
@@ -2340,25 +2409,65 @@ function crtWrapTV(node, opts){
   return box;
 }
 
-Views.home = function(c){
-  const panel = el('div',{class:'panel'});
-  panel.append(
-    el('div',{class:'view-head', html:'<span class="lab-tag">Insert Coin</span>'}),
-    el('h1',{class:'title', html:'Welcome to the Arcade'}),
-    el('p',{class:'view-desc', html:'Pick a screen. Everything feeds your Gamer DNA with Attributes, Class, Rank, and a Shareable Hi-score Card. No login, no server; your profile lives only in this browser. Enjoy!'})
-  );
-  // group by lab
-  const labs = [];
-  CABINETS.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
-  labs.forEach(lab=>{
-    const col = labColor(lab);
-    panel.append(el('h2',{class:'sub', text:lab, style:`color:${col}; border-left-color:${col};`}));
-    const grid = el('div',{class:'cab-grid'});
-    CABINETS.filter(x=>x.lab===lab).forEach(cab=> grid.append(cabCard(cab)));
-    panel.append(grid);
-  });
-  c.append(panel);
-};
+/* The lobby is now a filterable surface. `filter` is null for the full grouped
+   view (the Lobby), {type:'lab',lab} for a single category, or {type:'fav'} for
+   the starred set. The sidebar drives all three; clicking a category or
+   Favorites swaps the main frame to just that section. */
+function lobbyView(filter){
+  return function(c){
+    const panel = el('div',{class:'panel'});
+
+    // section helper: a coloured header + a grid of the given cabinets
+    function section(label, cabs, col){
+      panel.append(el('h2',{class:'sub', text:label, style:`color:${col}; border-left-color:${col};`}));
+      const grid = el('div',{class:'cab-grid'});
+      cabs.forEach(cab=> grid.append(cabCard(cab)));
+      panel.append(grid);
+    }
+
+    if(filter && filter.type==='fav'){
+      panel.append(
+        el('div',{class:'view-head', html:'<span class="lab-tag">Your Picks</span>'}),
+        el('h1',{class:'title', html:'⭐ Favorites'}),
+        el('p',{class:'view-desc', html:'The cabinets you’ve starred, all in one place. Star any applet from its card or its page to pin it here.'})
+      );
+      const favCabs = (Store.getFavorites()||[])
+        .map(id=> CABINETS.find(x=>x.id===id)).filter(Boolean);
+      if(!favCabs.length){
+        panel.append(el('p',{class:'muted', html:'No favorites yet — tap the ☆ on any cabinet to add it here.'}));
+      } else {
+        // keep favourites grouped by lab so the colour-coding still reads
+        const labs=[]; favCabs.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
+        labs.forEach(lab=> section(lab, favCabs.filter(x=>x.lab===lab), labColor(lab)));
+      }
+      c.append(panel); return;
+    }
+
+    if(filter && filter.type==='lab'){
+      const col = labColor(filter.lab);
+      panel.append(
+        el('div',{class:'view-head', html:`<span class="lab-tag" style="color:${col}">Category</span>`}),
+        el('h1',{class:'title', html:`${labIcon(filter.lab)} ${filter.lab}`}),
+        el('p',{class:'view-desc', html:'Showing this category only. Pick <strong>Lobby</strong> in the sidebar to see everything again.'})
+      );
+      section(filter.lab, CABINETS.filter(x=>x.lab===filter.lab), col);
+      c.append(panel); return;
+    }
+
+    // default: the full grouped Lobby
+    panel.append(
+      el('div',{class:'view-head', html:'<span class="lab-tag">Insert Coin</span>'}),
+      el('h1',{class:'title', html:'Welcome to the Arcade'}),
+      el('p',{class:'view-desc', html:'Pick a screen. Everything feeds your Gamer DNA with Attributes, Class, Rank, and a Shareable Hi-score Card. No login, no server; your profile lives only in this browser. Enjoy!'})
+    );
+    const labs = [];
+    CABINETS.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
+    labs.forEach(lab=> section(lab, CABINETS.filter(x=>x.lab===lab), labColor(lab)));
+    c.append(panel);
+  };
+}
+Views.home = lobbyView(null);
+Views.favorites = lobbyView({type:'fav'});
 
 function cabCard(cab){
   // Each lobby card is a CRT television via the reusable .crt-tv treatment. The
@@ -2374,7 +2483,49 @@ function cabCard(cab){
   });
   crtDressTV(card, body, { accent: labColor(cab.lab), jitter: !cab.locked && Math.random()<0.35 });
   if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
+  // Favourite/unfavourite without leaving the lobby. The control lives in the
+  // CRT control-panel strip as the rightmost "knob", so the decorative knobs,
+  // buttons and lights sit to its left. Locked sets can't be starred.
+  if(!cab.locked){
+    const fav = favControl(cab.id, 'star');
+    const chrome = card.querySelector('.crt-chrome');
+    if(chrome) chrome.append(fav); else card.append(fav);
+  }
   return card;
+}
+
+/* Build a favourite toggle. variant 'star' is the compact corner control on
+   lobby cards; variant 'btn' is the labelled button shown on an applet's page.
+   Both flip Store.toggleFavorite and re-sync their own look; when toggled from
+   inside the Favorites filter the grid is re-rendered so the card drops out. */
+function favControl(id, variant){
+  const star = '★', hollow = '☆';
+  const on = Store.isFavorite(id);
+  const ctrl = el('button',{
+    type:'button',
+    class:(variant==='btn'?'fav-toggle':'fav-star')+(on?' on':''),
+    'aria-pressed': on?'true':'false',
+    title: on?'Remove from Favorites':'Add to Favorites'
+  });
+  function paint(state){
+    ctrl.classList.toggle('on', state);
+    ctrl.setAttribute('aria-pressed', state?'true':'false');
+    ctrl.title = state?'Remove from Favorites':'Add to Favorites';
+    ctrl.innerHTML = variant==='btn'
+      ? `<span class="fav-ico">${state?star:hollow}</span><span>${state?'Favorited':'Favorite'}</span>`
+      : (state?star:hollow);
+  }
+  paint(on);
+  ctrl.addEventListener('click', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const now = Store.toggleFavorite(id);
+    paint(now);
+    if(window.UI && UI.syncRail) UI.syncRail();
+    UI.toast(now?'Favorited':'Removed', (getCab(id)||{}).name || '');
+    // refresh the Favorites view so an un-starred card disappears immediately
+    if(location.hash==='#/favorites') Router.go('#/favorites');
+  });
+  return ctrl;
 }
 
 /* ---- GAMER DNA HUB ---- */
@@ -2933,7 +3084,7 @@ function hue(hex){
 Views.friends = function(c){
   const panel = el('div',{class:'panel'});
   panel.append(
-    el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
+    el('div',{class:'view-head', html:'<span class="lab-tag">Gather Your Team</span>'}),
     el('h1',{class:'title', html:'👥 Friends'}),
     el('p',{class:'view-desc', html:'Safe, Secure, and Social. Invite and Import your Friends to build a local roster. You can sort it, jot private notes, and overlay their attributes against your own. Everything stays in this browser.'})
   );
@@ -3447,7 +3598,7 @@ Views.platforms = function(c){
   /* ---------- LIST ---------- */
   function renderList(panel){
     panel.append(
-      el('div',{class:'view-head', html:'<span class="lab-tag">The Metagame Core</span>'}),
+      el('div',{class:'view-head', html:'<span class="lab-tag">Safe, Secure, Social</span>'}),
       el('h1',{class:'title', html:'🔗 Platform Link'}),
       el('p',{class:'view-desc', html:'Connect your gaming platform info to your Gamer DNA. No login, no network required, and nothing ever leaves this browser.'})
     );
@@ -8492,27 +8643,57 @@ Views.genRoast = function(c){
 const UI = (function(){
   const rail = document.getElementById('rail');
 
+  // The rail is now a sort/filter surface rather than a flat list of every
+  // applet. Top: the standing destinations (Lobby, Friends, Platforms) plus the
+  // Favorites filter. Below: one interactive entry per category — clicking it
+  // filters the main frame down to that category's cabinets.
+  function railLink(opts){
+    const a = el('a',{ href:opts.href, 'data-route':opts.route||opts.href });
+    if(opts.color) a.style.setProperty('--rail-accent', opts.color);
+    a.innerHTML = `<span>${opts.icon} ${opts.label}</span>`+
+      (opts.count!=null ? `<span class="rail-count">${opts.count}</span>` : '');
+    if(opts.color) a.classList.add('rail-cat');
+    return a;
+  }
   function buildRail(){
     rail.innerHTML='';
-    rail.append(el('a',{href:'#/', html:'🏠 Lobby'}));
-    // Gamer DNA Hub is reachable from the header "Gamer DNA" button, so keep its
-    // category + item out of the rail to free up the valuable sidebar space.
-    const railCabs = CABINETS.filter(cab=> cab.id!=='dna');
+    // Standing destinations (no category header). Friends & Platforms used to
+    // live under a "Gamer DNA" heading — that heading is gone now. The Gamer DNA
+    // Hub itself stays reachable from the header button.
+    rail.append(railLink({ href:'#/',               icon:'🏠', label:'Lobby' }));
+    rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends' }));
+    rail.append(railLink({ href:'#/dna/platforms',  icon:'🔗', label:'Platforms' }));
+    rail.append(railLink({ href:'#/favorites',      icon:'⭐', label:'Favorites',
+      count: Store.favoriteCount() || null }));
+
+    // Categories — every lab except Gamer DNA (its items are surfaced above).
+    rail.append(el('h3',{text:'Categories'}));
     const labs=[];
-    railCabs.forEach(cab=>{ if(!labs.includes(cab.lab)) labs.push(cab.lab); });
-    labs.forEach(lab=>{
-      rail.append(el('h3',{text:lab}));
-      railCabs.filter(x=>x.lab===lab).forEach(cab=>{
-        const a=el('a',{ href: cab.locked?'javascript:void 0':cab.route,
-          class: cab.locked?'locked':'', 'data-route':cab.route||'' });
-        a.innerHTML = `<span>${cab.icon} ${cab.railName||cab.name}</span>${cab.locked?'<span class="mini-tag soon">soon</span>':''}`;
-        if(cab.locked) a.addEventListener('click', e=>{ e.preventDefault(); toast('Locked','Coming in a later build.'); });
-        rail.append(a);
-      });
-    });
+    CABINETS.forEach(cab=>{ if(cab.lab!=='Gamer DNA' && !labs.includes(cab.lab)) labs.push(cab.lab); });
+    labs.forEach(lab=> rail.append(railLink({
+      href:'#/lobby/'+encodeURIComponent(lab), icon:labIcon(lab), label:lab, color:labColor(lab)
+    })));
   }
   function highlightRail(hash){
-    rail.querySelectorAll('a').forEach(a=> a.classList.toggle('active', a.getAttribute('data-route')===hash));
+    // Exact match for filter routes; when inside an applet page, light up the
+    // category it belongs to so the rail still shows where you are.
+    const cab = CABINETS.find(x=> x.route===hash);
+    const catHash = (cab && cab.lab!=='Gamer DNA') ? '#/lobby/'+encodeURIComponent(cab.lab) : null;
+    rail.querySelectorAll('a').forEach(a=>{
+      const r = a.getAttribute('data-route');
+      a.classList.toggle('active', r===hash || (catHash!=null && r===catHash));
+    });
+  }
+  // Keep the Favorites count badge in the rail in sync after a star toggle.
+  function syncRail(){
+    const fav = rail.querySelector('a[data-route="#/favorites"]');
+    if(!fav) return;
+    let badge = fav.querySelector('.rail-count');
+    const n = Store.favoriteCount();
+    if(n>0){
+      if(!badge){ badge = el('span',{class:'rail-count'}); fav.append(badge); }
+      badge.textContent = n;
+    } else if(badge){ badge.remove(); }
   }
 
   function refreshStrip(){
@@ -8560,7 +8741,7 @@ const UI = (function(){
     document.getElementById('logoHome').onclick=()=> Router.go('#/');
   }
 
-  return { init, buildRail, highlightRail, refreshStrip, applyAccent, toast };
+  return { init, buildRail, highlightRail, syncRail, refreshStrip, applyAccent, toast };
 })();
 
 /* expose UI for modules that reference it before definition (toast in Ach/ShareCard) */
@@ -10065,6 +10246,13 @@ ${secs}${ch.notes?`<h2>Notes</h2><p>${esc(ch.notes)}</p>`:''}
    BOOT
    ============================================================================ */
 Router.add('#/', Views.home);
+Router.add('#/favorites', Views.favorites);
+// One filtered-lobby route per category (every lab except Gamer DNA).
+(function(){
+  const labs=[];
+  CABINETS.forEach(cab=>{ if(cab.lab!=='Gamer DNA' && !labs.includes(cab.lab)) labs.push(cab.lab); });
+  labs.forEach(lab=> Router.add('#/lobby/'+encodeURIComponent(lab), lobbyView({type:'lab',lab})));
+})();
 Router.add('#/dna', Views.dna);
 Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);
