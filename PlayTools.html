@@ -775,10 +775,6 @@
   .help-section p{color:var(--ink-dim); font-size:13px; line-height:1.6; margin:0;}
   .help-steps{margin:0; padding:0 0 0 18px; color:var(--ink-dim); font-size:13px; line-height:1.7;}
   .help-steps li{margin:0 0 4px;}
-  .help-features{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;}
-  .help-features li{color:var(--ink-dim); font-size:12.5px; line-height:1.4;}
-  .help-features b{color:var(--ink); font-weight:600;}
-  @media (max-width:520px){ .help-features{grid-template-columns:1fr;} }
 
   /* ============================================================
      GAMER DNA AVATAR — header button + picker modal
@@ -3131,23 +3127,6 @@ function openHelp(){
   steps.append(el('li',{html:'Add friends to compare stats, and keep testing with new experiences to climb the ranks.'}));
   startSec.append(steps);
   modal.append(startSec);
-
-  // --- Feature highlights ---
-  const featSec = el('div',{class:'help-section'});
-  featSec.append(el('h4',{html:'What\'s inside?'}));
-  const feats = el('ul',{class:'help-features'});
-  [
-    ['🧬 Gamer DNA','Your Profile, 7 attributes, Class, Rank, and Score.'],
-    ['⚡ Reflex Lab','Reaction, CPS, Precision, Flick & Tracking Drills.'],
-    ['🖱️ Hardware Lab','Mouse Polling, Accuracy, Jitter & Stability Tests.'],
-    ['🛠️ Setup Lab','eDPI & Sensitivity Calculators to Dial in Your Aim.'],
-    ['👥 Friends','Import, Compare & Sort your Roster\'s Stats.'],
-    ['🏆 Progress','Earn Points, Achievements, and Rank Up Over Time.'],
-  ].forEach(([t,d])=>{
-    feats.append(el('li',{html:'<b>'+t+'</b><br>'+d}));
-  });
-  featSec.append(feats);
-  modal.append(featSec);
 
   // --- Actions ---
   modal.append(el('p',{style:'text-align:center; color:var(--neon); font-weight:600; margin:18px 0 0;', html:'Now Go and Have FUN!!!'}));
