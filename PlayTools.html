@@ -269,19 +269,13 @@
      "knob/button", consistent with the display metaphor. It is the rightmost
      control, so the decorative knobs/buttons/lights sit to its left. */
   .crt-chrome .fav-star{
-    flex:0 0 auto; width:14px; height:14px; padding:0; margin:0;
-    border:none; border-radius:50%; cursor:pointer; outline:none;
-    line-height:14px; font-size:9px; text-align:center;
-    color:rgba(255,255,255,0.5);
-    background:radial-gradient(circle at 35% 30%, #56638f, #1b2444 68%, #0b1228);
-    box-shadow:0 1px 1px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.18);
-    transition:.12s;
+    flex:0 0 auto; width:20px; height:20px; padding:0; margin:0;
+    border:none; background:none; box-shadow:none; cursor:pointer; outline:none;
+    line-height:20px; font-size:13.5px; text-align:center;
+    color:rgba(255,255,255,0.5); transition:.12s;
   }
   .crt-chrome .fav-star:hover{ color:#ffd23d; transform:scale(1.14); }
-  .crt-chrome .fav-star.on{
-    color:#ffd23d;
-    box-shadow:0 0 6px #ffd23d, 0 1px 1px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.25);
-  }
+  .crt-chrome .fav-star.on{ color:#ffd23d; text-shadow:0 0 6px #ffd23d; }
   /* Labelled toggle dropped into an applet page header. */
   .view-head .fav-toggle{
     margin-left:auto; align-self:center; display:inline-flex; align-items:center; gap:6px;
