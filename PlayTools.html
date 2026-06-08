@@ -166,7 +166,8 @@
      inward so the bug passes over the corner and slightly onto the sign
      (the inward swing peaks around 30–48%) before drifting back out. */
   .bug.visiting{ animation:bugVisit 6.2s ease-in-out forwards; }
-  .bug.moth.visiting{ animation-duration:4.96s; }   /* moth flies 25% faster */
+  /* moth flies 25% faster and on its own deeper path (bugVisitMoth) */
+  .bug.moth.visiting{ animation-name:bugVisitMoth; animation-duration:4.96s; }
   @keyframes bugVisit{
     0%   { opacity:0; transform:translate(calc(var(--sx)*-18px),calc(var(--sy)*-22px)); }
     12%  { opacity:1; transform:translate(calc(var(--sx)*-6px), calc(var(--sy)*-12px)); }
@@ -174,6 +175,18 @@
     48%  {            transform:translate(calc(var(--sx)*8px),  calc(var(--sy)*22px));   }
     66%  {            transform:translate(calc(var(--sx)*-13px),calc(var(--sy)*7px));    }
     82%  { opacity:1; transform:translate(calc(var(--sx)*-4px), calc(var(--sy)*-9px));   }
+    100% { opacity:0; transform:translate(calc(var(--sx)*-21px),calc(var(--sy)*-24px));  }
+  }
+  /* The moth ventures noticeably further onto the sign and lingers there a
+     beat (peaks ~28–32px inward, 44–60%) before drifting back off. */
+  @keyframes bugVisitMoth{
+    0%   { opacity:0; transform:translate(calc(var(--sx)*-18px),calc(var(--sy)*-22px)); }
+    12%  { opacity:1; transform:translate(calc(var(--sx)*-4px), calc(var(--sy)*-8px));  }
+    28%  {            transform:translate(calc(var(--sx)*24px), calc(var(--sy)*14px));   }
+    44%  {            transform:translate(calc(var(--sx)*32px), calc(var(--sy)*30px));   }
+    60%  {            transform:translate(calc(var(--sx)*16px), calc(var(--sy)*34px));   }
+    74%  {            transform:translate(calc(var(--sx)*-6px), calc(var(--sy)*12px));   }
+    86%  { opacity:1; transform:translate(calc(var(--sx)*-5px), calc(var(--sy)*-8px));   }
     100% { opacity:0; transform:translate(calc(var(--sx)*-21px),calc(var(--sy)*-24px));  }
   }
   .bug-art{ position:absolute; left:0; top:0; }
@@ -10426,7 +10439,7 @@ Router.start();
       bug.classList.add('visiting');
     }
     bug.addEventListener('animationend', function(e){
-      if(e.animationName !== 'bugVisit') return;   // ignore the flap/pulse loops
+      if(e.animationName !== 'bugVisit' && e.animationName !== 'bugVisitMoth') return;   // ignore the flap/pulse loops
       bug.classList.remove('visiting','moth','firefly');        // fully idle
       setTimeout(visit, gap());
     });
