@@ -153,25 +153,28 @@
      of the body; hidden entirely when the sign is off or motion is reduced. */
   .sign-stage{ position:relative; display:inline-block; line-height:0; }
   .bug{
-    position:absolute; width:0; height:0;
+    position:absolute; width:0; height:0; --sx:1; --sy:1;
     pointer-events:none; opacity:0; z-index:3; will-change:transform,opacity;
   }
-  .bug[data-corner="tl"]{ top:0;    left:0;    }
-  .bug[data-corner="tr"]{ top:0;    left:100%; }
-  .bug[data-corner="bl"]{ top:100%; left:0;    }
-  .bug[data-corner="br"]{ top:100%; left:100%; }
-  /* One path serves every corner: the bug's origin sits exactly on the corner,
-     so this lazy loop straddles the sign's edge whichever corner it picks. */
+  /* --sx/--sy flip the path so "positive" always points inward, toward the
+     sign, whichever corner the bug is anchored to. */
+  .bug[data-corner="tl"]{ top:0;    left:0;    --sx:1;  --sy:1;  }
+  .bug[data-corner="tr"]{ top:0;    left:100%; --sx:-1; --sy:1;  }
+  .bug[data-corner="bl"]{ top:100%; left:0;    --sx:1;  --sy:-1; }
+  .bug[data-corner="br"]{ top:100%; left:100%; --sx:-1; --sy:-1; }
+  /* One path serves every corner: it enters from off the corner, then dips
+     inward so the bug passes over the corner and slightly onto the sign
+     (the inward swing peaks around 30–48%) before drifting back out. */
   .bug.visiting{ animation:bugVisit 6.2s ease-in-out forwards; }
   .bug.moth.visiting{ animation-duration:4.96s; }   /* moth flies 25% faster */
   @keyframes bugVisit{
-    0%   { opacity:0; transform:translate(-18px,-22px); }
-    12%  { opacity:1; transform:translate(-6px,-12px);  }
-    30%  {            transform:translate(11px,3px);     }
-    48%  {            transform:translate(3px,16px);     }
-    66%  {            transform:translate(-13px,7px);    }
-    82%  { opacity:1; transform:translate(-4px,-9px);    }
-    100% { opacity:0; transform:translate(-21px,-24px);  }
+    0%   { opacity:0; transform:translate(calc(var(--sx)*-18px),calc(var(--sy)*-22px)); }
+    12%  { opacity:1; transform:translate(calc(var(--sx)*-6px), calc(var(--sy)*-12px)); }
+    30%  {            transform:translate(calc(var(--sx)*16px), calc(var(--sy)*6px));    }
+    48%  {            transform:translate(calc(var(--sx)*8px),  calc(var(--sy)*22px));   }
+    66%  {            transform:translate(calc(var(--sx)*-13px),calc(var(--sy)*7px));    }
+    82%  { opacity:1; transform:translate(calc(var(--sx)*-4px), calc(var(--sy)*-9px));   }
+    100% { opacity:0; transform:translate(calc(var(--sx)*-21px),calc(var(--sy)*-24px));  }
   }
   .bug-art{ position:absolute; left:0; top:0; }
   /* Firefly: a soft luminous dot pulsing in the sign's accent colour. */
