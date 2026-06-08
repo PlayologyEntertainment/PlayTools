@@ -1083,6 +1083,114 @@
     }
     .score-strip .sep{ margin:0 3px; }
   }
+
+  /* ============================================================
+     CHARACTER FORGE — D&D 5e character sheet builder
+     ============================================================ */
+  .forge-bar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:14px 0 6px;}
+  .forge-bar .spc{flex:1 1 auto;}
+  .forge-roster{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; margin:14px 0;}
+  .forge-char{
+    position:relative; display:block; text-align:left; cursor:pointer;
+    background:linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border:1px solid var(--line); border-radius:8px; padding:14px 14px 12px;
+    transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .forge-char:hover{transform:translateY(-2px); border-color:var(--cc,var(--neon)); box-shadow:0 0 16px rgba(22,242,200,0.18);}
+  .forge-char .fc-emoji{font-size:30px; line-height:1;}
+  .forge-char .fc-name{font-family:var(--pixel); font-size:18px; color:var(--cc,var(--neon)); margin:6px 0 2px; word-break:break-word;}
+  .forge-char .fc-sub{font-size:12px; color:var(--ink-dim);}
+  .forge-char .fc-stats{display:flex; gap:14px; margin-top:10px; font-size:11px; color:var(--ink-dim); letter-spacing:1px;}
+  .forge-char .fc-stats b{display:block; font-family:var(--pixel); font-size:16px; color:var(--ink);}
+  .forge-char .fc-del{position:absolute; top:8px; right:8px; background:transparent; border:none; color:var(--ink-dim); cursor:pointer; font-size:14px; padding:4px; border-radius:4px; line-height:1;}
+  .forge-char .fc-del:hover{color:var(--danger); background:rgba(255,77,109,0.12);}
+  .forge-empty{text-align:center; color:var(--ink-dim); padding:34px 12px; border:1px dashed var(--line); border-radius:8px;}
+
+  .forge-tabs{display:flex; flex-wrap:wrap; gap:4px; margin:6px 0 16px; border-bottom:1px solid var(--line); padding-bottom:8px;}
+  .forge-tabs button{
+    font-family:var(--mono); font-size:12px; letter-spacing:1px; text-transform:uppercase;
+    color:var(--ink-dim); background:transparent; border:1px solid transparent; border-radius:5px;
+    padding:7px 12px; cursor:pointer;
+  }
+  .forge-tabs button:hover{color:var(--neon);}
+  .forge-tabs button.on{color:#04120a; background:var(--neon); font-weight:700;}
+
+  .sheet-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;}
+  .sheet-cols{display:grid; grid-template-columns:170px 1fr; gap:18px; align-items:start;}
+  @media (max-width:720px){ .sheet-cols{grid-template-columns:1fr;} }
+
+  /* Ability score boxes — click to roll a check */
+  .ability-col{display:flex; flex-direction:column; gap:10px;}
+  .abil-box{
+    text-align:center; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:8px 6px 6px;
+  }
+  .abil-box .ab-name{font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--neon-3);}
+  .abil-box input{
+    width:64px; text-align:center; font-family:var(--pixel); font-size:22px; color:var(--ink);
+    background:transparent; border:none; margin:2px 0;
+  }
+  .abil-box input:focus{outline:none; color:var(--neon);}
+  .abil-mod{
+    display:inline-block; min-width:42px; margin-top:2px; cursor:pointer;
+    font-family:var(--pixel); font-size:16px; color:var(--neon);
+    border:1px solid var(--line); border-radius:20px; padding:3px 0; background:var(--panel);
+  }
+  .abil-mod:hover{border-color:var(--neon); box-shadow:0 0 10px rgba(22,242,200,0.3);}
+
+  /* Rollable rows (saves, skills) */
+  .roll-list{display:flex; flex-direction:column; gap:2px;}
+  .roll-row{
+    display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:5px; cursor:pointer;
+    border:1px solid transparent; font-size:13px;
+  }
+  .roll-row:hover{background:rgba(22,242,200,0.07); border-color:var(--line);}
+  .roll-row .prof-dot{
+    width:14px; height:14px; border-radius:50%; border:1.5px solid var(--ink-dim); flex:0 0 auto; cursor:pointer; background:transparent;
+  }
+  .roll-row .prof-dot.p1{background:var(--neon); border-color:var(--neon);}
+  .roll-row .prof-dot.p2{background:var(--neon-3); border-color:var(--neon-3); box-shadow:0 0 0 2px var(--panel-2), 0 0 0 3px var(--neon-3);}
+  .roll-row .rr-name{flex:1 1 auto;}
+  .roll-row .rr-abil{font-size:10px; color:var(--ink-dim); text-transform:uppercase;}
+  .roll-row .rr-bonus{font-family:var(--pixel); font-size:14px; color:var(--neon); min-width:34px; text-align:right;}
+
+  .stat-strip{display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:10px; margin:12px 0;}
+  .stat-pill{background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 6px; text-align:center;}
+  .stat-pill .sp-k{font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink-dim);}
+  .stat-pill .sp-v{font-family:var(--pixel); font-size:20px; color:var(--neon); margin-top:3px;}
+  .stat-pill.click{cursor:pointer;} .stat-pill.click:hover{border-color:var(--neon); box-shadow:0 0 12px rgba(22,242,200,0.22);}
+  .stat-pill input{width:100%; text-align:center; font-family:var(--pixel); font-size:18px; color:var(--ink); background:transparent; border:none;}
+  .stat-pill input:focus{outline:none; color:var(--neon);}
+
+  .forge-table{width:100%; border-collapse:collapse; margin:8px 0;}
+  .forge-table th{font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--neon-3); text-align:left; padding:6px 6px; border-bottom:1px solid var(--line);}
+  .forge-table td{padding:4px 6px; border-bottom:1px solid rgba(124,92,255,0.12); vertical-align:middle;}
+  .forge-table input, .forge-table select{width:100%; font-family:var(--mono); font-size:13px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:6px 8px;}
+  .forge-table .tbtn{background:transparent; border:none; color:var(--ink-dim); cursor:pointer; font-size:14px; padding:4px 6px;}
+  .forge-table .tbtn:hover{color:var(--danger);}
+  .forge-table .roll td{cursor:pointer;}
+  .forge-table tr.roll:hover td{background:rgba(22,242,200,0.06);}
+
+  .forge-area{width:100%; min-height:90px; font-family:var(--mono); font-size:13px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; resize:vertical;}
+  .forge-area:focus{outline:none; border-color:var(--neon); box-shadow:0 0 10px rgba(22,242,200,0.2);}
+
+  .spell-slots{display:grid; grid-template-columns:repeat(auto-fit,minmax(74px,1fr)); gap:8px; margin:10px 0;}
+  .slot-box{background:var(--panel-2); border:1px solid var(--line); border-radius:7px; padding:8px 4px; text-align:center;}
+  .slot-box .sl-k{font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim);}
+  .slot-box input{width:30px; text-align:center; font-family:var(--pixel); font-size:15px; color:var(--ink); background:transparent; border:none;}
+  .slot-box input:focus{outline:none; color:var(--neon);}
+  .slot-box .sl-sep{color:var(--ink-dim);}
+
+  .roll-modal{max-width:340px; text-align:center;}
+  .roll-modal .rd-die{font-family:var(--pixel); font-size:56px; color:var(--neon); margin:6px 0; text-shadow:0 0 18px rgba(22,242,200,0.5);}
+  .roll-modal .rd-die.crit{color:var(--neon-5); text-shadow:0 0 18px rgba(55,227,91,0.7);}
+  .roll-modal .rd-die.fumble{color:var(--danger); text-shadow:0 0 18px rgba(255,77,109,0.6);}
+  .roll-modal .rd-total{font-family:var(--pixel); font-size:30px; color:var(--neon-3); margin:2px 0;}
+  .roll-modal .rd-break{font-size:12px; color:var(--ink-dim); margin-bottom:10px;}
+  .roll-modal .rd-label{font-size:13px; color:var(--ink); letter-spacing:1px;}
+  .death-track{display:inline-flex; gap:6px; vertical-align:middle;}
+  .death-track .dt-pip{width:16px; height:16px; border-radius:50%; border:1.5px solid var(--ink-dim); cursor:pointer; background:transparent;}
+  .death-track.succ .dt-pip.on{background:var(--neon-5); border-color:var(--neon-5);}
+  .death-track.fail .dt-pip.on{background:var(--danger); border-color:var(--danger);}
 </style>
 </head>
 <body>
@@ -1496,6 +1604,15 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='mouse_jitter' && (c.grade==='A'||c.grade==='S') },
     { id:'stability_ace', name:'Stability Ace', icon:'📉', desc:'Earn an A grade or better on the Mouse Stability Test.',
       test:(d,c)=> c && c.tool==='mouse_stability' && (c.grade==='A'||c.grade==='S') },
+    // ---- Character Forge set ----
+    { id:'forge_initiate', name:'Character Creator', icon:'📖', desc:'Build your first character in the Character Forge.',
+      test:(d)=> !!(d.counters && d.counters.charCount>=1) },
+    { id:'forge_party', name:'Party of Adventurers', icon:'🛡️', desc:'Keep a full party of 4 or more saved characters.',
+      test:(d)=> !!(d.counters && d.counters.charCount>=4) },
+    { id:'forge_veteran', name:'Seasoned Adventurer', icon:'⚔️', desc:'Build a character of level 5 or higher.',
+      test:(d)=> !!(d.counters && d.counters.charMaxLevel>=5) },
+    { id:'forge_legend', name:'Epic Hero', icon:'🐉', desc:'Take a character all the way to level 20.',
+      test:(d)=> !!(d.counters && d.counters.charMaxLevel>=20) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -2043,6 +2160,8 @@ const CABINETS = [
     desc:'Auto-roll initiative, sort the turn order & track HP through the fight.', dna:'Strategy +3 · runs the table' },
   { id:'rpg_quest',  lab:'RPG', name:'Quest & Tavern', railName:'Quest', icon:'📜', tag:'mvp', route:'#/rpg/quest',
     desc:'Improv seeds on demand — quest hooks, taverns, barkeeps & rumours.', dna:'Strategy +4 · spins a yarn' },
+  { id:'char_forge', lab:'RPG', name:'Character Forge', railName:'Characters', icon:'📖', tag:'mvp', route:'#/rpg/forge',
+    desc:'Build, store & share D&D 5e characters — auto-calculated sheets with one-click dice rolls.', dna:'Strategy +8 · Focus +4' },
   { id:'arcade_memory', lab:'Arcade', name:'Memory Match', railName:'Memory', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:'👾', tag:'mvp', route:'#/arcade/dodge',
@@ -8502,6 +8621,761 @@ const APP_VERSION = '1.0.0';
 })();
 
 /* ============================================================================
+   CHARACTER FORGE — D&D 5e character sheet builder (DD §RPG)
+   A rules-aware, auto-calculating character sheet. Characters persist locally
+   (own storage key), support multi-character rosters, JSON export/import, a
+   shareable trading card, print/PDF, one-click dice (reusing DiceEngine) and
+   feed the Gamer DNA metagame. SRD content (CC-BY) seeds lean class/species/
+   background defaults; the engine math itself is fully general.
+   ============================================================================ */
+const DnD5e = (function(){
+  // The 18 SRD skills → their governing ability.
+  const SKILLS = [
+    ['acrobatics','Acrobatics','dex'], ['animalHandling','Animal Handling','wis'],
+    ['arcana','Arcana','int'], ['athletics','Athletics','str'],
+    ['deception','Deception','cha'], ['history','History','int'],
+    ['insight','Insight','wis'], ['intimidation','Intimidation','cha'],
+    ['investigation','Investigation','int'], ['medicine','Medicine','wis'],
+    ['nature','Nature','int'], ['perception','Perception','wis'],
+    ['performance','Performance','cha'], ['persuasion','Persuasion','cha'],
+    ['religion','Religion','int'], ['sleightOfHand','Sleight of Hand','dex'],
+    ['stealth','Stealth','dex'], ['survival','Survival','wis']
+  ];
+  const ABILS = [['str','Strength'],['dex','Dexterity'],['con','Constitution'],
+                 ['int','Intelligence'],['wis','Wisdom'],['cha','Charisma']];
+
+  // Lean SRD class defaults: hit die, two save-proficient abilities, and (for
+  // casters) the spellcasting ability. Used to auto-set sensible defaults when a
+  // class is chosen; the player can override anything afterwards.
+  const CLASSES = {
+    'Barbarian':{hd:12, saves:['str','con'], cast:''},
+    'Bard':     {hd:8,  saves:['dex','cha'], cast:'cha'},
+    'Cleric':   {hd:8,  saves:['wis','cha'], cast:'wis'},
+    'Druid':    {hd:8,  saves:['int','wis'], cast:'wis'},
+    'Fighter':  {hd:10, saves:['str','con'], cast:''},
+    'Monk':     {hd:8,  saves:['str','dex'], cast:''},
+    'Paladin':  {hd:10, saves:['wis','cha'], cast:'cha'},
+    'Ranger':   {hd:10, saves:['str','dex'], cast:'wis'},
+    'Rogue':    {hd:8,  saves:['dex','int'], cast:''},
+    'Sorcerer': {hd:6,  saves:['con','cha'], cast:'cha'},
+    'Warlock':  {hd:8,  saves:['wis','cha'], cast:'cha'},
+    'Wizard':   {hd:6,  saves:['int','wis'], cast:'int'}
+  };
+  // Lean SRD species: base walking speed (ft).
+  const SPECIES = {
+    'Human':30,'Elf':30,'Dwarf':25,'Halfling':25,'Dragonborn':30,'Gnome':25,
+    'Half-Elf':30,'Half-Orc':30,'Tiefling':30
+  };
+  const BACKGROUNDS = ['Acolyte','Charlatan','Criminal','Entertainer','Folk Hero',
+    'Guild Artisan','Hermit','Noble','Outlander','Sage','Sailor','Soldier','Urchin'];
+  const ALIGNMENTS = ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral',
+    'True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil'];
+  // A friendly glyph per class for the roster + share card.
+  const CLASS_ICON = {Barbarian:'🪓',Bard:'🎵',Cleric:'✨',Druid:'🍃',Fighter:'⚔️',
+    Monk:'👊',Paladin:'🛡️',Ranger:'🏹',Rogue:'🗡️',Sorcerer:'🔮',Warlock:'👁️',Wizard:'📜'};
+
+  const mod = s => Math.floor(((+s||10)-10)/2);
+  const fmtMod = m => (m>=0?'+':'')+m;
+  const profBonus = lvl => Math.ceil(Math.max(1,Math.min(20,+lvl||1))/4)+1;
+
+  function abilMod(ch, key){ return mod(ch.abilities[key]); }
+  function saveBonus(ch, key){ return abilMod(ch,key) + (ch.saveProfs[key]? profBonus(ch.level):0); }
+  function skillBonus(ch, sk){
+    const ent = SKILLS.find(s=>s[0]===sk); if(!ent) return 0;
+    const lvlProf = ch.skillProfs[sk]||0;   // 0 none · 1 prof · 2 expertise
+    return abilMod(ch, ent[2]) + profBonus(ch.level)*lvlProf;
+  }
+  function passivePerception(ch){ return 10 + skillBonus(ch,'perception'); }
+  function initiative(ch){ return abilMod(ch,'dex') + (+ch.initiativeMisc||0); }
+  function armorClass(ch){ return (ch.acOverride!=null && ch.acOverride!=='') ? +ch.acOverride : 10 + abilMod(ch,'dex'); }
+  function spellMod(ch){ return ch.spellAbility ? abilMod(ch, ch.spellAbility) : 0; }
+  function spellSaveDC(ch){ return ch.spellAbility ? 8 + profBonus(ch.level) + spellMod(ch) : null; }
+  function spellAttack(ch){ return ch.spellAbility ? profBonus(ch.level) + spellMod(ch) : null; }
+
+  return { SKILLS, ABILS, CLASSES, SPECIES, BACKGROUNDS, ALIGNMENTS, CLASS_ICON,
+    mod, fmtMod, profBonus, abilMod, saveBonus, skillBonus, passivePerception,
+    initiative, armorClass, spellMod, spellSaveDC, spellAttack };
+})();
+
+/* ---- CharForge store: own localStorage key, multi-character roster ---- */
+const CharForge = (function(){
+  const KEY = 'playtools.charforge.v1';
+  let state = load();
+  let activeId = null;
+
+  function blankChar(){
+    const slots={}; for(let i=1;i<=9;i++) slots[i]={total:0,used:0};
+    const saveProfs={}, skillProfs={};
+    DnD5e.ABILS.forEach(a=> saveProfs[a[0]]=false);
+    DnD5e.SKILLS.forEach(s=> skillProfs[s[0]]=0);
+    return {
+      id:'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      createdAt:Date.now(), updatedAt:Date.now(), system:'dnd5e',
+      name:'', accent:'#16f2c8', playerName:'',
+      klass:'Fighter', subclass:'', level:1, species:'Human', background:'Soldier',
+      alignment:'True Neutral', xp:0, inspiration:false,
+      abilities:{str:10,dex:10,con:10,int:10,wis:10,cha:10},
+      saveProfs, skillProfs,
+      maxHp:10, curHp:10, tempHp:0, hitDiceType:10, hitDiceUsed:0,
+      acOverride:'', speed:30, initiativeMisc:0,
+      deathSaves:{successes:0, failures:0}, conditions:'',
+      attacks:[], spellAbility:'', spellSlots:slots, spells:[],
+      currency:{cp:0,sp:0,ep:0,gp:0,pp:0}, inventory:[],
+      features:'', proficienciesLangs:'',
+      bio:{personality:'',ideals:'',bonds:'',flaws:'',appearance:'',backstory:''}
+    };
+  }
+
+  function load(){
+    try{ const raw=localStorage.getItem(KEY); if(!raw) return {chars:[]};
+      const p=JSON.parse(raw); return {chars:Array.isArray(p.chars)?p.chars:[]};
+    }catch(e){ return {chars:[]}; }
+  }
+  function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} syncDNA(); }
+
+  // Mirror roster stats into Gamer DNA counters so achievements can read them.
+  function syncDNA(){
+    const count = state.chars.length;
+    const maxLvl = state.chars.reduce((m,c)=>Math.max(m, +c.level||1), 0);
+    Store.update(d=>{ d.counters=d.counters||{}; d.counters.charCount=count; d.counters.charMaxLevel=maxLvl; });
+    Ach.evaluate({tool:'charforge'});
+  }
+
+  return {
+    list(){ return state.chars; },
+    get(id){ return state.chars.find(c=>c.id===id) || null; },
+    active(){ return this.get(activeId); },
+    setActive(id){ activeId=id; },
+    create(){
+      const c=blankChar(); const first = state.chars.length===0;
+      state.chars.push(c); activeId=c.id;
+      // First-ever character credits a completed tool + a Strategy/Focus DNA bump.
+      if(first){ Store.update(d=>{ if(!d.bests.char_forge){ d.toolsCompleted++; d.runs++; d.bests.char_forge={value:1,mode:'max'}; } });
+        Attr.applyVector({strategy:8, focus:4}, 1); }
+      persist(); return c;
+    },
+    save(ch){ ch.updatedAt=Date.now(); persist(); },
+    remove(id){ state.chars=state.chars.filter(c=>c.id!==id); if(activeId===id) activeId=null; persist(); },
+    duplicate(id){
+      const src=this.get(id); if(!src) return null;
+      const copy=JSON.parse(JSON.stringify(src));
+      copy.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      copy.name=(src.name||'Adventurer')+' (copy)'; copy.createdAt=copy.updatedAt=Date.now();
+      state.chars.push(copy); persist(); return copy;
+    },
+    importChars(arr){
+      let n=0;
+      (Array.isArray(arr)?arr:[arr]).forEach(raw=>{
+        if(!raw || typeof raw!=='object') return;
+        const c=Object.assign(blankChar(), raw);
+        c.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+(n++);
+        c.createdAt=c.updatedAt=Date.now();
+        state.chars.push(c);
+      });
+      persist(); return n;
+    },
+    blankChar
+  };
+})();
+
+/* ---- Roll modal: one-click d20 rolls with advantage/disadvantage ---- */
+function forgeRoll(label, bonus, opts){
+  opts = opts || {};
+  const root = document.getElementById('modal-root'); if(!root) return;
+  root.innerHTML='';
+  const backdrop = el('div',{class:'modal-backdrop'});
+  const modal = el('div',{class:'modal roll-modal'});
+  const close = el('button',{class:'modal-close', html:'✕'});
+  const h3 = el('h3',{html:'🎲 '+(label||'Roll')});
+  const die = el('div',{class:'rd-die', html:'?'});
+  const total = el('div',{class:'rd-total'});
+  const brk = el('div',{class:'rd-break'});
+  const seg = el('div',{class:'seg', style:'margin:4px auto 12px; display:flex; justify-content:center;'});
+  const actions = el('div',{class:'modal-actions'});
+  const cl = el('button',{class:'btn ghost', html:'Close'});
+  modal.append(close, h3, die, total, brk);
+  if(!opts.flat){ modal.append(seg); }
+  actions.append(cl); modal.append(actions);
+  backdrop.append(modal); root.append(backdrop);
+
+  function dismiss(){ root.innerHTML=''; }
+  close.onclick=dismiss; cl.onclick=dismiss;
+  backdrop.onclick=e=>{ if(e.target===backdrop) dismiss(); };
+
+  function doRoll(mode){
+    let spec, kept;
+    if(mode==='adv'){ spec={n:2,sides:20,op:'kh',k:1,mod:0}; }
+    else if(mode==='dis'){ spec={n:2,sides:20,op:'kl',k:1,mod:0}; }
+    else spec={n:1,sides:20,op:null,k:null,mod:0};
+    const res = DiceEngine.roll(spec);
+    const natural = res.kept[0];
+    const sum = natural + (bonus||0);
+    const crit = natural===20, fumble = natural===1;
+    die.className='rd-die'+(crit?' crit':'')+(fumble?' fumble':'');
+    die.innerHTML = natural;
+    total.innerHTML = (opts.flat? '' : (DnD5e.fmtMod(bonus||0)+' → ')) + '<span>'+sum+'</span>';
+    if(opts.flat){ total.innerHTML = String(natural); }
+    const rollsTxt = res.rolls.map(r=> r.kept?('<b>'+r.v+'</b>'):('<s>'+r.v+'</s>')).join(', ');
+    brk.innerHTML = (crit?'⭐ Natural 20! ':fumble?'💀 Natural 1 ':'') + 'd20 ['+rollsTxt+']'+(bonus&&!opts.flat?(' '+DnD5e.fmtMod(bonus)):'');
+    // Feed the shared Natural-20 / dice achievement + Strategy DNA, same as the Dice Roller.
+    recordDiceRoll(sum, crit);
+    Ach.evaluate({tool:'dice', total:sum, nat20:crit, sides:20});
+  }
+  [['normal','Roll'],['adv','Adv'],['dis','Dis']].forEach(([k,lbl])=>{
+    const b=el('button',{html:lbl}); b.onclick=()=>doRoll(k); seg.append(b);
+  });
+  doRoll('normal');
+}
+
+/* ---- Generic JSON download helper for the Forge ---- */
+function forgeDownload(filename, obj){
+  const blob = new Blob([JSON.stringify(obj,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+  setTimeout(()=> URL.revokeObjectURL(url), 4000);
+}
+
+/* ============================================================================
+   VIEW: Character Forge roster
+   ============================================================================ */
+Views.charForge = function(c){
+  const cab = getCab('char_forge');
+  const panel = toolShell(c, cab);
+
+  const bar = el('div',{class:'forge-bar'});
+  const newBtn = el('button',{class:'btn primary', html:'＋ New Character'});
+  const importBtn = el('button',{class:'btn', html:'⬆ Import JSON'});
+  const fileIn = el('input',{type:'file', accept:'application/json,.json', style:'display:none'});
+  bar.append(newBtn, importBtn, el('span',{class:'spc'}), fileIn);
+  panel.append(bar);
+
+  const roster = el('div',{});
+  panel.append(roster);
+
+  function render(){
+    roster.innerHTML='';
+    const list = CharForge.list();
+    if(!list.length){
+      roster.append(el('div',{class:'forge-empty',
+        html:'No characters yet. Forge your first hero — pick a class, set your scores, and the sheet does the math.'}));
+      return;
+    }
+    const grid = el('div',{class:'forge-roster'});
+    list.slice().sort((a,b)=>b.updatedAt-a.updatedAt).forEach(ch=>{
+      const icon = DnD5e.CLASS_ICON[ch.klass]||'📖';
+      const card = el('div',{class:'forge-char', style:'--cc:'+(ch.accent||'#16f2c8')});
+      card.innerHTML =
+        `<div class="fc-emoji">${icon}</div>`+
+        `<div class="fc-name">${esc(ch.name||'Unnamed Hero')}</div>`+
+        `<div class="fc-sub">${esc(ch.species||'')} ${esc(ch.klass||'')} · Level ${ch.level||1}</div>`+
+        `<div class="fc-stats">`+
+          `<span>HP<b>${ch.curHp||0}/${ch.maxHp||0}</b></span>`+
+          `<span>AC<b>${DnD5e.armorClass(ch)}</b></span>`+
+          `<span>PROF<b>${DnD5e.fmtMod(DnD5e.profBonus(ch.level))}</b></span>`+
+        `</div>`;
+      const del = el('button',{class:'fc-del', html:'🗑', title:'Delete'});
+      del.onclick=(e)=>{ e.stopPropagation();
+        if(confirm('Delete "'+(ch.name||'this character')+'"? This cannot be undone.')){ CharForge.remove(ch.id); render(); }
+      };
+      card.append(del);
+      card.onclick=()=>{ CharForge.setActive(ch.id); Router.go('#/rpg/forge/sheet'); };
+      grid.append(card);
+    });
+    roster.append(grid);
+  }
+
+  newBtn.onclick=()=>{ CharForge.create(); Router.go('#/rpg/forge/sheet'); };
+  importBtn.onclick=()=> fileIn.click();
+  fileIn.onchange=()=>{
+    const f=fileIn.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>{ try{ const data=JSON.parse(r.result);
+      const arr = Array.isArray(data) ? data : (data.chars||data.char||data);
+      const n=CharForge.importChars(arr);
+      UI.toast('Imported', n+' character'+(n===1?'':'s')+' added'); render();
+    }catch(e){ UI.toast('Import failed','That file is not valid character JSON.'); } };
+    r.readAsText(f); fileIn.value='';
+  };
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  render();
+};
+
+/* ============================================================================
+   VIEW: Character Sheet (active character)
+   ============================================================================ */
+Views.charSheet = function(c){
+  const ch = CharForge.active();
+  if(!ch){ Router.go('#/rpg/forge'); return; }
+  const D = DnD5e;
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const commit = ()=> CharForge.save(ch);
+
+  const panel = el('div',{class:'panel'});
+  c.append(panel);
+
+  // ---- top bar: back, name, accent, actions ----
+  panel.append(el('div',{class:'view-head', html:`<span class="lab-tag">RPG · D&D 5e</span>`}));
+  const topBar = el('div',{class:'forge-bar'});
+  const back = el('button',{class:'btn ghost', html:'← Roster'});
+  back.onclick=()=> Router.go('#/rpg/forge');
+  const exportBtn = el('button',{class:'btn', html:'⬇ Export'});
+  exportBtn.onclick=()=> forgeDownload('playtools_'+(ch.name||'character').toLowerCase().replace(/\s+/g,'-')+'.json', ch);
+  const shareBtn = el('button',{class:'btn', html:'↗ Share Card'});
+  shareBtn.onclick=()=> openShareCard();
+  const printBtn = el('button',{class:'btn', html:'🖨 Print / PDF'});
+  printBtn.onclick=()=> printSheet();
+  topBar.append(back, el('span',{class:'spc'}), exportBtn, shareBtn, printBtn);
+  panel.append(topBar);
+
+  // Name + accent row
+  const nameRow = el('div',{class:'sheet-grid', style:'margin-bottom:10px'});
+  const nameF = field('Character Name', inputFor('name','text','e.g. Lyra Stormcrest'));
+  const accentF = field('Accent', inputFor('accent','color'));
+  nameRow.append(nameF, accentF);
+  panel.append(nameRow);
+
+  // ---- tabs ----
+  const tabs = el('div',{class:'forge-tabs'});
+  const body = el('div',{});
+  panel.append(tabs, body);
+  const TABS = [['core','⚔ Core'],['combat','🛡 Combat'],['spells','✨ Spells'],
+                ['gear','🎒 Gear'],['features','📜 Features'],['bio','🎭 Bio']];
+  let activeTab = Store.getPrefs().forgeTab || 'core';
+  if(!TABS.some(t=>t[0]===activeTab)) activeTab='core';
+  function renderTabs(){
+    tabs.innerHTML='';
+    TABS.forEach(([k,lbl])=>{
+      const b=el('button',{html:lbl}); if(k===activeTab) b.className='on';
+      b.onclick=()=>{ activeTab=k; Store.setPref('forgeTab',k); renderTabs(); renderBody(); };
+      tabs.append(b);
+    });
+  }
+  function renderBody(){
+    body.innerHTML='';
+    ({core:tabCore, combat:tabCombat, spells:tabSpells, gear:tabGear,
+      features:tabFeatures, bio:tabBio}[activeTab])(body);
+  }
+
+  /* ---------- shared field helpers (bind directly to ch) ---------- */
+  function field(label, node){
+    const f=el('div',{class:'field'});
+    f.append(el('label',{html:label}), node);
+    return f;
+  }
+  function inputFor(path, type, ph){
+    const inp=el('input',{type:type||'text'});
+    if(ph) inp.setAttribute('placeholder',ph);
+    inp.value = getPath(ch,path)==null?'':getPath(ch,path);
+    inp.oninput=()=>{ setPath(ch,path, type==='number'? (inp.value===''?'':+inp.value) : inp.value); commit(); refreshDerived(); };
+    return inp;
+  }
+  function selFor(path, options){
+    const s=el('select');
+    options.forEach(o=>{ const v=Array.isArray(o)?o[0]:o, lbl=Array.isArray(o)?o[1]:o;
+      const opt=el('option',{value:v, html:lbl}); if(String(getPath(ch,path))===String(v)) opt.selected=true; s.append(opt); });
+    s.onchange=()=>{ setPath(ch,path,s.value); commit(); };
+    return s;
+  }
+  function getPath(o,p){ return p.split('.').reduce((a,k)=>a&&a[k], o); }
+  function setPath(o,p,v){ const ks=p.split('.'); const last=ks.pop(); const t=ks.reduce((a,k)=>a[k],o); t[last]=v; }
+
+  // Derived stat nodes we refresh live as the player edits.
+  let derivedNodes=[];
+  function refreshDerived(){ derivedNodes.forEach(fn=>{ try{fn();}catch(e){} }); }
+
+  /* ---------- CORE tab ---------- */
+  function tabCore(root){
+    derivedNodes=[];
+    // identity grid
+    const idGrid = el('div',{class:'sheet-grid'});
+    const klassSel = selFor('klass', Object.keys(D.CLASSES));
+    klassSel.onchange=()=>{
+      ch.klass=klassSel.value; const def=D.CLASSES[ch.klass];
+      if(def){ ch.hitDiceType=def.hd; ch.spellAbility=def.cast||'';
+        D.ABILS.forEach(a=> ch.saveProfs[a[0]]=def.saves.includes(a[0])); }
+      commit(); renderBody();
+    };
+    idGrid.append(
+      field('Class', klassSel),
+      field('Subclass', inputFor('subclass','text','optional')),
+      field('Level', inputFor('level','number')),
+      field('Species', selFor('species', Object.keys(D.SPECIES))),
+      field('Background', selFor('background', D.BACKGROUNDS)),
+      field('Alignment', selFor('alignment', D.ALIGNMENTS)),
+      field('Player Name', inputFor('playerName','text')),
+      field('XP', inputFor('xp','number'))
+    );
+    root.append(idGrid);
+
+    // proficiency / inspiration strip
+    const strip = el('div',{class:'stat-strip'});
+    const profPill = pill('Prof Bonus', ()=>D.fmtMod(D.profBonus(ch.level)));
+    const ppPill = pill('Passive Perc.', ()=>D.passivePerception(ch));
+    const inspPill = el('div',{class:'stat-pill click'});
+    function drawInsp(){ inspPill.innerHTML=`<div class="sp-k">Inspiration</div><div class="sp-v">${ch.inspiration?'★':'☆'}</div>`; }
+    inspPill.onclick=()=>{ ch.inspiration=!ch.inspiration; commit(); drawInsp(); };
+    drawInsp();
+    strip.append(profPill, ppPill, inspPill);
+    root.append(strip);
+
+    // two columns: abilities | saves+skills
+    const cols = el('div',{class:'sheet-cols'});
+    const abilCol = el('div',{class:'ability-col'});
+    D.ABILS.forEach(([k,name])=>{
+      const box=el('div',{class:'abil-box'});
+      const inp=el('input',{type:'number', value:ch.abilities[k]});
+      const modBtn=el('div',{class:'abil-mod', title:'Roll '+name+' check'});
+      function drawMod(){ modBtn.textContent=D.fmtMod(D.abilMod(ch,k)); }
+      inp.oninput=()=>{ ch.abilities[k]= inp.value===''?0:+inp.value; commit(); drawMod(); refreshDerived(); };
+      modBtn.onclick=()=> forgeRoll(name+' Check', D.abilMod(ch,k));
+      box.append(el('div',{class:'ab-name', html:name.slice(0,3).toUpperCase()}), inp, modBtn);
+      drawMod();
+      abilCol.append(box);
+    });
+
+    const right = el('div',{});
+    // Saving throws
+    right.append(el('div',{class:'section-title', html:'Saving Throws', style:'margin-top:0'}));
+    const saveList = el('div',{class:'roll-list'});
+    D.ABILS.forEach(([k,name])=>{
+      const row=el('div',{class:'roll-row'});
+      const dot=el('button',{class:'prof-dot'+(ch.saveProfs[k]?' p1':''), title:'Toggle proficiency'});
+      const bonus=el('span',{class:'rr-bonus'});
+      function draw(){ dot.className='prof-dot'+(ch.saveProfs[k]?' p1':''); bonus.textContent=D.fmtMod(D.saveBonus(ch,k)); }
+      dot.onclick=(e)=>{ e.stopPropagation(); ch.saveProfs[k]=!ch.saveProfs[k]; commit(); draw(); };
+      row.onclick=()=> forgeRoll(name+' Save', D.saveBonus(ch,k));
+      row.append(dot, el('span',{class:'rr-name', html:name}), bonus);
+      draw(); derivedNodes.push(draw);
+      saveList.append(row);
+    });
+    right.append(saveList);
+
+    // Skills
+    right.append(el('div',{class:'section-title', html:'Skills'}));
+    const skillList = el('div',{class:'roll-list'});
+    D.SKILLS.forEach(([key,name,ab])=>{
+      const row=el('div',{class:'roll-row'});
+      const dot=el('button',{class:'prof-dot', title:'Tap: none → proficient → expertise'});
+      const bonus=el('span',{class:'rr-bonus'});
+      function draw(){ const lv=ch.skillProfs[key]||0;
+        dot.className='prof-dot'+(lv===1?' p1':lv===2?' p2':''); bonus.textContent=D.fmtMod(D.skillBonus(ch,key)); }
+      dot.onclick=(e)=>{ e.stopPropagation(); ch.skillProfs[key]=((ch.skillProfs[key]||0)+1)%3; commit(); draw(); };
+      row.onclick=()=> forgeRoll(name, D.skillBonus(ch,key));
+      row.append(dot, el('span',{class:'rr-name', html:name}),
+        el('span',{class:'rr-abil', html:ab}), bonus);
+      draw(); derivedNodes.push(draw);
+      skillList.append(row);
+    });
+    right.append(skillList);
+
+    cols.append(abilCol, right);
+    root.append(cols);
+  }
+
+  function pill(label, valFn){
+    const p=el('div',{class:'stat-pill'});
+    function draw(){ p.innerHTML=`<div class="sp-k">${label}</div><div class="sp-v">${valFn()}</div>`; }
+    draw(); derivedNodes.push(draw);
+    return p;
+  }
+
+  /* ---------- COMBAT tab ---------- */
+  function tabCombat(root){
+    derivedNodes=[];
+    const strip = el('div',{class:'stat-strip'});
+    strip.append(
+      pill('Armor Class', ()=>D.armorClass(ch)),
+      clickPill('Initiative', ()=>D.fmtMod(D.initiative(ch)), ()=> forgeRoll('Initiative', D.initiative(ch))),
+      editPill('Speed','speed'),
+      editPill('AC Override','acOverride'),
+      editPill('Init Misc','initiativeMisc')
+    );
+    root.append(strip);
+
+    // HP block
+    const hpGrid = el('div',{class:'sheet-grid'});
+    hpGrid.append(
+      field('Max HP', inputFor('maxHp','number')),
+      field('Current HP', inputFor('curHp','number')),
+      field('Temp HP', inputFor('tempHp','number'))
+    );
+    root.append(hpGrid);
+
+    // Hit dice + death saves
+    const hd = el('div',{class:'sheet-grid'});
+    hd.append(
+      field('Hit Dice Type (d)', inputFor('hitDiceType','number')),
+      field('Hit Dice Used', inputFor('hitDiceUsed','number'))
+    );
+    root.append(hd);
+
+    root.append(el('div',{class:'section-title', html:'Death Saves'}));
+    const dsWrap = el('div',{style:'display:flex; gap:24px; flex-wrap:wrap; align-items:center;'});
+    dsWrap.append(deathTrack('Successes','successes','succ'), deathTrack('Failures','failures','fail'));
+    const dsRoll = el('button',{class:'btn ghost', html:'🎲 Roll Death Save'});
+    dsRoll.onclick=()=> forgeRoll('Death Saving Throw', 0, {flat:true});
+    dsWrap.append(dsRoll);
+    root.append(dsWrap);
+
+    // Conditions
+    root.append(el('div',{class:'section-title', html:'Conditions & Notes'}));
+    const condArea=el('textarea',{class:'forge-area', placeholder:'Poisoned, Concentrating on Bless, etc.'});
+    condArea.value=ch.conditions||''; condArea.oninput=()=>{ ch.conditions=condArea.value; commit(); };
+    root.append(condArea);
+
+    // Attacks table
+    root.append(el('div',{class:'section-title', html:'Attacks'}));
+    root.append(attacksTable());
+  }
+  function clickPill(label, valFn, onClick){
+    const p=el('div',{class:'stat-pill click'});
+    function draw(){ p.innerHTML=`<div class="sp-k">${label}</div><div class="sp-v">${valFn()}</div>`; }
+    p.onclick=onClick; draw(); derivedNodes.push(draw); return p;
+  }
+  function editPill(label, path){
+    const p=el('div',{class:'stat-pill'});
+    p.innerHTML=`<div class="sp-k">${label}</div>`;
+    const inp=el('input',{type:'number', value: getPath(ch,path)===''?'':getPath(ch,path)});
+    inp.oninput=()=>{ setPath(ch,path, inp.value===''?'':+inp.value); commit(); refreshDerived(); };
+    p.append(inp); return p;
+  }
+  function deathTrack(label, key, cls){
+    const wrap=el('div',{});
+    wrap.append(el('div',{class:'sp-k', style:'font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim); margin-bottom:5px;', html:label}));
+    const track=el('div',{class:'death-track '+cls});
+    function draw(){ track.innerHTML='';
+      for(let i=1;i<=3;i++){ const pip=el('button',{class:'dt-pip'+(i<=ch.deathSaves[key]?' on':'')});
+        pip.onclick=()=>{ ch.deathSaves[key]= (ch.deathSaves[key]===i? i-1 : i); commit(); draw(); };
+        track.append(pip); } }
+    draw(); wrap.append(track); return wrap;
+  }
+  function attacksTable(){
+    const tbl=el('table',{class:'forge-table'});
+    tbl.innerHTML='<thead><tr><th>Name</th><th>Atk Bonus</th><th>Damage / Type</th><th></th></tr></thead>';
+    const tb=el('tbody'); tbl.append(tb);
+    function render(){
+      tb.innerHTML='';
+      ch.attacks.forEach((atk,i)=>{
+        const tr=el('tr',{class:'roll'});
+        const nameTd=el('td'), bonusTd=el('td'), dmgTd=el('td'), delTd=el('td');
+        const nameI=el('input',{value:atk.name||'', placeholder:'Longsword'});
+        nameI.oninput=()=>{ atk.name=nameI.value; commit(); };
+        const bonusI=el('input',{value:atk.bonus==null?'':atk.bonus, placeholder:'+5'});
+        bonusI.oninput=()=>{ atk.bonus=bonusI.value; commit(); };
+        const dmgI=el('input',{value:atk.damage||'', placeholder:'1d8+3 slashing'});
+        dmgI.oninput=()=>{ atk.damage=dmgI.value; commit(); };
+        const del=el('button',{class:'tbtn', html:'🗑'});
+        del.onclick=()=>{ ch.attacks.splice(i,1); commit(); render(); };
+        // Click the row (away from inputs) to roll the attack.
+        tr.onclick=(e)=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON') return;
+          const b=parseInt(String(atk.bonus).replace(/[^\d-]/g,''),10)||0;
+          forgeRoll((atk.name||'Attack')+' — to hit', b); };
+        nameTd.append(nameI); bonusTd.append(bonusI); dmgTd.append(dmgI); delTd.append(del);
+        tr.append(nameTd,bonusTd,dmgTd,delTd); tb.append(tr);
+      });
+    }
+    render();
+    const add=el('button',{class:'btn', html:'＋ Add Attack', style:'margin-top:6px'});
+    add.onclick=()=>{ ch.attacks.push({name:'',bonus:'',damage:''}); commit(); render(); };
+    const wrap=el('div',{}); wrap.append(tbl, add); return wrap;
+  }
+
+  /* ---------- SPELLS tab ---------- */
+  function tabSpells(root){
+    derivedNodes=[];
+    const top = el('div',{class:'sheet-grid'});
+    const abilSel = el('select');
+    [['','— none —']].concat(D.ABILS.map(a=>[a[0],a[1]])).forEach(([v,lbl])=>{
+      const opt=el('option',{value:v, html:lbl}); if(ch.spellAbility===v) opt.selected=true; abilSel.append(opt);
+    });
+    abilSel.onchange=()=>{ ch.spellAbility=abilSel.value; commit(); refreshDerived(); };
+    top.append(field('Spellcasting Ability', abilSel));
+    const dcPill = pill('Spell Save DC', ()=> D.spellSaveDC(ch)==null?'—':D.spellSaveDC(ch));
+    const atkPill = clickPill('Spell Attack', ()=> D.spellAttack(ch)==null?'—':D.fmtMod(D.spellAttack(ch)),
+      ()=>{ const a=D.spellAttack(ch); if(a!=null) forgeRoll('Spell Attack', a); });
+    const stripWrap=el('div',{class:'stat-strip'}); stripWrap.append(dcPill, atkPill);
+    root.append(top, stripWrap);
+
+    root.append(el('div',{class:'section-title', html:'Spell Slots'}));
+    const slots=el('div',{class:'spell-slots'});
+    for(let lv=1; lv<=9; lv++){
+      const box=el('div',{class:'slot-box'});
+      box.append(el('div',{class:'sl-k', html:'Level '+lv}));
+      const used=el('input',{type:'number', value:ch.spellSlots[lv].used});
+      const sep=el('span',{class:'sl-sep', html:' / '});
+      const total=el('input',{type:'number', value:ch.spellSlots[lv].total});
+      used.oninput=()=>{ ch.spellSlots[lv].used= used.value===''?0:+used.value; commit(); };
+      total.oninput=()=>{ ch.spellSlots[lv].total= total.value===''?0:+total.value; commit(); };
+      const line=el('div',{}); line.append(used, sep, total); box.append(line);
+      slots.append(box);
+    }
+    root.append(slots);
+
+    root.append(el('div',{class:'section-title', html:'Spells Known / Prepared'}));
+    root.append(spellsTable());
+  }
+  function spellsTable(){
+    const tbl=el('table',{class:'forge-table'});
+    tbl.innerHTML='<thead><tr><th style="width:60px">Lvl</th><th>Spell</th><th style="width:80px">Prep</th><th>Notes</th><th></th></tr></thead>';
+    const tb=el('tbody'); tbl.append(tb);
+    function render(){
+      tb.innerHTML='';
+      ch.spells.forEach((sp,i)=>{
+        const tr=el('tr');
+        const lvlI=el('input',{type:'number', value:sp.level==null?0:sp.level});
+        lvlI.oninput=()=>{ sp.level=lvlI.value===''?0:+lvlI.value; commit(); };
+        const nameI=el('input',{value:sp.name||'', placeholder:'Fireball'});
+        nameI.oninput=()=>{ sp.name=nameI.value; commit(); };
+        const prep=el('input',{type:'checkbox'}); prep.checked=!!sp.prepared;
+        prep.onchange=()=>{ sp.prepared=prep.checked; commit(); };
+        const prepWrap=el('div',{style:'text-align:center'}); prepWrap.append(prep);
+        const noteI=el('input',{value:sp.notes||'', placeholder:'V,S,M · conc.'});
+        noteI.oninput=()=>{ sp.notes=noteI.value; commit(); };
+        const del=el('button',{class:'tbtn', html:'🗑'});
+        del.onclick=()=>{ ch.spells.splice(i,1); commit(); render(); };
+        [lvlI,nameI,prepWrap,noteI,del].forEach((nd,j)=>{ const td=el('td'); td.append(nd); tr.append(td); });
+        tb.append(tr);
+      });
+    }
+    render();
+    const add=el('button',{class:'btn', html:'＋ Add Spell', style:'margin-top:6px'});
+    add.onclick=()=>{ ch.spells.push({level:0,name:'',prepared:false,notes:''}); commit(); render(); };
+    const wrap=el('div',{}); wrap.append(tbl, add); return wrap;
+  }
+
+  /* ---------- GEAR tab ---------- */
+  function tabGear(root){
+    root.append(el('div',{class:'section-title', html:'Currency', style:'margin-top:0'}));
+    const cur=el('div',{class:'stat-strip'});
+    [['pp','PP'],['gp','GP'],['ep','EP'],['sp','SP'],['cp','CP']].forEach(([k,lbl])=>{
+      const p=el('div',{class:'stat-pill'});
+      p.innerHTML=`<div class="sp-k">${lbl}</div>`;
+      const inp=el('input',{type:'number', value:ch.currency[k]||0});
+      inp.oninput=()=>{ ch.currency[k]= inp.value===''?0:+inp.value; commit(); };
+      p.append(inp); cur.append(p);
+    });
+    root.append(cur);
+
+    root.append(el('div',{class:'section-title', html:'Inventory'}));
+    const tbl=el('table',{class:'forge-table'});
+    tbl.innerHTML='<thead><tr><th>Item</th><th style="width:70px">Qty</th><th style="width:80px">Weight</th><th>Notes</th><th></th></tr></thead>';
+    const tb=el('tbody'); tbl.append(tb);
+    function render(){
+      tb.innerHTML='';
+      ch.inventory.forEach((it,i)=>{
+        const tr=el('tr');
+        const nameI=el('input',{value:it.name||'', placeholder:'Rope, 50ft'});
+        nameI.oninput=()=>{ it.name=nameI.value; commit(); };
+        const qtyI=el('input',{type:'number', value:it.qty==null?1:it.qty});
+        qtyI.oninput=()=>{ it.qty=qtyI.value===''?0:+qtyI.value; commit(); };
+        const wI=el('input',{value:it.weight==null?'':it.weight, placeholder:'lb'});
+        wI.oninput=()=>{ it.weight=wI.value; commit(); };
+        const noteI=el('input',{value:it.notes||''});
+        noteI.oninput=()=>{ it.notes=noteI.value; commit(); };
+        const del=el('button',{class:'tbtn', html:'🗑'});
+        del.onclick=()=>{ ch.inventory.splice(i,1); commit(); render(); };
+        [nameI,qtyI,wI,noteI,del].forEach(nd=>{ const td=el('td'); td.append(nd); tr.append(td); });
+        tb.append(tr);
+      });
+    }
+    render();
+    const add=el('button',{class:'btn', html:'＋ Add Item', style:'margin-top:6px'});
+    add.onclick=()=>{ ch.inventory.push({name:'',qty:1,weight:'',notes:''}); commit(); render(); };
+    root.append(tbl, add);
+  }
+
+  /* ---------- FEATURES tab ---------- */
+  function tabFeatures(root){
+    root.append(el('div',{class:'section-title', html:'Features & Traits', style:'margin-top:0'}));
+    const f1=el('textarea',{class:'forge-area', style:'min-height:160px', placeholder:'Class features, racial traits, feats…'});
+    f1.value=ch.features||''; f1.oninput=()=>{ ch.features=f1.value; commit(); };
+    root.append(f1);
+    root.append(el('div',{class:'section-title', html:'Proficiencies & Languages'}));
+    const f2=el('textarea',{class:'forge-area', placeholder:'Armor, weapons, tools, languages…'});
+    f2.value=ch.proficienciesLangs||''; f2.oninput=()=>{ ch.proficienciesLangs=f2.value; commit(); };
+    root.append(f2);
+  }
+
+  /* ---------- BIO tab ---------- */
+  function tabBio(root){
+    const fields=[['personality','Personality Traits'],['ideals','Ideals'],['bonds','Bonds'],
+      ['flaws','Flaws'],['appearance','Appearance'],['backstory','Backstory']];
+    fields.forEach(([k,lbl],i)=>{
+      root.append(el('div',{class:'section-title', html:lbl, style:i===0?'margin-top:0':''}));
+      const ta=el('textarea',{class:'forge-area', style:k==='backstory'?'min-height:160px':''});
+      ta.value=ch.bio[k]||''; ta.oninput=()=>{ ch.bio[k]=ta.value; commit(); };
+      root.append(ta);
+    });
+  }
+
+  /* ---------- share card ---------- */
+  function openShareCard(){
+    const icon=D.CLASS_ICON[ch.klass]||'📖';
+    ShareCard.open({
+      lab:'RPG', tool:'Character Forge', glyph:icon,
+      metric:[
+        {k:(ch.name||'Adventurer'), v:`${ch.species||''} ${ch.klass||''} ${ch.level||1}`.trim()},
+        {k:'HP', v:`${ch.curHp||0}/${ch.maxHp||0}`},
+        {k:'AC', v:String(D.armorClass(ch))},
+        {k:'Prof', v:D.fmtMod(D.profBonus(ch.level))}
+      ]
+    });
+  }
+
+  /* ---------- print / PDF ---------- */
+  function printSheet(){
+    const w=window.open('','_blank'); if(!w) { UI.toast('Pop-up blocked','Allow pop-ups to print the sheet.'); return; }
+    const row=(l,v)=>`<tr><td class="l">${esc(l)}</td><td class="v">${esc(v)}</td></tr>`;
+    const saves=D.ABILS.map(a=>`${a[1].slice(0,3)} ${D.fmtMod(D.saveBonus(ch,a[0]))}${ch.saveProfs[a[0]]?'*':''}`).join(' · ');
+    const skills=D.SKILLS.map(s=>{ const lv=ch.skillProfs[s[0]]||0; return `${s[1]} ${D.fmtMod(D.skillBonus(ch,s[0]))}${lv===2?'**':lv===1?'*':''}`; }).join(' · ');
+    const abils=D.ABILS.map(a=>`<div class="ab"><div class="abn">${a[1]}</div><div class="abv">${ch.abilities[a[0]]} (${D.fmtMod(D.abilMod(ch,a[0]))})</div></div>`).join('');
+    const inv=ch.inventory.filter(i=>i.name).map(i=>`${esc(i.name)}${i.qty>1?' ×'+i.qty:''}`).join(', ');
+    const spells=ch.spells.filter(s=>s.name).map(s=>`L${s.level} ${esc(s.name)}${s.prepared?' (prep)':''}`).join(', ');
+    const cur=['pp','gp','ep','sp','cp'].map(k=>`${ch.currency[k]||0}${k}`).join(' ');
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(ch.name||'Character')} — Character Sheet</title>
+<style>
+  body{font-family:Georgia,'Times New Roman',serif; color:#111; margin:32px; line-height:1.4;}
+  h1{margin:0 0 2px; font-size:24px;} .sub{color:#555; margin-bottom:14px;}
+  .abils{display:flex; gap:12px; flex-wrap:wrap; margin:12px 0;}
+  .ab{border:1.5px solid #333; border-radius:8px; padding:8px 14px; text-align:center; min-width:78px;}
+  .abn{font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#555;}
+  .abv{font-size:18px; font-weight:bold;}
+  .stats{display:flex; gap:18px; flex-wrap:wrap; margin:10px 0; font-size:15px;}
+  .stats b{font-size:18px;}
+  h2{font-size:14px; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid #999; padding-bottom:2px; margin:18px 0 6px;}
+  table{border-collapse:collapse;} td.l{color:#555; padding-right:10px;} td.v{font-weight:bold;}
+  p{margin:4px 0; white-space:pre-wrap;} .small{font-size:13px;}
+  @media print{ body{margin:14px;} }
+</style></head><body>
+  <h1>${esc(ch.name||'Unnamed Hero')}</h1>
+  <div class="sub">${esc(ch.species||'')} ${esc(ch.klass||'')}${ch.subclass?' ('+esc(ch.subclass)+')':''} · Level ${ch.level||1} · ${esc(ch.background||'')} · ${esc(ch.alignment||'')}</div>
+  <div class="abils">${abils}</div>
+  <div class="stats"><span>AC <b>${D.armorClass(ch)}</b></span><span>HP <b>${ch.curHp||0}/${ch.maxHp||0}</b></span>
+    <span>Init <b>${D.fmtMod(D.initiative(ch))}</b></span><span>Speed <b>${ch.speed||0}ft</b></span>
+    <span>Prof <b>${D.fmtMod(D.profBonus(ch.level))}</b></span><span>Passive Perc <b>${D.passivePerception(ch)}</b></span></div>
+  <h2>Saving Throws</h2><p class="small">${saves}</p>
+  <h2>Skills</h2><p class="small">${skills}</p>
+  ${ch.spellAbility?`<h2>Spellcasting</h2><p class="small">Ability ${esc(ch.spellAbility.toUpperCase())} · Save DC ${D.spellSaveDC(ch)} · Attack ${D.fmtMod(D.spellAttack(ch))}</p>${spells?`<p class="small">${spells}</p>`:''}`:''}
+  ${ch.attacks.filter(a=>a.name).length?`<h2>Attacks</h2><p class="small">${ch.attacks.filter(a=>a.name).map(a=>`${esc(a.name)} ${esc(String(a.bonus||''))} (${esc(a.damage||'')})`).join('<br>')}</p>`:''}
+  <h2>Equipment</h2><p class="small">${esc(cur)}${inv?'<br>'+inv:''}</p>
+  ${ch.features?`<h2>Features & Traits</h2><p>${esc(ch.features)}</p>`:''}
+  ${ch.proficienciesLangs?`<h2>Proficiencies & Languages</h2><p>${esc(ch.proficienciesLangs)}</p>`:''}
+  ${ch.bio.personality||ch.bio.ideals||ch.bio.bonds||ch.bio.flaws?`<h2>Personality</h2>
+    ${ch.bio.personality?`<p><b>Traits:</b> ${esc(ch.bio.personality)}</p>`:''}
+    ${ch.bio.ideals?`<p><b>Ideals:</b> ${esc(ch.bio.ideals)}</p>`:''}
+    ${ch.bio.bonds?`<p><b>Bonds:</b> ${esc(ch.bio.bonds)}</p>`:''}
+    ${ch.bio.flaws?`<p><b>Flaws:</b> ${esc(ch.bio.flaws)}</p>`:''}`:''}
+  ${ch.bio.backstory?`<h2>Backstory</h2><p>${esc(ch.bio.backstory)}</p>`:''}
+  <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+</body></html>`;
+    w.document.write(html); w.document.close();
+  }
+
+  renderTabs(); renderBody();
+};
+
+/* ============================================================================
    BOOT
    ============================================================================ */
 Router.add('#/', Views.home);
@@ -8532,6 +9406,8 @@ Router.add('#/dice/roller', Views.diceRoller);
 Router.add('#/rpg/npc', Views.npcGen);
 Router.add('#/rpg/initiative', Views.initiative);
 Router.add('#/rpg/quest', Views.questGen);
+Router.add('#/rpg/forge', Views.charForge);
+Router.add('#/rpg/forge/sheet', Views.charSheet);
 Router.add('#/arcade/memory', Views.memoryMatch);
 Router.add('#/arcade/dodge', Views.pixelDodge);
 Router.add('#/arcade/snake', Views.snake);
