@@ -6113,20 +6113,139 @@ Views.pixelDodge = function(c){
   panel.append(diffField, startRow, hud, stageTV, hint, result);
 
   const ctx2d = canvas.getContext('2d');
+  ctx2d.imageSmoothingEnabled = false;             // keep upscaled sprites crisp
+
+  /* ----------------------------------------------------------------------
+     PIXEL ART ENGINE — Direction "Deep Space".  Sprites are authored as
+     pixel grids / procedural generators rendered once to offscreen canvases,
+     then blitted (and rotated/pulsed) each frame.  Denser pixels + a wider
+     palette than the old flat blocks, but still nearest-neighbour 8-bit.
+     ---------------------------------------------------------------------- */
+  // build an offscreen canvas from a list of row-strings + a {char:[r,g,b(,a)]} palette
+  function pxCanvas(rows, pal){
+    const h=rows.length, w=Math.max(...rows.map(r=>r.length));
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    const c=cv.getContext('2d'); const id=c.createImageData(w,h); const d=id.data;
+    for(let y=0;y<h;y++){ const row=rows[y];
+      for(let x=0;x<w;x++){ const col=pal[row[x]||' ']; if(!col) continue;
+        const i=(y*w+x)*4; d[i]=col[0]; d[i+1]=col[1]; d[i+2]=col[2]; d[i+3]=col.length>3?col[3]:255; } }
+    c.putImageData(id,0,0); return cv;
+  }
+  // stamp a dark outline around any opaque pixel that touches transparency
+  function outline(c,w,h){
+    const id=c.getImageData(0,0,w,h), d=id.data, src=new Uint8ClampedArray(d);
+    const A=(x,y)=> (x<0||y<0||x>=w||y>=h)?0:src[(y*w+x)*4+3];
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=(y*w+x)*4; if(src[i+3]===0) continue;
+      if(!A(x+1,y)||!A(x-1,y)||!A(x,y+1)||!A(x,y-1)){ d[i]=8; d[i+1]=10; d[i+2]=22; d[i+3]=255; } }
+    c.putImageData(id,0,0);
+  }
+
+  // ---- ship: "Steel Raptor" (symmetric half-grid, mirrored) ----
+  const SHIP_PAL={ 'K':[8,10,22],'s':[70,86,120],'S':[120,140,180],'L':[180,200,235],
+    'H':[230,240,255],'b':[38,52,84],'w':[80,200,255],'W':[190,245,255],
+    'o':[255,150,40],'y':[255,230,90],'g':[80,255,180] };
+  const SHIP_HALF=[ ["           ",'K'],["          K",'S'],["         KS",'L'],["         Ks",'S'],
+    ["        KsS",'S'],["        Ksw",'w'],["       KsSw",'W'],["       KbSw",'w'],["      KbSSs",'S'],
+    ["     KbSSss",'s'],["    KbSSsss",'s'],["   KSLSssss",'s'],["  KSHLSssss",'s'],[" KSHLSsssss",'s'],
+    [" KKSLSsssss",'s'],["   KbSssbss",'s'],["    KbsbKbs",'s'],["    KbKgKbK",'g'],["    KKyoyKK",'o'],
+    ["     KyoyK ",'y'],["      KoK  ",'o'] ];
+  const shipSprite = pxCanvas(SHIP_HALF.map(([l,ctr])=> l+ctr+l.split('').reverse().join('')), SHIP_PAL);
+
+  // ---- obstacle generators (return an offscreen canvas sized to the sprite) ----
+  function astSprite(w,h){                          // rocky, shaded asteroid
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const c=cv.getContext('2d');
+    const id=c.createImageData(w,h), d=id.data, cx=w/2, cy=h/2, rx=w/2-1, ry=h/2-1;
+    const rock=[[40,34,28],[72,62,50],[110,96,78],[150,132,108],[186,168,140]];
+    const craters=[]; const nC=2+(Math.random()*2|0);
+    for(let i=0;i<nC;i++) craters.push([(0.25+Math.random()*0.5)*w,(0.25+Math.random()*0.5)*h,2+Math.random()*3]);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      const nx=(x-cx)/rx, ny=(y-cy)/ry, jit=(Math.sin(x*0.7)+Math.cos(y*0.6))*0.05, dd=nx*nx+ny*ny+jit;
+      if(dd>1.0) continue;
+      const l=(-nx-ny)*0.5+0.5; let s=2;
+      if(l>0.62) s=3; if(l>0.85) s=4; if(l<0.34) s=1; if(l<0.16) s=0;
+      for(const cr of craters){ if((x-cr[0])**2+(y-cr[1])**2<cr[2]*cr[2]) s=0; }
+      if(dd>0.8) s=Math.min(s,1);
+      const col=rock[s], i=(y*w+x)*4; d[i]=col[0]; d[i+1]=col[1]; d[i+2]=col[2]; d[i+3]=255;
+    }
+    c.putImageData(id,0,0); outline(c,w,h); return cv;
+  }
+  function crySprite(w,h,col){                      // faceted crystal shard
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const c=cv.getContext('2d');
+    const id=c.createImageData(w,h), d=id.data, cx=w/2;
+    const c1=col.map(v=>v*0.42|0), c2=col,
+          c3=col.map(v=>Math.min(255,(v*0.5+128)|0)), c4=col.map(v=>Math.min(255,(v*0.25+191)|0));
+    for(let y=0;y<h;y++){ const t=y/(h-1);
+      let half = t<0.42 ? (0.5-Math.abs(t-0.42))/0.55*(w/2-1)+1 : (1-(t-0.42)/0.58)*(w/2-1)+1;
+      half=Math.max(1,half);
+      for(let x=0;x<w;x++){ if(Math.abs(x-cx)>half) continue;
+        const side=(x-cx)/half; let cc;
+        if(side<-0.25) cc=c1; else if(side<0.1) cc=(y<h*0.4?c3:c2); else if(side<0.5) cc=c2; else cc=c1;
+        if(Math.abs(side)<0.12) cc=c4;
+        const i=(y*w+x)*4; d[i]=cc[0]; d[i+1]=cc[1]; d[i+2]=cc[2]; d[i+3]=255; } }
+    c.putImageData(id,0,0); outline(c,w,h); return cv;
+  }
+  function mineSprite(D){                           // spiked drifting mine
+    const cv=document.createElement('canvas'); cv.width=D; cv.height=D; const c=cv.getContext('2d');
+    const id=c.createImageData(D,D), dd=id.data, cx=D/2, cy=D/2, r=D*0.32;
+    const body=[[110,28,38],[180,46,56],[235,84,76],[255,160,110]];
+    for(let y=0;y<D;y++) for(let x=0;x<D;x++){ const dist=Math.hypot(x-cx,y-cy);
+      if(dist<r){ const l=((cx-x)+(cy-y))/(2*r)*0.5+0.5; let s=1;
+        if(l>0.58) s=2; if(l>0.82) s=3; if(dist>r*0.84) s=0;
+        const col=body[s], i=(y*D+x)*4; dd[i]=col[0]; dd[i+1]=col[1]; dd[i+2]=col[2]; dd[i+3]=255; } }
+    c.putImageData(id,0,0);
+    for(let a=0;a<8;a++){ const ang=a*Math.PI/4,
+      x1=cx+Math.cos(ang)*r*0.85, y1=cy+Math.sin(ang)*r*0.85,
+      x2=cx+Math.cos(ang)*(D/2-0.5), y2=cy+Math.sin(ang)*(D/2-0.5);
+      c.strokeStyle='#0a0e16'; c.lineWidth=2; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+      c.strokeStyle='#c83c3c'; c.lineWidth=1; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+    c.fillStyle='#ffe65a'; c.fillRect((cx-1)|0,(cy-1)|0,2,2); return cv;
+  }
+  const CRYSTAL_COLS=[[120,90,255],[80,210,200],[255,120,80],[120,200,255],[200,90,220],[120,255,160]];
+
+  // ---- parallax starfield + pre-rendered nebula backdrop ----
+  const bgCanvas=document.createElement('canvas'); bgCanvas.width=PD_W; bgCanvas.height=PD_H;
+  (function paintNebula(){
+    const b=bgCanvas.getContext('2d');
+    const g=b.createLinearGradient(0,0,0,PD_H);
+    g.addColorStop(0,'#04061a'); g.addColorStop(1,'#0a0820');
+    b.fillStyle=g; b.fillRect(0,0,PD_W,PD_H);
+    const tints=[['#3a1e5a',0.28],['#1e2a6e',0.24],['#13414f',0.20]];
+    for(let i=0;i<5;i++){ const x=Math.random()*PD_W, y=Math.random()*PD_H, r=50+Math.random()*70, t=tints[i%tints.length];
+      const rg=b.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0,t[0]); rg.addColorStop(1,'rgba(0,0,0,0)');
+      b.globalAlpha=t[1]; b.fillStyle=rg; b.fillRect(x-r,y-r,r*2,r*2); }
+    b.globalAlpha=1;
+  })();
+  const STAR_LAYERS=[ {speed:14,len:1,tw:false}, {speed:34,len:1,tw:false}, {speed:72,len:3,tw:true} ];
+  let stars=[], trail=[];
+  function seedStars(){ stars=[];
+    const counts=[70,46,24];
+    const pals=[ [[110,110,150]], [[160,170,220],[130,160,210]], [[235,240,255],[255,235,195],[180,230,255]] ];
+    for(let L=0;L<3;L++) for(let i=0;i<counts[L];i++){ const p=pals[L][(Math.random()*pals[L].length)|0];
+      stars.push({L, x:Math.random()*PD_W, y:Math.random()*PD_H, c:p, ph:Math.random()*6.28}); } }
+  seedStars();
 
   // ---- game state ----
   let playing=false, raf=null, lastT=0, elapsed=0, spawnTimer=0, diff=1;
   let shipX=PD_W/2, targetX=PD_W/2, keyDir=0;
   let blocks=[], score=0, dodged=0, near=0, runScore=0;
-  const SHIP_W=18, SHIP_H=16, SHIP_Y=PD_H-34;
+  const SHIP_W=shipSprite.width, SHIP_H=shipSprite.height, SHIP_Y=PD_H-44;
 
   function reset(){
     elapsed=0; spawnTimer=0; diff=1; shipX=PD_W/2; targetX=PD_W/2; keyDir=0;
-    blocks=[]; score=0; dodged=0; near=0;
+    blocks=[]; score=0; dodged=0; near=0; trail=[];
   }
   function spawnBlock(){
-    const w = 26 + Math.random()*60;
-    blocks.push({ x:Math.random()*(PD_W-w), y:-30, w, h:20+Math.random()*14, passed:false, near:false });
+    // varied thematic hazards; each carries its own sprite, spin and a fitted hitbox
+    const r=Math.random();
+    let type, w, h, fitW, fitH, sprite, rotSpeed=0;
+    if(r<0.50){ type='asteroid'; w=Math.round(34+Math.random()*38); h=Math.round(w*(0.82+Math.random()*0.16));
+      sprite=astSprite(w,h); fitW=0.74; fitH=0.74; rotSpeed=(Math.random()*2-1)*0.6; }
+    else if(r<0.82){ type='crystal'; w=Math.round(26+Math.random()*20); h=Math.round(w*(1.2+Math.random()*0.3));
+      sprite=crySprite(w,h, CRYSTAL_COLS[(Math.random()*CRYSTAL_COLS.length)|0]); fitW=0.5; fitH=0.82; }
+    else { type='mine'; const dgr=Math.round(24+Math.random()*12); w=h=dgr;
+      sprite=mineSprite(dgr); fitW=0.62; fitH=0.62; rotSpeed=(Math.random()*2-1)*0.4; }
+    blocks.push({ x:Math.random()*(PD_W-w), y:-h-8, w, h, type, sprite, rot:Math.random()*6.28,
+      rotSpeed, fitW, fitH, pulse:Math.random()*6.28, passed:false, near:false });
   }
   function grade(comp){ return comp>=0.92?'S':comp>=0.8?'A':comp>=0.65?'B':comp>=0.45?'C':'F'; }
 
@@ -6141,31 +6260,48 @@ Views.pixelDodge = function(c){
   }
 
   // ---- render ----
+  function drawStarfield(){
+    ctx2d.drawImage(bgCanvas, 0, 0);                 // gradient + nebula backdrop
+    const t=elapsed;
+    for(const s of stars){ const lay=STAR_LAYERS[s.L]; const c=s.c;
+      let a=1; if(lay.tw) a=0.55+0.45*Math.sin(t*3+s.ph);
+      ctx2d.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+','+a.toFixed(2)+')';
+      const sx=s.x|0, sy=s.y|0; ctx2d.fillRect(sx, sy, 1, lay.len);
+      if(lay.tw && a>0.92){                          // bright stars twinkle with a sparkle cross
+        ctx2d.fillRect(sx-1, sy, 1, 1); ctx2d.fillRect(sx+1, sy, 1, 1); ctx2d.fillRect(sx, sy-1, 1, 1); }
+    }
+  }
   function drawShip(cx, y){
-    const x = cx - SHIP_W/2;
-    ctx2d.fillStyle='#16f2c8';
-    ctx2d.fillRect(cx-2, y-6, 4, 6);                 // nose
-    ctx2d.fillRect(x, y, SHIP_W, SHIP_H-5);          // body
-    ctx2d.fillRect(x-3, y+SHIP_H-9, SHIP_W+6, 5);    // wings
-    ctx2d.fillStyle = (Math.floor(elapsed*22)%2) ? '#ffd23d' : '#ff7a3d';
-    ctx2d.fillRect(cx-3, y+SHIP_H-5, 6, 4+Math.random()*5);   // thruster flicker
+    // exhaust trail (oldest/faintest first)
+    for(const p of trail){ const a=p.life/p.max;
+      ctx2d.fillStyle='rgba('+p.c+','+(a*0.8).toFixed(2)+')'; ctx2d.fillRect(p.x|0, p.y|0, p.s, p.s); }
+    // twin engine flames — animated flicker
+    const f=Math.floor(elapsed*30)%3, flen=6+f*2+Math.random()*2, ey=y+SHIP_H-2;
+    for(const ox of [-3,3]){
+      ctx2d.fillStyle='#ff7a28'; ctx2d.fillRect(cx+ox-2, ey, 4, flen);
+      ctx2d.fillStyle='#ffd23d'; ctx2d.fillRect(cx+ox-1, ey, 2, flen*0.7);
+      ctx2d.fillStyle='#fff6c8'; ctx2d.fillRect(cx+ox,   ey, 1, flen*0.4);
+    }
+    ctx2d.drawImage(shipSprite, Math.round(cx-SHIP_W/2), Math.round(y));
   }
   function draw(){
-    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,PD_W,PD_H);
-    // streaking starfield — speeds up with difficulty
-    ctx2d.fillStyle='rgba(124,92,255,0.55)';
-    for(let i=0;i<26;i++){
-      const sx=(i*53)%PD_W;
-      const sy=((i*139 + elapsed*150*diff)%PD_H);
-      ctx2d.fillRect(sx, sy, 2, 6);
+    drawStarfield();
+    // thematic hazards — asteroids/mines spin, crystals pulse & shimmer
+    for(const b of blocks){ const cx=b.x+b.w/2, cy=b.y+b.h/2;
+      ctx2d.save(); ctx2d.translate(cx, cy);
+      if(b.type==='crystal'){ const s=1+Math.sin(elapsed*4+b.pulse)*0.06; ctx2d.scale(s,s); }
+      else ctx2d.rotate(b.rot);
+      ctx2d.drawImage(b.sprite, -b.w/2, -b.h/2, b.w, b.h);
+      ctx2d.restore();
+      if(b.type==='crystal'){                        // moving shimmer band
+        const sh=(elapsed*30+b.pulse*10)%(b.h+10)-5;
+        ctx2d.fillStyle='rgba(255,255,255,0.20)'; ctx2d.fillRect(b.x, b.y+sh, b.w, 1);
+      }
+      if(b.near){                                    // near-miss highlight
+        const a=0.5+0.5*Math.sin(elapsed*18);
+        ctx2d.strokeStyle='rgba(255,210,61,'+a.toFixed(2)+')'; ctx2d.strokeRect(b.x-0.5, b.y-0.5, b.w+1, b.h+1);
+      }
     }
-    // falling blocks
-    blocks.forEach(b=>{
-      ctx2d.fillStyle = b.near ? '#ffd23d' : '#ff3df0';
-      ctx2d.fillRect(b.x, b.y, b.w, b.h);
-      ctx2d.fillStyle='rgba(255,255,255,0.18)';
-      ctx2d.fillRect(b.x, b.y, b.w, 3);              // lit top edge
-    });
     drawShip(shipX, SHIP_Y);
   }
 
@@ -6186,14 +6322,25 @@ Views.pixelDodge = function(c){
     spawnTimer -= dt;
     if(spawnTimer<=0){ spawnBlock(); spawnTimer=Math.max(0.22, tv.spawn/diff); }
 
-    // forgiving hitbox (slightly smaller than the drawn ship)
-    const hb = { x:shipX-SHIP_W/2+2, y:SHIP_Y, w:SHIP_W-4, h:SHIP_H-4 };
+    // scroll parallax stars (accelerates with difficulty) and age the exhaust trail
+    for(const s of stars){ s.y += STAR_LAYERS[s.L].speed*(0.6+0.7*diff)*dt;
+      if(s.y>PD_H){ s.y-=PD_H; s.x=Math.random()*PD_W; } }
+    for(const p of trail){ p.y += 90*dt; p.life-=dt; }
+    trail = trail.filter(p=> p.life>0);
+    if(trail.length<46){ const c=Math.random()<0.5?'255,170,60':'120,200,255';
+      trail.push({ x:shipX-3+Math.random()*6, y:SHIP_Y+SHIP_H+1, life:0.4, max:0.4, s:Math.random()<0.4?2:1, c }); }
+
+    // forgiving hitbox centred on the ship's hull core (smaller than the drawn sprite)
+    const hb = { x:shipX-7, y:SHIP_Y+5, w:14, h:12 };
     for(const b of blocks){
       b.y += speed*dt;
+      if(b.rotSpeed) b.rot += b.rotSpeed*dt;          // spin asteroids/mines as they fall
       if(!b.passed && b.y > SHIP_Y+SHIP_H){ b.passed=true; dodged++; score += 12*tv.mult; sndPoint(); }
-      if(hb.x < b.x+b.w && hb.x+hb.w > b.x && hb.y < b.y+b.h && hb.y+hb.h > b.y){ gameOver(); return; }
-      if(!b.near && !b.passed && b.y+b.h > hb.y && b.y < hb.y+hb.h){
-        const gap = Math.min(Math.abs((b.x+b.w)-hb.x), Math.abs(b.x-(hb.x+hb.w)));
+      // fitted hitbox: shrink the bounding box to the obstacle's actual silhouette so odd shapes stay fair
+      const fx=b.x+b.w*(1-b.fitW)/2, fw=b.w*b.fitW, fy=b.y+b.h*(1-b.fitH)/2, fh=b.h*b.fitH;
+      if(hb.x < fx+fw && hb.x+hb.w > fx && hb.y < fy+fh && hb.y+hb.h > fy){ gameOver(); return; }
+      if(!b.near && !b.passed && fy+fh > hb.y && fy < hb.y+hb.h){
+        const gap = Math.min(Math.abs((fx+fw)-hb.x), Math.abs(fx-(hb.x+hb.w)));
         if(gap>0 && gap<8){ b.near=true; near++; sndNear(); }
       }
     }
