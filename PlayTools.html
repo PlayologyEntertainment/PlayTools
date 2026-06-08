@@ -265,16 +265,23 @@
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
 
   /* ---- Favorite controls ---- */
-  /* Corner star overlaid on each lobby card (sits above the CRT screen). */
-  .cab .fav-star{
-    position:absolute; top:8px; right:8px; z-index:5;
-    width:30px; height:30px; padding:0; line-height:28px; text-align:center;
-    font-size:17px; cursor:pointer; border-radius:6px;
-    background:rgba(8,12,28,0.72); color:var(--ink-dim);
-    border:1px solid var(--line); transition:.12s;
+  /* The lobby star sits in the CRT control-panel strip styled as a borderless
+     "knob/button", consistent with the display metaphor. It is the rightmost
+     control, so the decorative knobs/buttons/lights sit to its left. */
+  .crt-chrome .fav-star{
+    flex:0 0 auto; width:14px; height:14px; padding:0; margin:0;
+    border:none; border-radius:50%; cursor:pointer; outline:none;
+    line-height:14px; font-size:9px; text-align:center;
+    color:rgba(255,255,255,0.5);
+    background:radial-gradient(circle at 35% 30%, #56638f, #1b2444 68%, #0b1228);
+    box-shadow:0 1px 1px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.18);
+    transition:.12s;
   }
-  .cab .fav-star:hover{ color:#ffd23d; border-color:#ffd23d; transform:scale(1.08); }
-  .cab .fav-star.on{ color:#ffd23d; border-color:#ffd23d; }
+  .crt-chrome .fav-star:hover{ color:#ffd23d; transform:scale(1.14); }
+  .crt-chrome .fav-star.on{
+    color:#ffd23d;
+    box-shadow:0 0 6px #ffd23d, 0 1px 1px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.25);
+  }
   /* Labelled toggle dropped into an applet page header. */
   .view-head .fav-toggle{
     margin-left:auto; align-self:center; display:inline-flex; align-items:center; gap:6px;
@@ -2482,9 +2489,14 @@ function cabCard(cab){
   });
   crtDressTV(card, body, { accent: labColor(cab.lab), jitter: !cab.locked && Math.random()<0.35 });
   if(cab.locked) card.addEventListener('click', e=>{ e.preventDefault(); UI.toast('Locked','Coming in a later build.'); });
-  // Star overlay — favourite/unfavourite without leaving the lobby. Locked sets
-  // can't be starred (nothing to play yet).
-  if(!cab.locked) card.append(favControl(cab.id, 'star'));
+  // Favourite/unfavourite without leaving the lobby. The control lives in the
+  // CRT control-panel strip as the rightmost "knob", so the decorative knobs,
+  // buttons and lights sit to its left. Locked sets can't be starred.
+  if(!cab.locked){
+    const fav = favControl(cab.id, 'star');
+    const chrome = card.querySelector('.crt-chrome');
+    if(chrome) chrome.append(fav); else card.append(fav);
+  }
   return card;
 }
 
