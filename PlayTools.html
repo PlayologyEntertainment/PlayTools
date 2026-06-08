@@ -10401,7 +10401,7 @@ Router.start();
 (function(){
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var CORNERS = ['tl','tr','bl','br'];
-  function gap(){ return 6400 + Math.random()*12000; }   // ~6.4–18.4s between visits
+  function gap(){ return 3200 + Math.random()*6000; }    // ~3.2–9.2s between visits
   function buildBug(img){
     var stage = document.createElement('span');
     stage.className = 'sign-stage';
