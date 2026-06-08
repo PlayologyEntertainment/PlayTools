@@ -145,6 +145,63 @@
     85%{ opacity:.85; }
     86%{ opacity:.1; }
   }
+  /* ---- Neon-sign visitors: an occasional moth or firefly drawn to the glow.
+     A single element per sign, idle most of the time; one visit fades it in
+     off a corner, lazily loops it around, and drifts it back out. The drawn
+     creature (.bug-art) animates independently so its flap/pulse composes with
+     the parent's flight path. Built and scheduled by a small script at the end
+     of the body; hidden entirely when the sign is off or motion is reduced. */
+  .sign-stage{ position:relative; display:inline-block; line-height:0; }
+  .bug{
+    position:absolute; width:0; height:0;
+    pointer-events:none; opacity:0; z-index:3; will-change:transform,opacity;
+  }
+  .bug[data-corner="tl"]{ top:0;    left:0;    }
+  .bug[data-corner="tr"]{ top:0;    left:100%; }
+  .bug[data-corner="bl"]{ top:100%; left:0;    }
+  .bug[data-corner="br"]{ top:100%; left:100%; }
+  /* One path serves every corner: the bug's origin sits exactly on the corner,
+     so this lazy loop straddles the sign's edge whichever corner it picks. */
+  .bug.visiting{ animation:bugVisit 6.2s ease-in-out forwards; }
+  @keyframes bugVisit{
+    0%   { opacity:0; transform:translate(-18px,-22px); }
+    12%  { opacity:1; transform:translate(-6px,-12px);  }
+    30%  {            transform:translate(11px,3px);     }
+    48%  {            transform:translate(3px,16px);     }
+    66%  {            transform:translate(-13px,7px);    }
+    82%  { opacity:1; transform:translate(-4px,-9px);    }
+    100% { opacity:0; transform:translate(-21px,-24px);  }
+  }
+  .bug-art{ position:absolute; left:0; top:0; }
+  /* Firefly: a soft luminous dot pulsing in the sign's accent colour. */
+  .bug.firefly .bug-art{
+    width:5px; height:5px; margin:-2.5px; border-radius:50%;
+    background:radial-gradient(circle,#eafff8 0%,var(--neon) 55%,rgba(22,242,200,0) 78%);
+    animation:fireflyPulse 1.5s ease-in-out infinite;
+  }
+  @keyframes fireflyPulse{
+    0%,100%{ opacity:.6; box-shadow:0 0 5px 1px rgba(22,242,200,.55); }
+    50%    { opacity:1;  box-shadow:0 0 11px 4px rgba(22,242,200,.5);  }
+  }
+  /* Moth: a small dark body with two wings that flap; a faint violet rim
+     catches the neon it's drawn to. */
+  .bug.moth .bug-art{
+    width:4px; height:6px; margin:-3px -2px; border-radius:50%; background:#0b0a13;
+  }
+  .bug.moth .bug-art::before,
+  .bug.moth .bug-art::after{
+    content:""; position:absolute; top:-1px;
+    width:6px; height:8px; background:rgba(23,20,32,0.6);
+    border-radius:60% 60% 50% 50%; box-shadow:0 0 3px rgba(124,92,255,.45);
+    animation:mothFlap .13s ease-in-out infinite;
+  }
+  .bug.moth .bug-art::before{ left:-5px; transform-origin:right center; }
+  .bug.moth .bug-art::after { left: 3px; transform-origin:left  center; }
+  @keyframes mothFlap{ 0%,100%{ transform:scaleX(1); } 50%{ transform:scaleX(.4); } }
+  /* Don't appear when the sign is switched off or the user prefers less motion. */
+  body.sign-off .bug{ display:none; }
+  @media (prefers-reduced-motion:reduce){ .bug{ display:none !important; } }
+
   .subtitle{ font-size:12px; color:var(--ink-dim); letter-spacing:3px; text-transform:uppercase; }
 
   /* ---- Status strip (sticky) ---- */
@@ -10329,6 +10386,54 @@ Router.add('#/fun/roast', Views.genRoast);
 UI.init();
 Router.start();
 
+})();
+
+/* ---- Neon-sign visitors -----------------------------------------------------
+   Every so often a single moth or firefly flutters around a corner of each
+   neon sign, then leaves. Pure CSS does the motion (see .bug styles); this just
+   wraps each sign in a positioning stage and, on a long random idle gap, picks
+   a corner + species and (re)triggers the visit animation. Skips scheduling
+   while the sign is off or motion is reduced, so it stays effectively free. */
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var CORNERS = ['tl','tr','bl','br'];
+  function gap(){ return 8000 + Math.random()*15000; }   // 8–23s between visits
+  function buildBug(img){
+    var stage = document.createElement('span');
+    stage.className = 'sign-stage';
+    img.parentNode.insertBefore(stage, img);
+    stage.appendChild(img);
+    var bug = document.createElement('span');
+    bug.className = 'bug';
+    bug.appendChild(document.createElement('span')).className = 'bug-art';
+    stage.appendChild(bug);
+    return bug;
+  }
+  function start(img){
+    var bug = buildBug(img);
+    function visit(){
+      if(reduce.matches || document.body.classList.contains('sign-off') || bug.offsetParent === null){
+        return setTimeout(visit, gap());          // not now — try again later
+      }
+      bug.setAttribute('data-corner', CORNERS[Math.random()*4|0]);
+      bug.classList.remove('moth','firefly');
+      bug.classList.add(Math.random() < 0.5 ? 'firefly' : 'moth');
+      bug.classList.remove('visiting'); void bug.offsetWidth;   // restart anim
+      bug.classList.add('visiting');
+    }
+    bug.addEventListener('animationend', function(e){
+      if(e.animationName !== 'bugVisit') return;   // ignore the flap/pulse loops
+      bug.classList.remove('visiting','moth','firefly');        // fully idle
+      setTimeout(visit, gap());
+    });
+    setTimeout(visit, gap());
+  }
+  function init(){
+    var signs = document.querySelectorAll('.logo-sign, .splash-sign');
+    for(var i=0;i<signs.length;i++) start(signs[i]);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 </body>
