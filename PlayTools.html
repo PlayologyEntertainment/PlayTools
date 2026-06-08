@@ -163,6 +163,7 @@
   /* One path serves every corner: the bug's origin sits exactly on the corner,
      so this lazy loop straddles the sign's edge whichever corner it picks. */
   .bug.visiting{ animation:bugVisit 6.2s ease-in-out forwards; }
+  .bug.moth.visiting{ animation-duration:4.96s; }   /* moth flies 25% faster */
   @keyframes bugVisit{
     0%   { opacity:0; transform:translate(-18px,-22px); }
     12%  { opacity:1; transform:translate(-6px,-12px);  }
@@ -192,8 +193,8 @@
   .bug.moth .bug-art::after{
     content:""; position:absolute; top:-.5px;
     width:3px; height:4px; background:rgba(23,20,32,0.6);
-    border-radius:60% 60% 50% 50%; box-shadow:0 0 1.5px rgba(124,92,255,.45);
-    animation:mothFlap .13s ease-in-out infinite;
+    border-radius:60% 60% 50% 50%; box-shadow:0 0 1.5px rgba(124,92,255,.56);
+    animation:mothFlap .104s ease-in-out infinite;
   }
   .bug.moth .bug-art::before{ left:-2.5px; transform-origin:right center; }
   .bug.moth .bug-art::after { left: 1.5px; transform-origin:left  center; }
