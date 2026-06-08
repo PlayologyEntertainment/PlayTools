@@ -145,6 +145,118 @@
     85%{ opacity:.85; }
     86%{ opacity:.1; }
   }
+  /* ---- Neon-sign visitors: an occasional firefly, or a loose pair of moths,
+     drawn to the glow. Idle most of the time; one visit flies the creature(s)
+     in off a corner, across the sign, and back out. Structure (built +
+     scheduled by a script at the end of the body):
+        .bug                corner anchor; holds the shared --sx/--sy/--w/--h
+          .flyer            one creature; runs its own path (translate+opacity)
+            .art            the drawing; runs its own flap/pulse on top
+     Splitting path (on .flyer) from self-animation (on .art) lets the two
+     compose without fighting over transform/opacity. A moth visit runs two
+     flyers on different paths; the firefly visit runs one. Hidden entirely
+     when the sign is off or the user prefers reduced motion. */
+  .sign-stage{ position:relative; display:inline-block; line-height:0; }
+  .bug{
+    position:absolute; width:0; height:0; --sx:1; --sy:1; --w:300px; --h:120px;
+    pointer-events:none; z-index:3;
+  }
+  /* --sx/--sy flip every path so "positive" always points inward, toward the
+     sign, whichever corner the bug is anchored to. */
+  .bug[data-corner="tl"]{ top:0;    left:0;    --sx:1;  --sy:1;  }
+  .bug[data-corner="tr"]{ top:0;    left:100%; --sx:-1; --sy:1;  }
+  .bug[data-corner="bl"]{ top:100%; left:0;    --sx:1;  --sy:-1; }
+  .bug[data-corner="br"]{ top:100%; left:100%; --sx:-1; --sy:-1; }
+
+  /* A flyer is invisible until its visit; the path's final keyframe fades it
+     back to 0, so forwards-fill leaves it hidden between visits. */
+  .flyer{ position:absolute; left:0; top:0; opacity:0; will-change:transform,opacity; }
+  .flyer.visiting{ animation-timing-function:ease-in-out; animation-fill-mode:forwards; }
+  .flyer.firefly.visiting   { animation:bugVisit      6.2s  ease-in-out forwards; }
+  .flyer.moth.big.visiting  { animation:bugVisitMoth  4.96s ease-in-out forwards; }
+  .flyer.moth.small.visiting{ animation:bugVisitMoth2 5.4s  ease-in-out forwards; }
+
+  /* Firefly: a gentle arc that passes over the corner and slightly onto the sign. */
+  @keyframes bugVisit{
+    0%   { opacity:0; transform:translate(calc(var(--sx)*-18px),calc(var(--sy)*-22px)); }
+    12%  { opacity:1; transform:translate(calc(var(--sx)*-6px), calc(var(--sy)*-12px)); }
+    30%  {            transform:translate(calc(var(--sx)*16px), calc(var(--sy)*6px));    }
+    48%  {            transform:translate(calc(var(--sx)*8px),  calc(var(--sy)*22px));   }
+    66%  {            transform:translate(calc(var(--sx)*-13px),calc(var(--sy)*7px));    }
+    82%  { opacity:1; transform:translate(calc(var(--sx)*-4px), calc(var(--sy)*-9px));   }
+    100% { opacity:0; transform:translate(calc(var(--sx)*-21px),calc(var(--sy)*-24px));  }
+  }
+  /* Big moth: sweeps deep across the sign, scaled to its measured size (--w/--h,
+     set per-visit in JS) so it crosses the same proportion at any sign size. */
+  @keyframes bugVisitMoth{
+    0%   { opacity:0; transform:translate(calc(var(--sx)*-18px),         calc(var(--sy)*-22px));        }
+    12%  { opacity:1; transform:translate(calc(var(--sx)*-2px),          calc(var(--sy)*-6px));         }
+    26%  {            transform:translate(calc(var(--sx)*0.28*var(--w)),  calc(var(--sy)*0.18*var(--h))); }
+    42%  {            transform:translate(calc(var(--sx)*0.55*var(--w)),  calc(var(--sy)*0.42*var(--h))); }
+    58%  {            transform:translate(calc(var(--sx)*0.42*var(--w)),  calc(var(--sy)*0.58*var(--h))); }
+    72%  {            transform:translate(calc(var(--sx)*0.14*var(--w)),  calc(var(--sy)*0.34*var(--h))); }
+    86%  { opacity:1; transform:translate(calc(var(--sx)*-5px),          calc(var(--sy)*-8px));         }
+    100% { opacity:0; transform:translate(calc(var(--sx)*-21px),         calc(var(--sy)*-24px));        }
+  }
+  /* Small moth: a differently-shaped path over the same area — it runs further
+     out and higher first, then cuts down across the big moth's arc, so the two
+     diverge and rejoin rather than fly in lockstep (a loose pair). */
+  @keyframes bugVisitMoth2{
+    0%   { opacity:0; transform:translate(calc(var(--sx)*-22px),         calc(var(--sy)*-16px));        }
+    14%  { opacity:1; transform:translate(calc(var(--sx)*-4px),          calc(var(--sy)*-2px));         }
+    28%  {            transform:translate(calc(var(--sx)*0.40*var(--w)),  calc(var(--sy)*0.10*var(--h))); }
+    44%  {            transform:translate(calc(var(--sx)*0.62*var(--w)),  calc(var(--sy)*0.30*var(--h))); }
+    56%  {            transform:translate(calc(var(--sx)*0.30*var(--w)),  calc(var(--sy)*0.50*var(--h))); }
+    70%  {            transform:translate(calc(var(--sx)*0.08*var(--w)),  calc(var(--sy)*0.40*var(--h))); }
+    84%  { opacity:1; transform:translate(calc(var(--sx)*-6px),          calc(var(--sy)*-4px));         }
+    100% { opacity:0; transform:translate(calc(var(--sx)*-18px),         calc(var(--sy)*-26px));        }
+  }
+
+  .art{ position:absolute; left:0; top:0; }
+  /* Firefly: a soft luminous dot pulsing in the sign's accent colour. */
+  .flyer.firefly .art{
+    width:5px; height:5px; margin:-2.5px; border-radius:50%;
+    background:radial-gradient(circle,#eafff8 0%,var(--neon) 55%,rgba(22,242,200,0) 78%);
+  }
+  .flyer.firefly.visiting .art{ animation:fireflyPulse 1.5s ease-in-out infinite; }
+  @keyframes fireflyPulse{
+    0%,100%{ opacity:.6; box-shadow:0 0 5px 1px rgba(22,242,200,.55); }
+    50%    { opacity:1;  box-shadow:0 0 11px 4px rgba(22,242,200,.5);  }
+  }
+  /* Moths: a small dark body with two wings that flap; a faint violet rim
+     catches the neon. The small moth is half-scale, dimmer, and flaps faster
+     so it reads as smaller and a touch further away. */
+  .flyer.moth.big .art{
+    width:2px; height:3px; margin:-1.5px -1px; border-radius:50%; background:#110f1c;
+  }
+  .flyer.moth.big .art::before,
+  .flyer.moth.big .art::after{
+    content:""; position:absolute; top:-.5px;
+    width:3px; height:4px; background:rgba(35,30,48,0.9);
+    border-radius:60% 60% 50% 50%; box-shadow:0 0 2.25px rgba(124,92,255,.84);
+  }
+  .flyer.moth.big .art::before{ left:-2.5px; transform-origin:right center; }
+  .flyer.moth.big .art::after { left: 1.5px; transform-origin:left  center; }
+  .flyer.moth.small .art{
+    width:1px; height:1.5px; margin:-.75px -.5px; border-radius:50%; background:#0d0b16;
+  }
+  .flyer.moth.small .art::before,
+  .flyer.moth.small .art::after{
+    content:""; position:absolute; top:-.25px;
+    width:1.5px; height:2px; background:rgba(30,26,42,0.7);
+    border-radius:60% 60% 50% 50%; box-shadow:0 0 1.1px rgba(124,92,255,.5);
+  }
+  .flyer.moth.small .art::before{ left:-1.25px; transform-origin:right center; }
+  .flyer.moth.small .art::after { left: .75px;  transform-origin:left  center; }
+  .flyer.moth.big.visiting   .art::before,
+  .flyer.moth.big.visiting   .art::after{ animation:mothFlap .104s ease-in-out infinite; }
+  .flyer.moth.small.visiting .art::before,
+  .flyer.moth.small.visiting .art::after{ animation:mothFlap .07s  ease-in-out infinite; }
+  @keyframes mothFlap{ 0%,100%{ transform:scaleX(1); } 50%{ transform:scaleX(.4); } }
+  /* Don't appear when the sign is switched off or the user prefers less motion. */
+  body.sign-off .bug{ display:none; }
+  @media (prefers-reduced-motion:reduce){ .bug{ display:none !important; } }
+
   .subtitle{ font-size:12px; color:var(--ink-dim); letter-spacing:3px; text-transform:uppercase; }
 
   /* ---- Status strip (sticky) ---- */
@@ -10329,6 +10441,75 @@ Router.add('#/fun/roast', Views.genRoast);
 UI.init();
 Router.start();
 
+})();
+
+/* ---- Neon-sign visitors -----------------------------------------------------
+   Every so often a firefly, or a loose pair of moths, flies across a corner of
+   each neon sign and leaves. Pure CSS does the motion (see .bug styles); this
+   wraps each sign in a positioning stage, builds the flyers once, and on a long
+   random idle gap picks a corner + species, sizes the moths' reach to the sign,
+   and (re)triggers the path animation(s). A visit ends when every active
+   flyer's path animation has finished. Skips scheduling while the sign is off
+   or motion is reduced, so it stays effectively free. */
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var CORNERS = ['tl','tr','bl','br'];
+  var PATHS = { bugVisit:1, bugVisitMoth:1, bugVisitMoth2:1 };   // path anim names
+  function gap(){ return 3200 + Math.random()*6000; }    // ~3.2–9.2s between visits
+  function flyer(cls){
+    var f = document.createElement('span');
+    f.className = 'flyer ' + cls;
+    f.appendChild(document.createElement('span')).className = 'art';
+    return f;
+  }
+  function buildBug(img){
+    var stage = document.createElement('span');
+    stage.className = 'sign-stage';
+    img.parentNode.insertBefore(stage, img);
+    stage.appendChild(img);
+    var bug = document.createElement('span');
+    bug.className = 'bug';
+    bug.appendChild(flyer('firefly'));            // the three possible flyers,
+    bug.appendChild(flyer('moth big'));           // shown per visit by adding
+    bug.appendChild(flyer('moth small'));         // .visiting to the chosen ones
+    stage.appendChild(bug);
+    return bug;
+  }
+  function start(img){
+    var bug = buildBug(img);
+    var active = 0;                               // flyers still mid-visit
+    function run(f){
+      f.classList.remove('visiting'); void f.offsetWidth;   // restart its path
+      f.classList.add('visiting');
+      active++;
+    }
+    function visit(){
+      if(reduce.matches || document.body.classList.contains('sign-off') || bug.offsetParent === null){
+        return setTimeout(visit, gap());          // not now — try again later
+      }
+      bug.setAttribute('data-corner', CORNERS[Math.random()*4|0]);
+      bug.style.setProperty('--w', bug.parentNode.offsetWidth + 'px');   // size the
+      bug.style.setProperty('--h', bug.parentNode.offsetHeight + 'px');  // moths' reach
+      if(Math.random() < 0.5){
+        run(bug.querySelector('.firefly'));
+      } else {
+        run(bug.querySelector('.moth.big'));      // a loose pair on different paths
+        run(bug.querySelector('.moth.small'));
+      }
+    }
+    bug.addEventListener('animationend', function(e){
+      if(!PATHS[e.animationName]) return;         // ignore the flap/pulse loops
+      e.target.classList.remove('visiting');
+      if(--active <= 0){ active = 0; setTimeout(visit, gap()); }   // pair done
+    });
+    setTimeout(visit, gap());
+  }
+  function init(){
+    var signs = document.querySelectorAll('.logo-sign, .splash-sign');
+    for(var i=0;i<signs.length;i++) start(signs[i]);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 </body>
