@@ -376,6 +376,7 @@
   .cab .cab-icon{font-size:26px; line-height:1; margin-bottom:8px;}
   /* Sequence quadrant icon: scales to the surrounding font-size wherever it's dropped in */
   .seq-quads{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
+  .pawn-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .cab .cab-name{font-family:var(--pixel); color:#fff; font-size:15px; letter-spacing:.5px; display:flex; gap:6px; align-items:center;}
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
@@ -850,6 +851,43 @@
   .swot .box li:last-child{border-bottom:none;}
   .swot .box li .vv{font-family:var(--pixel); color:var(--neon);}
   .report-empty{background:var(--panel-2); border:1px dashed var(--line); border-radius:8px; padding:22px; text-align:center; color:var(--ink-dim); line-height:1.6;}
+
+  /* ---- Game Night Finder (Fun Lab) ---- */
+  .gf-crumbs{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 18px;}
+  .gf-crumb{background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:5px 12px; font-size:12px; color:var(--neon-3); font-family:var(--mono);}
+  .gf-crumb .sep{color:var(--ink-dim); margin-right:5px;}
+  .gf-opts{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px;}
+  @media(max-width:560px){ .gf-opts{grid-template-columns:1fr;} }
+  .gf-opt{
+    display:flex; align-items:center; gap:13px; text-align:left;
+    font-family:var(--mono); font-size:15px; color:var(--ink);
+    background:var(--panel-2); border:1px solid var(--line); border-radius:10px;
+    padding:16px; cursor:pointer; transition:border-color .15s, box-shadow .15s, transform .05s;
+  }
+  .gf-opt:hover{border-color:var(--neon); box-shadow:0 0 14px rgba(22,242,200,0.18);}
+  .gf-opt:active{transform:translateY(1px);}
+  .gf-opt .gf-ico{font-size:26px; line-height:1; flex:0 0 auto;}
+  .gf-result{animation:gen-pop .28s ease;}
+  .gf-res-head{text-align:center; padding:6px 0 2px;}
+  .gf-res-title{font-family:var(--pixel); font-size:26px; color:#fff; text-shadow:0 0 12px var(--neon); margin:0;}
+  .gf-res-sub{color:var(--neon-3); font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-top:5px;}
+  .gf-group-head{font-family:var(--pixel); font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--neon-4); margin:20px 0 8px;}
+  .gf-games{display:flex; flex-direction:column; gap:8px;}
+  .gf-game{display:flex; align-items:baseline; gap:13px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:12px 14px;}
+  .gf-tier{flex:0 0 auto; min-width:32px; text-align:center; font-family:var(--pixel); font-weight:700; letter-spacing:1px; color:var(--neon-5);}
+  .gf-tier.t2{color:var(--neon-3);}
+  .gf-tier.t3{color:var(--neon-2);}
+  .gf-info{display:flex; flex-direction:column; gap:3px;}
+  .gf-name{color:#fff; font-size:15px; font-weight:600;}
+  a.gf-name{text-decoration:none; transition:color .15s;}
+  a.gf-name:hover{color:var(--neon); text-decoration:underline;}
+  .gf-name .gf-ext{font-size:11px; color:var(--ink-dim); margin-left:5px; vertical-align:middle;}
+  a.gf-name:hover .gf-ext{color:var(--neon);}
+  .gf-blurb{color:var(--ink-dim); font-size:13px; line-height:1.5;}
+  .gf-legend{margin:20px 0 4px; padding:12px 14px; background:var(--panel-2); border:1px dashed var(--line); border-radius:8px; font-size:12px; color:var(--ink-dim);}
+  .gf-legend b{color:var(--neon-3); font-family:var(--pixel); margin-right:3px;}
+  .gf-legend .gap{display:inline-block; width:14px;}
+  .gf-legend .note{display:block; margin-top:7px; font-style:italic; opacity:0.8;}
 
   /* ---- Fun Lab Generators (DD §5.4) ---- */
   .gen-out{margin:18px 0 4px; animation:gen-pop .28s ease;}
@@ -1707,6 +1745,14 @@ const SEQ_ICON = '<svg class="seq-quads" viewBox="0 0 100 100" aria-hidden="true
   '<rect x="4" y="52" width="44" height="44" fill="#ffd23d"/>'+
   '<rect x="52" y="52" width="44" height="44" fill="#7c5cff"/></svg>';
 
+// PAWN_ICON — a board-game pawn silhouette (round head, flared body, base).
+// Rendered wherever an applet icon appears (lobby card + tool header). Sized to
+// 1em like SEQ_ICON.
+const PAWN_ICON = '<svg class="pawn-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
+  '<circle cx="50" cy="24" r="14" fill="#16f2c8" stroke="#070912" stroke-width="3"/>'+
+  '<path d="M40 36 Q45 44 42 54 Q38 66 30 80 L70 80 Q62 66 58 54 Q55 44 60 36 Z" fill="#16f2c8" stroke="#070912" stroke-width="3" stroke-linejoin="round"/>'+
+  '<rect x="24" y="78" width="52" height="13" rx="6.5" fill="#16f2c8" stroke="#070912" stroke-width="3"/></svg>';
+
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
    ============================================================================ */
@@ -2339,6 +2385,8 @@ const CABINETS = [
   // Fun Lab (DD §4.4) — identity profiling.
   { id:'gamer_quiz', lab:'Fun', name:'Gamer Quiz', railName:'Quiz', icon:'🎭', tag:'mvp', route:'#/fun/quiz',
     desc:'10-question archetype quiz — discover your player type.', dna:'Sets your Archetype tag' },
+  { id:'game_finder', lab:'Fun', name:'Game Night Planner', railName:'Finder', icon:PAWN_ICON, tag:'p2', route:'#/fun/gamefinder',
+    desc:'Answer a few quick questions and land on the perfect tabletop pick for your group.', dna:'Pure fun · logs a tool' },
   { id:'dna_report', lab:'Fun', name:'Gamer DNA Report', railName:'Report', icon:'📊', tag:'mvp', route:'#/fun/report',
     desc:'Your class, strengths, weaknesses & tier — as a share card.', dna:'Logs a completed tool' },
 
@@ -8380,6 +8428,313 @@ Views.gamerQuiz = function(c){
   intro();
 };
 
+/* ============================================================================
+   FUN LAB — Game Night Finder (decision-tree recommender)
+   A faithful, interactive build of the in-store "Game Finder" flowchart: answer
+   a short branch of questions and land on a curated, price-tagged shortlist of
+   tabletop games. Pure fun — the first lookup in a visit credits one completed
+   tool (no attribute deltas), mirroring the other Fun Lab generators.
+   ============================================================================ */
+// Price tiers from the poster legend: 1=$ (under $25), 2=$$ ($25–$50), 3=$$$ (over $50).
+const GF_TIERS = ['', '$', '$$', '$$$'];
+function gfg(n,t,b){ return { n:n, t:t, b:b }; }   // game shorthand: name, tier, blurb
+
+// Branching questions. Each option's `to` is either another node id (another
+// question) or a result id (keyed in GF_RESULTS). Mirrors the poster's arrows.
+const GF_NODES = {
+  age:{ q:'How old are the players?', opts:[
+    { label:'Over 10',  icon:'🧑', to:'players' },
+    { label:'Under 10', icon:'🧒', to:'under10' } ]},
+  under10:{ q:'What kind of night is it?', opts:[
+    { label:'Family Night',  icon:'🏠', to:'r_family' },
+    { label:'Dive Right In', icon:'🤿', to:'r_dive' } ]},
+  players:{ q:'How many players?', opts:[
+    { label:'1 Player',    icon:'🧍',  to:'r_1p' },
+    { label:'2 Players',   icon:'👥',  to:'r_2p' },
+    { label:'2–5 Players', icon:'👨‍👩‍👧', to:'win' },
+    { label:'6+ Players',  icon:'🎉',  to:'six' } ]},
+  six:{ q:'Board games or party games?', opts:[
+    { label:'Board Games', icon:'🎲', to:'r_board' },
+    { label:'Party Games', icon:'🥳', to:'r_party' } ]},
+  win:{ q:'How do you win?', opts:[
+    { label:'Solo Win', icon:'🏆', to:'time' },
+    { label:'Team Win', icon:'🤝', to:'r_team' } ]},
+  time:{ q:'How long do you want to play?', opts:[
+    { label:'Under 30 Minutes', icon:'⏱️', to:'r_u30' },
+    { label:'30–90 Minutes',    icon:'⏳', to:'gamer' },
+    { label:'90+ Minutes',      icon:'🕰️', to:'r_90' } ]},
+  gamer:{ q:'What kind of gamer are you?', opts:[
+    { label:'The Linguist',       icon:'🔤', to:'r_linguist' },
+    { label:'The Problem Solver', icon:'🧩', to:'r_solver' },
+    { label:'The Campaign Gamer', icon:'🗺️', to:'r_campaign' },
+    { label:'The Fighter',        icon:'🥊', to:'r_fighter' },
+    { label:'The Storyteller',    icon:'📖', to:'r_storyteller' },
+    { label:'The Artist',         icon:'🎨', to:'r_artist' },
+    { label:'The Bluffer',        icon:'🃏', to:'r_bluffer' },
+    { label:'The Strategist',     icon:'♟️', to:'r_strategist' } ]}
+};
+
+// Curated shortlists — games & price tiers transcribed exactly from the poster;
+// the one-line blurbs are added here as quick "what is it" context.
+const GF_RESULTS = {
+  r_1p:{ title:'Solo Sessions', sub:'One player, zero excuses', groups:[ { games:[
+    gfg('A Gentle Rain',1,'A meditative solo tile game of quietly tending a garden.'),
+    gfg('Final Girl',1,'Survive the slasher as the last one standing in this horror-movie solo fight.'),
+    gfg('Witchcraft!',1,'Defend yourself through a whimsical witch trial, one card at a time.'),
+    gfg('A Place for All My Books',2,'A cozy puzzle of shelving an ever-growing library just right.'),
+    gfg('Box TWO',2,'A sealed box of surprises that rewrites its own rules as you play.'),
+    gfg('Cascadia',2,"Draft tiles and tokens to build the Pacific Northwest's tidiest ecosystem."),
+    gfg('Ministry of Lost Things',2,'Reunite and reorganize forgotten objects in a charming solo puzzle.'),
+    gfg('Unstoppable',3,'A push-your-luck dino climb where momentum is everything.') ] } ] },
+
+  r_2p:{ title:'Head to Head', sub:'Built for exactly two', groups:[ { games:[
+    gfg('Blokus Duo',1,'A tense territory battle of interlocking polyomino tiles.'),
+    gfg('Codenames Duet',1,'The co-op twist on Codenames — find every agent together.'),
+    gfg('Compile',1,'A sharp dueling card game of AI programs fighting for control.'),
+    gfg('boop.',1,'Bump kittens around a squishy bed to line up three in a row.'),
+    gfg('Floristry',2,'Arrange competing bouquets in an elegant two-player duel.'),
+    gfg('GHQ: General Headquarters, The Lost Board Game',2,'A rediscovered war game of tight, grid-based maneuver.'),
+    gfg('Mantis Falls',2,'A nerve-wracking semi-co-op thriller where either of you might be the killer.'),
+    gfg('Patchwork',2,'Stitch a quilt of Tetris-like pieces while juggling buttons and time.'),
+    gfg('Sky Team',2,'Silently co-pilot a plane to a safe landing using placed dice.'),
+    gfg('Splendor Duel',2,'The gem-engine classic reworked into a razor-sharp two-player race.'),
+    gfg('Tag Team',2,'An over-the-top tag-team wrestling card brawl.') ] } ] },
+
+  r_team:{ title:'Team Win', sub:'Win together — or lose together', groups:[
+    { head:'All Players Win', games:[
+      gfg('The Crew',1,'Silent trick-taking co-op missions through deep space.'),
+      gfg('The Four Doors',1,'A cooperative escape-style adventure behind four mysterious doors.'),
+      gfg('Forbidden Jungle',2,'Race together to escape a collapsing jungle temple.'),
+      gfg('Illiterati',2,'Co-op word-building to hold off a tower of book-burning foes.'),
+      gfg('The Night Cage',2,'Grope through pitch-black caverns by shared candlelight.'),
+      gfg('The Lord of the Rings: Fate of the Fellowship',3,'Guide the whole Fellowship to Mordor in an epic co-op quest.'),
+      gfg('Mysterium',3,'A silent ghost sends dreamlike visions so the team can solve a murder.'),
+      gfg('Spirit Island',3,'Powerful spirits unite to drive colonial invaders off the island.'),
+      gfg('Vantage',3,'A sprawling cooperative epic of first-person exploration and survival.') ] },
+    { head:'One Versus Everyone Else', games:[
+      gfg('HeroQuest',2,'The classic dungeon crawl — one player runs the monsters against the heroes.'),
+      gfg('Betrayal at House on the Hill',3,'Explore a haunted house until one player suddenly turns traitor.'),
+      gfg('Mansions of Madness',3,'App-driven Lovecraftian horror with hidden threats at every turn.') ] } ] },
+
+  r_u30:{ title:'Quick Plays', sub:'In and out in under half an hour', groups:[ { games:[
+    gfg('Beasts',1,'A speedy card game of outwitting the table with wild creatures.'),
+    gfg('Emblems',1,'A snappy game of claiming and collecting heraldic emblems.'),
+    gfg('Fluxx',1,'A card game where the rules and the goal change every single turn.'),
+    gfg('Mountain Goats',1,'A light, quick scramble of goats racing up the peaks.'),
+    gfg('Please Don’t Burn My Village!',1,'A frantic dash to save your village before it all goes up in flames.'),
+    gfg('Sushi Go!',1,'Pass-and-draft adorable sushi for the tastiest combos.'),
+    gfg('Abduuktion',2,'A tense little abstract of capturing the most aliens.'),
+    gfg('Splendor',2,'Collect gems and build a Renaissance trading engine, fast.') ] } ] },
+
+  r_90:{ title:'The Main Event', sub:'Clear the evening — these earn it', groups:[ { games:[
+    gfg('Ark Nova',3,'Design a sprawling modern zoo in a deep, card-driven engine.'),
+    gfg('Brass: Birmingham',3,'Build canals, rails and industry across the Industrial Revolution.'),
+    gfg('Catan Histories: Settlers of America — Trails to Rails',3,'Settle and railroad across a young America in this Catan epic.'),
+    gfg('Distilled',3,'Run a distillery, craft spirits and age them into points.'),
+    gfg('Galactic Cruise',3,'A weighty worker-placement game of running a spacefaring resort.'),
+    gfg('SETI: Search for Extraterrestrial Intelligence',3,'Scan the cosmos and chase first contact in a deep strategy game.'),
+    gfg('Terraforming Mars',3,'Compete to make the red planet habitable, one project at a time.') ] } ] },
+
+  r_linguist:{ title:'The Linguist', sub:'Words are your weapon', groups:[ { games:[
+    gfg('Bananagrams',1,'A frantic race to build your own crossword grid from letter tiles.'),
+    gfg('Codenames',1,'Give one-word clues to lead your team to the right agents.'),
+    gfg('Stack It',1,'A quick, clever party game of stacking words under pressure.'),
+    gfg('Tapple',1,'Beat the timer naming words by category, one letter at a time.'),
+    gfg('Big Boggle',2,'Shake the grid and find as many hidden words as you can.'),
+    gfg('Dead Letters',2,'A narrative word game of decoding mysterious undelivered mail.'),
+    gfg('League of the Lexicon',2,'A trivia game celebrating the weird and wonderful history of words.') ] } ] },
+
+  r_solver:{ title:'The Problem Solver', sub:'Every clue has an answer', groups:[ { games:[
+    gfg('Agatha Christie: Death on the Cards',1,'A murder-mystery card game of deduction in classic Christie style.'),
+    gfg('Exit: The Game Series',1,'Escape-room-in-a-box puzzles you solve (and sometimes destroy).'),
+    gfg('Prime Suspect',1,'Interrogate suspects and crack the case in a tight deduction game.'),
+    gfg('Talking Tables Murder Mystery Series',1,'Host a dinner-party whodunit with scripted roles and clues.'),
+    gfg('Bomb Busters',2,'A nail-biting co-op race to cut the right wires in time.'),
+    gfg('Host Your Own Escape Room Series',2,'Build and run a complete escape-room experience at home.'),
+    gfg('Pinched!',2,'A breezy deduction game of catching the thief among you.'),
+    gfg('Mysterium',3,'A silent ghost sends dreamlike visions so the team can solve a murder.') ] } ] },
+
+  r_campaign:{ title:'The Campaign Gamer', sub:'One night is never enough', groups:[ { games:[
+    gfg('Gloomhaven: Jaws of the Lion',2,'A streamlined gateway into the legendary tactical dungeon campaign.'),
+    gfg('Ticket to Ride Legacy: Legends of the West',3,'A multi-game campaign that permanently transforms Ticket to Ride.'),
+    gfg('Vantage',3,'A sprawling cooperative exploration epic that unfolds over many sessions.') ] } ] },
+
+  r_fighter:{ title:'The Fighter', sub:'May the best brawler win', groups:[ { games:[
+    gfg('King of Tokyo',2,'Giant monsters smash dice and each other to rule the city.'),
+    gfg('Unmatched Series',2,'Asymmetric miniatures duels pitting legends against one another.'),
+    gfg('Warhammer 40,000 Series',2,'The grand miniatures wargame of the grim, dark far future.'),
+    gfg('Heat: Pedal to the Metal',3,'Push your luck in a slick hand-management car race.'),
+    gfg('Root',3,'Asymmetric woodland factions wage an adorable, cutthroat war.'),
+    gfg('Star Wars: Battle of Hoth',3,'A two-player miniatures clash recreating the assault on Hoth.') ] } ] },
+
+  r_storyteller:{ title:'The Storyteller', sub:'Adventure is what you make it', groups:[ { games:[
+    gfg('Dungeons & Dragons Starter Set',2,'Your gateway into tabletop roleplaying adventures.'),
+    gfg('Let’s Go! To Japan',2,'Plan a dream trip across Japan in a cozy card game.'),
+    gfg('Above and Below: Haunted',3,'Build a village by day, explore spooky caverns by story-driven night.'),
+    gfg('Mythwind',3,'A gentle open-world co-op of rebuilding a village together over time.'),
+    gfg('Winds of Numa Sera',3,'A narrative campaign adventure across a strange, beautiful world.') ] } ] },
+
+  r_artist:{ title:'The Artist', sub:'Make it beautiful', groups:[ { games:[
+    gfg('Canvas Critters',1,'Layer transparent cards to paint your cutest little creature.'),
+    gfg('Art Society',2,'Curate and arrange paintings to score the finest gallery.'),
+    gfg('Canvas',2,'Layer translucent art cards to compose award-winning paintings.'),
+    gfg('Hues and Cues',2,'Guess exact colors from one- and two-word clues.'),
+    gfg('Picablo',2,'A creative drawing party game of guessing what’s on the canvas.'),
+    gfg('Telestrations',2,'Telephone meets sketching for gloriously garbled results.') ] } ] },
+
+  r_bluffer:{ title:'The Bluffer', sub:'Lie like you mean it', groups:[ { games:[
+    gfg('Bamboozled',1,'A bluffing party game of bold claims and even bigger lies.'),
+    gfg('Chameleon',1,'Blend in and hide that you’re the one who doesn’t know the word.'),
+    gfg('Coup',1,'Bluff your influence and knock rivals out in a tight deduction game.'),
+    gfg('Excalibur',1,'A bluffing battle to be the one who claims the legendary sword.'),
+    gfg('Imposter! The After-Dinner Mystery Game',1,'A party whodunit where one diner is secretly faking it.'),
+    gfg('Lying Cheating Raccoons',1,'Trash-panda chaos of stealing, bluffing and sabotage.'),
+    gfg('One Night Ultimate Werewolf',1,'A fast, no-elimination hunt for the hidden werewolves.'),
+    gfg('Making Monsters',3,'A creative bluffing game of inventing and pitching wild monsters.') ] } ] },
+
+  r_strategist:{ title:'The Strategist', sub:'Out-think the table', groups:[ { games:[
+    gfg('A Place for All My Books',2,'A cozy puzzle of shelving an ever-growing library just right.'),
+    gfg('Azul',2,'Draft gorgeous tiles to lay the perfect mosaic wall.'),
+    gfg('Finspan',2,'The Wingspan system dives underwater to build a tableau of fish.'),
+    gfg('Flamecraft',2,'Place dragons in cozy shops to grow the best little town.'),
+    gfg('Harmonies',2,'Stack colorful tokens to build serene, point-rich habitats.'),
+    gfg('Mycelia',2,'A deck-builder of returning dewdrops to the forest shrine.'),
+    gfg('Tokaido',2,'Take the most scenic, point-rich journey across old Japan.'),
+    gfg('7 Wonders',3,'Draft cards to build a civilization across three ages.'),
+    gfg('Everdell',3,'Build a bustling woodland city of critters and constructions.'),
+    gfg('Wingspan',3,'Attract a tableau of beautiful birds in an engine-building gem.') ] } ] },
+
+  r_family:{ title:'Family Night', sub:'Crowd-pleasers for all ages', groups:[ { games:[
+    gfg('Cover Your Assets',1,'A push-your-luck card game of building (and stealing) wealth.'),
+    gfg('Happy Little Dinosaurs',1,'Dodge disasters in a goofy press-your-luck dino race.'),
+    gfg('Mountain Goats',1,'A light, quick scramble of goats racing up the peaks.'),
+    gfg('Sushi Go!',1,'Pass-and-draft adorable sushi for the tastiest combos.'),
+    gfg('5-Minute Dungeon',2,'A frantic real-time co-op dash through a dungeon.'),
+    gfg('Carcassonne',2,'Lay tiles and claim roads, cities and farms in medieval France.'),
+    gfg('Disney Villainous Unstoppable!',2,'Scheme as iconic Disney villains to pull off your evil plot.'),
+    gfg('Ticket to Ride',3,'Claim railway routes across the map in a beloved family classic.') ] } ] },
+
+  r_dive:{ title:'Dive Right In', sub:'No rulebook marathon required', groups:[ { games:[
+    gfg('Brick Like This!',1,'A fast building-block party game of quick creative challenges.'),
+    gfg('Exploding Kittens',1,'A silly card game of dodging cat-shaped explosions.'),
+    gfg('P for Pizza',1,'A speedy word party game with a cheesy pizza twist.'),
+    gfg('Pass The Pigs',1,'Roll little rubber pigs and bank points by how they land.'),
+    gfg('Spot It!',1,'A lightning-fast hunt for the one matching symbol.'),
+    gfg('Taco Cat Goat Cheese Pizza',1,'Slap the pile the instant card and chant collide.'),
+    gfg('UNO: Show ’Em No Mercy',1,'A brutal, stack-the-penalties take on classic UNO.') ] } ] },
+
+  r_board:{ title:'Big-Group Board Games', sub:'Built to seat a crowd', groups:[ { games:[
+    gfg('Dare to Ding',1,'A buzzer-racing party game of being first to shout the answer.'),
+    gfg('Excalibur',1,'A bluffing battle to be the one who claims the legendary sword.'),
+    gfg('Flip 7',1,'A press-your-luck card game of flipping for the perfect run.'),
+    gfg('Grab the Mic',1,'A performance party game of improv and quick wit.'),
+    gfg('Poorly Explained Movies',1,'Describe films badly and let everyone scramble to guess.'),
+    gfg('Side Effects',1,'A party game of inventing absurd cures and symptoms.'),
+    gfg('Trash Talk!',1,'A quick-fire party game of comebacks and friendly banter.'),
+    gfg('Mind the Gap',2,'A team game of guessing where you land on a hidden spectrum.'),
+    gfg('Wavelength',2,'Read your teammates’ minds to dial in the secret target.'),
+    gfg('We’re Doomed!',2,'Negotiate (and backstab) for seats on the last escape rocket.') ] } ] },
+
+  r_party:{ title:'Big-Group Party Games', sub:'Loud, fast and a little chaotic', groups:[ { games:[
+    gfg('Long Shot: The Dice Game',1,'Bet on horses and roll your way to the finish line.'),
+    gfg('Solve the Case',1,'A quick cooperative detective game of cracking mysteries.'),
+    gfg('Blank Slate',2,'Match minds by filling in the very same missing word.'),
+    gfg('Camel Up',2,'Bet on chaotic, pyramid-rolling camels racing across the desert.'),
+    gfg('Clue Master Detective',2,'A bigger, deeper take on the classic mansion mystery.'),
+    gfg('Diplomacy',2,'A negotiation wargame where every alliance is made to be broken.'),
+    gfg('Hues and Cues',2,'Guess exact colors from one- and two-word clues.'),
+    gfg('Scurry Up!',2,'A frantic real-time race of scurrying for resources.'),
+    gfg('Tsuro',2,'Lay path tiles and keep your stone on the board the longest.'),
+    gfg('7 Wonders',3,'Draft cards to build a civilization across three ages.') ] } ] }
+};
+
+/* ---- 5.4 Game Night Finder ---- */
+Views.gameFinder = function(c){
+  const cab = getCab('game_finder');
+  const panel = toolShell(c, cab);
+  const stage = el('div',{});
+  panel.append(stage);
+
+  // path = the chosen options leading to the current node (for breadcrumb + Back).
+  // The node currently on screen is the last choice's `to`, or 'age' when empty.
+  let path = [];
+  let logged = false;   // credit one completed tool on the first lookup per visit
+
+  function crumbs(){
+    if(!path.length) return null;
+    const wrap = el('div',{class:'gf-crumbs'});
+    path.forEach((p,i)=>{
+      wrap.append(el('span',{class:'gf-crumb',
+        html:`${i>0?'<span class="sep">›</span>':''}${p.icon} ${gEsc(p.label)}`}));
+    });
+    return wrap;
+  }
+
+  function nav(isResult){
+    const row = el('div',{class:'controls-row'});
+    if(path.length){
+      const back = el('button',{class:'btn ghost', html:'‹ Back'});
+      back.onclick = ()=>{ path.pop(); render(path.length ? path[path.length-1].to : 'age'); };
+      row.append(back);
+    }
+    if(isResult){
+      const again = el('button',{class:'btn primary', html:'↻ Start Over'});
+      again.onclick = ()=>{ path = []; render('age'); };
+      row.append(again);
+    }
+    stage.append(row);
+  }
+
+  function question(nodeId, node){
+    stage.innerHTML = '';
+    const cr = crumbs(); if(cr) stage.append(cr);
+    stage.append(el('p',{class:'quiz-q', text:node.q}));
+    const opts = el('div',{class:'gf-opts'});
+    node.opts.forEach(o=>{
+      const b = el('button',{class:'gf-opt'});
+      b.innerHTML = `<span class="gf-ico">${o.icon}</span><span>${gEsc(o.label)}</span>`;
+      b.onclick = ()=>{ path.push(o); render(o.to); };
+      opts.append(b);
+    });
+    stage.append(opts);
+    nav(false);
+  }
+
+  function result(resId){
+    const r = GF_RESULTS[resId];
+    stage.innerHTML = '';
+    const cr = crumbs(); if(cr) stage.append(cr);
+    const wrap = el('div',{class:'gf-result'});
+    wrap.append(el('div',{class:'gf-res-head',
+      html:`<h2 class="gf-res-title">${gEsc(r.title)}</h2>${r.sub?`<div class="gf-res-sub">${gEsc(r.sub)}</div>`:''}`}));
+    r.groups.forEach(g=>{
+      if(g.head) wrap.append(el('div',{class:'gf-group-head', text:g.head}));
+      const list = el('div',{class:'gf-games'});
+      g.games.forEach(game=>{
+        const href = 'https://www.google.com/search?q='+encodeURIComponent(game.n+' board game');
+        list.append(el('div',{class:'gf-game',
+          html:`<span class="gf-tier t${game.t}">${GF_TIERS[game.t]}</span>`+
+               `<span class="gf-info"><a class="gf-name" href="${href}" target="_blank" rel="noopener noreferrer">${gEsc(game.n)}<span class="gf-ext">↗</span></a>`+
+               `<span class="gf-blurb">${gEsc(game.b)}</span></span>`}));
+      });
+      wrap.append(list);
+    });
+    wrap.append(el('div',{class:'gf-legend',
+      html:`<b>$</b> Under $25<span class="gap"></span><b>$$</b> $25–$50<span class="gap"></span><b>$$$</b> Over $50`+
+           `<span class="note">Prices and inventory subject to change.</span>`}));
+    stage.append(wrap);
+    nav(true);
+    if(!logged){ recordGenerator('game_finder','gameFinder'); logged = true; }
+  }
+
+  function render(id){
+    const node = GF_NODES[id];
+    if(node) question(id, node); else result(id);
+  }
+
+  render('age');
+};
+
 /* ---- 4.4.1 Gamer DNA Report ---- */
 Views.dnaReport = function(c){
   const cab = getCab('dna_report');
@@ -10432,6 +10787,7 @@ Router.add('#/arcade/sequence', Views.sequence);
 Router.add('#/arcade/packer', Views.packer);
 Router.add('#/arcade/sudoku', Views.sudoku);
 Router.add('#/fun/quiz', Views.gamerQuiz);
+Router.add('#/fun/gamefinder', Views.gameFinder);
 Router.add('#/fun/report', Views.dnaReport);
 Router.add('#/fun/challenge', Views.genChallenge);
 Router.add('#/fun/username', Views.genUsername);
