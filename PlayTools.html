@@ -10325,6 +10325,10 @@ function b0WordScore(len){
   if(len<3) return 0;
   return ({3:1,4:2,5:4,6:6,7:9,8:12})[len] || (12 + (len-8)*4);
 }
+// B0ggle uses a gentler grade curve than the shared arcadeGrade: word-hunting
+// yields lower raw scores than the action cabinets, so a modest haul should
+// still clear a C. S stays reserved for a strong, near-target round.
+function b0Grade(comp){ return comp>=0.85?'S': comp>=0.58?'A': comp>=0.35?'B': comp>=0.16?'C':'F'; }
 
 // record a B0ggle round — same honest-Gamer-Score contract as the other arcade
 // cabinets: toolsCompleted credited once, best score + per-difficulty best +
@@ -10549,7 +10553,7 @@ Views.b0ggle = function(c){
     startBtn.innerHTML='▶ JACK IN';
     diffField.style.opacity=''; diffField.style.pointerEvents='';
     const lv=B0_LEVELS[levelIdx];
-    const comp=clamp01(score/lv.gradeMax), g=arcadeGrade(comp);
+    const comp=clamp01(score/lv.gradeMax), g=b0Grade(comp);
     Attr.applyVector({strategy:14, focus:6}, comp*lv.reward);
     recordB0ggleRun(score, {diff:lv.key, words:foundOrder.length, longest});
     Ach.evaluate({tool:'b0ggle', grade:g, score, difficulty:lv.key, words:foundOrder.length, longest});
