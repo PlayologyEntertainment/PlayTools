@@ -10578,7 +10578,9 @@ Views.b0ggle = function(c){
 
   function buildIdle(){
     const lv=B0_LEVELS[levelIdx];
-    N=lv.size; rollTiles();
+    // idle shows an empty grid sized to the tier — letters aren't rolled until
+    // the player presses JACK IN (startGame), so the board reveals nothing early.
+    N=lv.size; tiles=Array(lv.size*lv.size).fill(0).map(()=>({face:'', val:''}));
     path=[]; found=new Set(); foundOrder=[]; score=0; longest=0;
     playing=false; over=false; timeLeft=lv.time;
     renderBoard(); renderCurrent(); renderFound(); renderHud();
