@@ -878,6 +878,10 @@
   .gf-tier.t3{color:var(--neon-2);}
   .gf-info{display:flex; flex-direction:column; gap:3px;}
   .gf-name{color:#fff; font-size:15px; font-weight:600;}
+  a.gf-name{text-decoration:none; transition:color .15s;}
+  a.gf-name:hover{color:var(--neon); text-decoration:underline;}
+  .gf-name .gf-ext{font-size:11px; color:var(--ink-dim); margin-left:5px; vertical-align:middle;}
+  a.gf-name:hover .gf-ext{color:var(--neon);}
   .gf-blurb{color:var(--ink-dim); font-size:13px; line-height:1.5;}
   .gf-legend{margin:20px 0 4px; padding:12px 14px; background:var(--panel-2); border:1px dashed var(--line); border-radius:8px; font-size:12px; color:var(--ink-dim);}
   .gf-legend b{color:var(--neon-3); font-family:var(--pixel); margin-right:3px;}
@@ -8698,9 +8702,10 @@ Views.gameFinder = function(c){
       if(g.head) wrap.append(el('div',{class:'gf-group-head', text:g.head}));
       const list = el('div',{class:'gf-games'});
       g.games.forEach(game=>{
+        const href = 'https://www.google.com/search?q='+encodeURIComponent(game.n+' board game');
         list.append(el('div',{class:'gf-game',
           html:`<span class="gf-tier t${game.t}">${GF_TIERS[game.t]}</span>`+
-               `<span class="gf-info"><span class="gf-name">${gEsc(game.n)}</span>`+
+               `<span class="gf-info"><a class="gf-name" href="${href}" target="_blank" rel="noopener noreferrer">${gEsc(game.n)}<span class="gf-ext">↗</span></a>`+
                `<span class="gf-blurb">${gEsc(game.b)}</span></span>`}));
       });
       wrap.append(list);
