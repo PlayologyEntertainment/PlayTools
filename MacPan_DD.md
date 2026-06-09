@@ -302,4 +302,8 @@ Add `recordMacPanRun(score, ctx)` following the exact pattern used by
 3. **Bonus naming** — "Special of the Day" for the bonus ingredient: good?
 4. **Heat theme literalness** — enemies shown as literally *cooked/charred* on
    sauté: on-brand, or too much? (Alternative: they just "wilt away.")
-5. **Scope** — single maze for v1 confirmed, or do you want 2–3 layouts at launch?
+
+### 9.1 Decided
+
+* **Scope — single maze for launch (locked).** v1 ships one fixed maze (§2.1);
+  additional layouts / a maze rotation remain a post-launch follow-up (§8).
