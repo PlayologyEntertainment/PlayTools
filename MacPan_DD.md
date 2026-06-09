@@ -183,7 +183,7 @@ picked, cooked, and regrown.
 * **Level clear:** eat every diced bit + every Burner → brief flourish → next
   level (same maze, faster enemies, shorter Heat, higher Special value).
 * **Difficulty selector** (consistent with Snake/Bricks which carry a `diff`):
-  **Mild / Medium / Cast Iron** — sets Mac's base speed, starting enemy speed
+  **Mild / Medium / Well Done** — sets Mac's base speed, starting enemy speed
   band, and Heat-duration multiplier. `diff` is recorded per best-score (§6).
 * **Controls:**
   * Desktop: **Arrow keys / WASD.** Direction is **queued** — pressing toward a
@@ -256,7 +256,7 @@ Add `recordMacPanRun(score, ctx)` following the exact pattern used by
 | `macpan_seasoned` | Seasoned | 🍳 | Clear level 1 in a single run. |
 | `macpan_full_course` | Full Course | 🔥 | Sauté all four enemies on one Burner. |
 | `macpan_hot_streak` | Hot Streak | 🌶️ | Score 20,000+ in a single run. |
-| `macpan_michelin` | Michelin Pan | ⭐ | Clear level 5 on Cast Iron difficulty. |
+| `macpan_michelin` | Michelin Pan | ⭐ | Clear level 5 on Well Done difficulty. |
 
 (Wired into the existing achievements array exactly like `pixel_pilot` /
 `dodge_ace`.)
@@ -298,7 +298,7 @@ Add `recordMacPanRun(score, ctx)` following the exact pattern used by
 
 1. **Enemy names** — are *Roma / Barry / Brock / Ginger* good, or do you want
    different produce / punnier names?
-2. **Difficulty labels** — *Mild / Medium / Cast Iron* — keep, or rename?
+2. **Difficulty labels** — *Mild / Medium / Well Done* — keep, or rename?
 3. **Bonus naming** — "Special of the Day" for the bonus ingredient: good?
 4. **Heat theme literalness** — enemies shown as literally *cooked/charred* on
    sauté: on-brand, or too much? (Alternative: they just "wilt away.")
