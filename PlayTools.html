@@ -6814,6 +6814,31 @@ function soundToggle(muteKey){
 function arcadeGrade(comp){ return comp>=0.92?'S':comp>=0.8?'A':comp>=0.65?'B':comp>=0.45?'C':'F'; }
 
 /* ---- ARCADE.3 Neon Snake ---- */
+/* ---- Neon Snake difficulty tiers ---- */
+// Three tiers driven by snake speed + static obstacle layout (walls stay solid on
+// every tier — no wrap). `start`/`floor` are the step interval in ms at length 0
+// and the fast-cap as the snake grows; `accel` is ms shaved per body segment.
+// `obstacles` are grid cells that kill on contact. `gradeMax` is the score that
+// earns a full (S) grade: it RISES on easier tiers and FALLS on harder ones so an
+// A means comparable skill on each — Easy lets you survive forever and farm score,
+// Hard's speed + obstacles end runs early, so fewer pellets still earns the grade.
+const SNK_GW=20, SNK_GH=20;
+const snkBar=(x,y,len,vert)=>{ const c=[]; for(let i=0;i<len;i++) c.push(vert?{x,y:y+i}:{x:x+i,y}); return c; };
+// Symmetric layouts; all cells avoid rows 9–11 so the centre spawn corridor is clear.
+const SNK_MED_OBS = [
+  ...snkBar(5,5,3,true),  ...snkBar(14,5,3,true),
+  ...snkBar(5,12,3,true), ...snkBar(14,12,3,true)
+];
+const SNK_HARD_OBS = [
+  ...SNK_MED_OBS,
+  ...snkBar(8,3,4,false), ...snkBar(8,16,4,false),   // centre top/bottom bars
+  ...snkBar(9,7,2,true),  ...snkBar(10,12,2,true)    // short inner pillars (rows 9–11 stay clear)
+];
+const SNAKE_LEVELS = [
+  { key:'easy',   name:'Easy',   start:155, floor:95, accel:1.6, gradeMax:360, obstacles:[] },
+  { key:'medium', name:'Medium', start:135, floor:78, accel:2.0, gradeMax:300, obstacles:SNK_MED_OBS },
+  { key:'hard',   name:'Hard',   start:115, floor:62, accel:2.4, gradeMax:230, obstacles:SNK_HARD_OBS }
+];
 Views.snake = function(c){
   const cab = getCab('arcade_snake');
   const panel = toolShell(c, cab);
@@ -6821,11 +6846,24 @@ Views.snake = function(c){
   const sndEat=()=> blip(740,0.05,'square',0.04);
   const sndDie=()=> [200,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
 
-  const GW=20, GH=20, CELL=18, W=GW*CELL, H=GH*CELL;
+  const GW=SNK_GW, GH=SNK_GH, CELL=18, W=GW*CELL, H=GH*CELL;
+
+  let levelIdx=0, lvl=SNAKE_LEVELS[levelIdx];   // default Easy
+  let obstacles=lvl.obstacles;
 
   const startRow = el('div',{class:'controls-row'});
   const startBtn = el('button',{class:'btn primary', html:'▶ START'});
   startRow.append(startBtn, soundToggle('snakeMute'));
+
+  // difficulty selector (matches the Brick Breaker / Whack-a-Mole segmented control)
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  SNAKE_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; levelIdx=i; lvl=SNAKE_LEVELS[i]; obstacles=lvl.obstacles; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; reset(); draw(); renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
   const hud = el('div',{class:'mem-hud'});
   const stage = el('div',{class:'pd-stage'});
   const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
@@ -6834,44 +6872,104 @@ Views.snake = function(c){
   const hint = el('div',{class:'pd-hint', html:'◀ ▲ ▼ ▶ or W · A · S · D'});
   const result = el('div',{});
   const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
-  panel.append(startRow, hud, stageTV, hint, result);
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
   const ctx2d = canvas.getContext('2d');
 
-  let playing=false, raf=null, lastT=0, acc=0, stepMs=140;
+  let playing=false, raf=null, lastT=0, acc=0, stepMs=lvl.start;
   let snake=[], dir={x:1,y:0}, nextDir={x:1,y:0}, food={x:0,y:0}, score=0;
+  let particles=[];   // sparkle burst when a pellet is eaten (pixel space)
   const rnd=n=>Math.floor(Math.random()*n);
+  function rr(x,y,w,h,r){ ctx2d.beginPath(); ctx2d.moveTo(x+r,y); ctx2d.arcTo(x+w,y,x+w,y+h,r); ctx2d.arcTo(x+w,y+h,x,y+h,r); ctx2d.arcTo(x,y+h,x,y,r); ctx2d.arcTo(x,y,x+w,y,r); ctx2d.closePath(); }
+  const occupied=(x,y)=> snake.some(s=>s.x===x&&s.y===y) || obstacles.some(o=>o.x===x&&o.y===y);
 
-  function placeFood(){ do{ food={x:rnd(GW), y:rnd(GH)}; } while(snake.some(s=>s.x===food.x && s.y===food.y)); }
-  function reset(){ snake=[{x:9,y:10},{x:8,y:10},{x:7,y:10}]; dir={x:1,y:0}; nextDir={x:1,y:0}; score=0; stepMs=140; acc=0; placeFood(); }
+  function placeFood(){ do{ food={x:rnd(GW), y:rnd(GH)}; } while(occupied(food.x,food.y)); }
+  function curStep(){ return Math.max(lvl.floor, lvl.start - snake.length*lvl.accel); }
+  function reset(){ snake=[{x:9,y:10},{x:8,y:10},{x:7,y:10}]; dir={x:1,y:0}; nextDir={x:1,y:0}; score=0; stepMs=lvl.start; acc=0; particles=[]; placeFood(); }
   function setDir(nx,ny){ if(snake.length>1 && nx===-dir.x && ny===-dir.y) return; nextDir={x:nx,y:ny}; }
+  function spawnSparkle(cx,cy){
+    for(let i=0;i<12;i++){ const a=Math.random()*Math.PI*2, sp=0.8+Math.random()*2.2;
+      particles.push({x:cx, y:cy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1}); }
+  }
 
   function renderHud(){
-    const best=(Store.get().bests.arcade_snake||{}).value||0;
-    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+    hud.innerHTML = `<span class="pill">Mode <b>${lvl.name}</b></span>
+      <span class="pill">Score <b>${score}</b></span>
       <span class="pill">Length <b>${snake.length}</b></span>
-      <span class="pill">Best <b>${best}</b></span>`;
+      <span class="pill">Best <b>${snakeBest(lvl.key)}</b></span>`;
   }
   function draw(){
+    const now=performance.now();
     ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
-    ctx2d.strokeStyle='rgba(124,92,255,0.08)';
+    ctx2d.strokeStyle='rgba(124,92,255,0.08)'; ctx2d.lineWidth=1;
     for(let i=0;i<=GW;i++){ ctx2d.beginPath(); ctx2d.moveTo(i*CELL,0); ctx2d.lineTo(i*CELL,H); ctx2d.stroke(); }
     for(let j=0;j<=GH;j++){ ctx2d.beginPath(); ctx2d.moveTo(0,j*CELL); ctx2d.lineTo(W,j*CELL); ctx2d.stroke(); }
-    ctx2d.fillStyle='#ff3df0'; ctx2d.fillRect(food.x*CELL+3, food.y*CELL+3, CELL-6, CELL-6);
-    snake.forEach((s,i)=>{ ctx2d.fillStyle = i===0 ? '#16f2c8' : '#0fbf9e'; ctx2d.fillRect(s.x*CELL+1, s.y*CELL+1, CELL-2, CELL-2); });
+
+    // obstacles — solid neon-purple blocks that kill on contact
+    ctx2d.save(); ctx2d.shadowColor='#9a6bff'; ctx2d.shadowBlur=8; ctx2d.fillStyle='#7c5cff';
+    obstacles.forEach(o=>{ rr(o.x*CELL+2, o.y*CELL+2, CELL-4, CELL-4, 4); ctx2d.fill(); });
+    ctx2d.shadowBlur=0; ctx2d.fillStyle='rgba(255,255,255,0.16)';
+    obstacles.forEach(o=>{ ctx2d.fillRect(o.x*CELL+3, o.y*CELL+3, CELL-6, 3); });
+    ctx2d.restore();
+
+    // pellet — pulsing glowing orb
+    const pulse=0.5+0.5*Math.sin(now/220);
+    const fx=food.x*CELL+CELL/2, fy=food.y*CELL+CELL/2, fr=CELL/2-3 + pulse*2.5;
+    ctx2d.save(); ctx2d.shadowColor='#ff3df0'; ctx2d.shadowBlur=10+pulse*10;
+    ctx2d.fillStyle='#ff3df0'; ctx2d.beginPath(); ctx2d.arc(fx,fy,fr,0,Math.PI*2); ctx2d.fill();
+    ctx2d.shadowBlur=0; ctx2d.fillStyle='rgba(255,255,255,0.85)';
+    ctx2d.beginPath(); ctx2d.arc(fx-fr*0.3, fy-fr*0.3, fr*0.3, 0, Math.PI*2); ctx2d.fill();
+    ctx2d.restore();
+
+    // snake — rounded segments, bright head fading to a deep tail, with glow
+    ctx2d.save(); ctx2d.shadowColor='#16f2c8';
+    const last=Math.max(1,snake.length-1);
+    snake.forEach((s,i)=>{
+      const t01=i/last;                              // 0 head → 1 tail
+      const cr=Math.round(22+(10-22)*t01), cg=Math.round(242+(120-242)*t01), cb=Math.round(200+(95-200)*t01);
+      ctx2d.shadowBlur = i===0?12:6;
+      ctx2d.fillStyle=`rgb(${cr},${cg},${cb})`;
+      rr(s.x*CELL+1, s.y*CELL+1, CELL-2, CELL-2, i===0?6:5); ctx2d.fill();
+    });
+    ctx2d.restore();
+    // eyes on the head, facing the direction of travel
+    const h=snake[0], hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
+    const px=-dir.y, py=dir.x;   // perpendicular to heading
+    ctx2d.fillStyle='#04120a';
+    [1,-1].forEach(side=>{
+      const ex=hx+dir.x*3+px*side*3.5, ey=hy+dir.y*3+py*side*3.5;
+      ctx2d.beginPath(); ctx2d.arc(ex,ey,2.2,0,Math.PI*2); ctx2d.fill();
+    });
+
+    // sparkle particles
+    particles.forEach(p=>{
+      ctx2d.globalAlpha=Math.max(0,p.life);
+      ctx2d.fillStyle='#ffd23d';
+      ctx2d.fillRect(p.x-1.5, p.y-1.5, 3, 3);
+    });
+    ctx2d.globalAlpha=1;
   }
   function step(){
     dir=nextDir;
     const head={x:snake[0].x+dir.x, y:snake[0].y+dir.y};
-    if(head.x<0||head.x>=GW||head.y<0||head.y>=GH||snake.some(s=>s.x===head.x&&s.y===head.y)){ gameOver(); return; }
+    if(head.x<0||head.x>=GW||head.y<0||head.y>=GH
+       || snake.some(s=>s.x===head.x&&s.y===head.y)
+       || obstacles.some(o=>o.x===head.x&&o.y===head.y)){ gameOver(); return; }
     snake.unshift(head);
-    if(head.x===food.x && head.y===food.y){ score+=10; placeFood(); sndEat(); stepMs=Math.max(70, 140-snake.length*2); }
+    if(head.x===food.x && head.y===food.y){
+      score+=10; spawnSparkle(food.x*CELL+CELL/2, food.y*CELL+CELL/2);
+      placeFood(); sndEat(); stepMs=curStep();
+    }
     else snake.pop();
   }
   function frame(t){
     if(!playing) return;
     const now=t; if(!lastT) lastT=now;
-    acc += now-lastT; lastT=now;
+    const dt=now-lastT; acc += dt; lastT=now;
     while(acc>=stepMs){ acc-=stepMs; step(); if(!playing) return; }
+    // advance sparkle particles (~60fps units, scaled by frame delta)
+    const k=Math.min(3, dt/16.7);
+    particles.forEach(p=>{ p.x+=p.vx*k; p.y+=p.vy*k; p.vy+=0.12*k; p.life-=0.035*k; });
+    particles=particles.filter(p=>p.life>0);
     draw(); renderHud();
     raf=requestAnimationFrame(frame);
   }
@@ -6884,29 +6982,30 @@ Views.snake = function(c){
     playing=false; if(raf) cancelAnimationFrame(raf); raf=null; sndDie();
     startBtn.innerHTML='▶ START';
     const len=snake.length;
-    const comp=clamp01(score/300), g=arcadeGrade(comp);
+    const comp=clamp01(score/lvl.gradeMax), g=arcadeGrade(comp);
     Attr.applyVector({control:14, focus:6, consistency:4}, comp);
-    recordSnakeRun(score, {length:len});
+    recordSnakeRun(score, {length:len, diff:lvl.key});
     Ach.evaluate({tool:'snake', grade:g, score, length:len});
     draw();
     overlay.style.display='flex';
-    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Length ${len} · Score ${score}</div>`;
+    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">${lvl.name} · Length ${len} · Score ${score}</div>`;
     renderHud();
     const r=el('div',{class:'results'});
     r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
       <div class="result-tile"><div class="k">Length</div><div class="v">${len}</div></div>
       <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
-      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_snake.value}</div></div>`;
+      <div class="result-tile"><div class="k">Best (${lvl.name})</div><div class="v">${snakeBest(lvl.key)}</div></div>`;
     result.append(r);
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
       lab:'RETRO ARCADE', tool:'Neon Snake', glyph:'🐍', grade:g,
-      metric:[{k:'Score', v:String(score)}, {k:'Length', v:String(len)}],
+      metric:[{k:'Mode', v:lvl.name}, {k:'Score', v:String(score)}, {k:'Length', v:String(len)}],
       designation: g==='S'?'Apex Serpent': g==='A'?'Coil Master': g==='B'?'Steady Slither':'Fresh Hatchling',
       badge: len>=30?'Snake Charmer':null
     }));
   }
+  const snakeBest = (diff)=>{ const b=Store.get().bests.arcade_snake; return (b&&b.diff&&b.diff[diff])||0; };
   function onKey(e){
     const k=e.key;
     if(k==='ArrowLeft'||k==='a'||k==='A') setDir(-1,0);
@@ -8206,6 +8305,9 @@ function recordSnakeRun(score, ctx){
     d.runs++;
     if(!d.bests.arcade_snake){ d.toolsCompleted++; d.bests.arcade_snake={value:score, mode:'max'}; }
     else if(score>d.bests.arcade_snake.value){ d.bests.arcade_snake.value=score; }
+    const diff=(ctx&&ctx.diff)||'easy';
+    const bd=d.bests.arcade_snake.diff||(d.bests.arcade_snake.diff={});
+    if(!(diff in bd) || score>bd[diff]) bd[diff]=score;
     d.arcadePoints += Math.round(score/20);
     d.counters.snakeRuns=(d.counters.snakeRuns||0)+1;
     if(ctx && ctx.length>=30) d.counters.snakeLong=(d.counters.snakeLong||0)+1;
