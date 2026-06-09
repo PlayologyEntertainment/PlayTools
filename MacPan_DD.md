@@ -6,7 +6,7 @@
 **Parent Doc:** `PlayTools_DD.md` (this cabinet extends §5.5 Retro Arcade Module)
 
 > **Build note (v1 as shipped).** Implemented per this spec with the signed-off
-> decisions: single fixed maze; Mild / Medium / Well Done difficulties; named
+> decisions: single fixed maze; Rare / Medium / Well Done difficulties; named
 > cast Roma / Barry / Brock / Ginger with the cooked→core→regrow loop; Burner
 > Heat Mode with the 200/400/800/1600 sauté chain; Special of the Day; 3 lives
 > with a bonus pan at 10,000. Cabinet route `#/arcade/macpan`, tool id
@@ -191,7 +191,7 @@ picked, cooked, and regrown.
 * **Level clear:** eat every diced bit + every Burner → brief flourish → next
   level (same maze, faster enemies, shorter Heat, higher Special value).
 * **Difficulty selector** (consistent with Snake/Bricks which carry a `diff`):
-  **Mild / Medium / Well Done** — sets Mac's base speed, starting enemy speed
+  **Rare / Medium / Well Done** — sets Mac's base speed, starting enemy speed
   band, and Heat-duration multiplier. `diff` is recorded per best-score (§6).
 * **Controls:**
   * Desktop: **Arrow keys / WASD.** Direction is **queued** — pressing toward a
@@ -306,7 +306,7 @@ Add `recordMacPanRun(score, ctx)` following the exact pattern used by
 
 1. **Enemy names** — are *Roma / Barry / Brock / Ginger* good, or do you want
    different produce / punnier names?
-2. **Difficulty labels** — *Mild / Medium / Well Done* — keep, or rename?
+2. **Difficulty labels** — *Rare / Medium / Well Done* — keep, or rename?
 3. **Bonus naming** — "Special of the Day" for the bonus ingredient: good?
 4. **Heat theme literalness** — enemies shown as literally *cooked/charred* on
    sauté: on-brand, or too much? (Alternative: they just "wilt away.")
