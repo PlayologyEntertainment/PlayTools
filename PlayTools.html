@@ -746,6 +746,7 @@
   .mem-hud .pill b{font-family:var(--pixel); color:var(--neon-3); font-size:16px; margin-left:6px; letter-spacing:0;}
   .mem-grid{display:grid; gap:10px; margin:10px auto 4px; max-width:560px; width:100%;}
   .mem-card{position:relative; aspect-ratio:1/1; border:none; background:transparent; padding:0; cursor:pointer; perspective:600px;}
+  .mem-card.placeholder{cursor:default;}
   .mem-card .inner{position:absolute; inset:0; transition:transform .35s; transform-style:preserve-3d;}
   .mem-card.flipped .inner, .mem-card.matched .inner{transform:rotateY(180deg);}
   .mem-face{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
@@ -6224,7 +6225,7 @@ Views.memoryMatch = function(c){
   const diffSeg = el('div',{class:'seg'});
   MEM_LEVELS.forEach((lv,i)=>{
     const b=el('button',{html:`${lv.name} · ${lv.cols}×${lv.rows}`}); if(i===levelIdx) b.className='on';
-    b.onclick=()=>{ if(playing) return; levelIdx=i; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    b.onclick=()=>{ if(playing) return; levelIdx=i; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; layoutEmptyBoard(); renderHud(); };
     diffSeg.append(b);
   });
   diffField.append(diffSeg);
@@ -6257,6 +6258,21 @@ Views.memoryMatch = function(c){
       ${runScore?`<span class="pill">Run <b>${runScore}</b></span>`:''}`;
   }
   function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+  // Pre-game: lay out a full grid of inert, face-down placeholder cards at the
+  // selected difficulty so the CRT TV screen is fully built before START. Keeps
+  // the housing from looking half-deployed and resizes on difficulty changes.
+  function layoutEmptyBoard(){
+    const lv=MEM_LEVELS[levelIdx];
+    grid.innerHTML='';
+    grid.style.gridTemplateColumns=`repeat(${lv.cols}, 1fr)`;
+    const count=lv.cols*lv.rows;
+    for(let i=0;i<count;i++){
+      const btn=el('button',{class:'mem-card placeholder', disabled:'', tabindex:'-1', 'aria-hidden':'true'});
+      btn.innerHTML=`<span class="inner"><span class="mem-face back"></span><span class="mem-face front"></span></span>`;
+      grid.append(btn);
+    }
+  }
 
   function buildBoard(){
     const lv=MEM_LEVELS[levelIdx];
@@ -6358,6 +6374,7 @@ Views.memoryMatch = function(c){
   }
 
   startBtn.onclick=startGame;
+  layoutEmptyBoard();
   renderHud();
   return ()=>{ clearInterval(hudTimer); hudTimer=null; };
 };
