@@ -2506,6 +2506,20 @@ const LAB_ICON = {
 };
 function labIcon(lab){ return LAB_ICON[lab] || '🎮'; }
 
+/* Per-category blurb shown at the top of a filtered category view, so each shelf
+   pitches the kind of applets it holds instead of a generic "showing one
+   category" line. Retro-arcade voice to match the rest of the lobby. */
+const LAB_DESC = {
+  'Gamer DNA':'Your player identity, decoded. Sequence your Gamer DNA across seven attributes, line up your stats against friends, and link your gaming profiles into one card.',
+  'Reflex'   :'Pure twitch territory. Reaction time, clicks-per-second, aim, flicks and tracking — the millisecond drills that separate the quick from the clicked.',
+  'Hardware' :'Put your gear under the microscope. Benchmark your mouse’s polling rate, sensor tracking, lift-off, jitter and drag-click — raw input, no excuses.',
+  'Setup'    :'Dial in your battlestation. Crunch eDPI, convert sensitivity between games, and calculate FOV, aspect ratio, refresh rate and a balanced play schedule.',
+  'Fun'      :'Personality and pure mischief. Take the archetype quiz, generate gamertags, clans and loadouts, roll wild challenges, and get your rig gloriously roasted.',
+  'RPG'      :'Tools for the tabletop. Forge D&D characters, roll any dice, conjure NPCs, track initiative, and spin up quests, taverns and rumours on the fly.',
+  'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Memory Match, Whack-a-Mole and more — quick games that still feed your Gamer DNA.'
+};
+function labDesc(lab){ return LAB_DESC[lab] || 'A shelf of applets all from this category. Pick <strong>Lobby</strong> in the sidebar to see everything again.'; }
+
 /* Retro-TV brand names + decorations sprinkled onto each set's control panel. */
 const CRT_BRANDS = ['PLAYOTRON','VECTREX','NOVA-9','RETROVUE','ARC-80','PIXLCORP','TUBETEK','GAMMA-V','CRT-MAX','HYPERVUE','OMNIVOX','RASTERON'];
 const CRT_LOGOS  = ['◉','▣','✦','◈','⬢','▤'];
@@ -2617,7 +2631,7 @@ function lobbyView(filter){
       panel.append(
         el('div',{class:'view-head', html:`<span class="lab-tag" style="color:${col}">Category</span>`}),
         el('h1',{class:'title', html:`${labIcon(filter.lab)} ${filter.lab}`}),
-        el('p',{class:'view-desc', html:'Showing this category only. Pick <strong>Lobby</strong> in the sidebar to see everything again.'})
+        el('p',{class:'view-desc', html:labDesc(filter.lab)})
       );
       section(filter.lab, CABINETS.filter(x=>x.lab===filter.lab), col);
       c.append(panel); return;
