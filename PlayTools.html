@@ -8179,7 +8179,7 @@ Views.sudoku = function(c){
     const lv=SK_LEVELS[levelIdx];
     const seconds=elapsedMs/1000;
     const effective=seconds + hintsUsed*SK_HINT_PENALTY;          // hints cost time toward your grade
-    const comp=clamp01(0.8 * lv.parA / Math.max(1, effective));   // solving at par-A time ≈ A grade
+    const comp=clamp01(0.9 * lv.parA / Math.max(1, effective));   // solving at par-A time lands comfortably in A; beating par earns S
     const g=arcadeGrade(comp);
     const score=Math.round(lv.base * comp);
     Attr.applyVector({focus:12, strategy:8}, comp*lv.reward);
