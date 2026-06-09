@@ -7152,7 +7152,10 @@ Views.whackMole = function(c){
 
   let playing=false, raf=null, lastT=0, timeLeft=ROUND, spawnTimer=0, gameTime=0;
   let holes=[], hits=0, misses=0;
-  const CW=W/3, CH=H/3;
+  const CW=W/3;
+  // Buffer above the top row so a fully-risen mole's head clears the CRT frame.
+  const TOP_PAD=26;
+  const CH=(H-TOP_PAD)/3;
   const WHACK_DUR=0.5;
   const whackBest = (diff)=>{ const b=Store.get().bests.arcade_whack; return (b&&b.diff&&b.diff[diff])||0; };
 
@@ -7308,7 +7311,7 @@ Views.whackMole = function(c){
     bgg.addColorStop(0,'#0a0618'); bgg.addColorStop(1,'#05030f');
     ctx2d.fillStyle=bgg; ctx2d.fillRect(0,0,W,H);
     for(let i=0;i<9;i++){
-      const cx=(i%3)*CW+CW/2, cy=Math.floor(i/3)*CH+CH/2, h=holes[i];
+      const cx=(i%3)*CW+CW/2, cy=TOP_PAD+Math.floor(i/3)*CH+CH/2, h=holes[i];
       drawDirtBack(cx,cy,h.active);
       drawMole(cx,cy,h);
       drawDirtFront(cx,cy);
@@ -7376,7 +7379,8 @@ Views.whackMole = function(c){
     if(!playing) return;
     const rc=canvas.getBoundingClientRect();
     const x=(e.clientX-rc.left)/rc.width*W, y=(e.clientY-rc.top)/rc.height*H;
-    const idx=Math.floor(y/CH)*3 + Math.floor(x/CW);
+    const row=Math.max(0, Math.min(2, Math.floor((y-TOP_PAD)/CH)));
+    const idx=row*3 + Math.floor(x/CW);
     if(idx<0||idx>8) return;
     if(holes[idx] && holes[idx].active){ holes[idx].active=false; holes[idx].whack=WHACK_DUR; hits++; sndHit(); }
     else { misses++; }
