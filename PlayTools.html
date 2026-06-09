@@ -1862,6 +1862,14 @@ const Ach = (function(){
       test:(d)=> !!(d.counters && d.counters.platformsLinked>=3) },
     { id:'master_packer', name:'Master Packer', icon:'📦', desc:'Clear 3+ lines with a single block in Packer.',
       test:(d,c)=> (c && c.tool==='packer' && c.maxClear>=3) || !!(d.counters && d.counters.packerBigClears>=1) },
+    { id:'macpan_seasoned', name:'Seasoned', icon:'🍳', desc:'Clear a level in Mac Pan.',
+      test:(d,c)=> (c && c.tool==='macpan' && c.cleared>=1) || !!(d.counters && d.counters.macpanCleared>=1) },
+    { id:'macpan_full_course', name:'Full Course', icon:'🔥', desc:'Sauté all four enemies on a single Burner in Mac Pan.',
+      test:(d,c)=> (c && c.tool==='macpan' && c.fullCourse) || !!(d.counters && d.counters.macpanFullCourse>=1) },
+    { id:'macpan_hot_streak', name:'Hot Streak', icon:'🌶️', desc:'Score 20,000 or more in a single Mac Pan run.',
+      test:(d,c)=> c && c.tool==='macpan' && c.score>=20000 },
+    { id:'macpan_michelin', name:'Michelin Pan', icon:'⭐', desc:'Reach level 5 on Well Done difficulty in Mac Pan.',
+      test:(d,c)=> (c && c.tool==='macpan' && c.level>=5 && c.diff==='welldone') || !!(d.counters && d.counters.macpanMichelin>=1) },
     // ---- Arcade "Ace" set: earn an A grade or better in each cabinet ----
     { id:'memory_ace', name:'Memory Ace', icon:'🧠', desc:'Earn an A grade or better in Memory Match.',
       test:(d,c)=> c && c.tool==='memory' && (c.grade==='A'||c.grade==='S') },
@@ -1877,6 +1885,8 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='sequence' && (c.grade==='A'||c.grade==='S') },
     { id:'packer_ace', name:'Packer Ace', icon:'📦', desc:'Earn an A grade or better in Packer.',
       test:(d,c)=> c && c.tool==='packer' && (c.grade==='A'||c.grade==='S') },
+    { id:'macpan_ace', name:'Mac Pan Ace', icon:'🍳', desc:'Earn an A grade or better in Mac Pan.',
+      test:(d,c)=> c && c.tool==='macpan' && (c.grade==='A'||c.grade==='S') },
     { id:'sudoku_ace', name:'Sudoku Ace', icon:'🔢', desc:'Earn an A grade or better in Sudoku.',
       test:(d,c)=> c && c.tool==='sudoku' && (c.grade==='A'||c.grade==='S') },
     { id:'sudoku_purist', name:'Sudoku Purist', icon:'🧩', desc:'Solve a Hard Sudoku with no hints.',
@@ -2479,6 +2489,8 @@ const CABINETS = [
     desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_packer', lab:'Arcade', name:'Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
     desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6 - Designed by Aysha!' },
+  { id:'arcade_macpan', lab:'Arcade', name:'Mac Pan', railName:'Mac Pan', icon:'🍳', tag:'mvp', route:'#/arcade/macpan',
+    desc:'Steer Mac the cast-iron pan through the maze — gobble the food, dodge the produce, grab a Burner and sauté your pursuers.', dna:'Control +12 · Strategy +8' },
   { id:'arcade_sudoku', lab:'Arcade', name:'Sudoku', railName:'Sudoku', icon:'🔢', tag:'mvp', route:'#/arcade/sudoku',
     desc:'Fill the 9×9 grid so every row, column & box holds 1–9 — pick a difficulty, beat the clock & lean on hints only if you must.', dna:'Focus +12 · Strategy +8' },
   { id:'arcade_b0ggle', lab:'Arcade', name:'<span class="b0-word">B<span class="slz">0</span>ggle</span>', railName:'B0ggle', icon:B0_ICON, tag:'mvp', route:'#/arcade/b0ggle',
@@ -7086,6 +7098,536 @@ Views.snake = function(c){
   return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; window.removeEventListener('keydown', onKey); };
 };
 
+/* ============================================================================
+   RETRO ARCADE — Mac Pan (Pac-Man-faithful, simplified — see MacPan_DD.md)
+   Steer Mac, a dirty cast-iron pan, through a neon maze eating diced food while
+   four produce enemies (Roma/Barry/Brock/Ginger) hunt him. Grab a Burner to go
+   red-hot (Heat Mode) and sauté the wilted produce for an escalating chain.
+   Smooth grid movement w/ cornering; classic scatter/chase + frightened AI;
+   pen release + cooked→regrow respawn. Feeds Control+Strategy, arcade points,
+   share card — same honest-Gamer-Score contract as the other cabinets.
+   ============================================================================ */
+const MP_MAZE = [
+  "############################",
+  "#............##............#",
+  "#.####.#####.##.#####.####.#",
+  "#o####.#####.##.#####.####o#",
+  "#.####.#####.##.#####.####.#",
+  "#..........................#",
+  "#.####.##.########.##.####.#",
+  "#.####.##.########.##.####.#",
+  "#......##....##....##......#",
+  "######.#####.##.#####.######",
+  "######.#####.##.#####.######",
+  "######.##..........##.######",
+  "######.##.###--###.##.######",
+  "######.##.#      #.##.######",
+  "..........#      #..........",
+  "######.##.#      #.##.######",
+  "######.##.########.##.######",
+  "######.##..........##.######",
+  "######.##.########.##.######",
+  "######.##.########.##.######",
+  "#............##............#",
+  "#.####.#####.##.#####.####.#",
+  "#.####.#####.##.#####.####.#",
+  "#o..##.......PP.......##..o#",
+  "###.##.##.########.##.##.###",
+  "###.##.##.########.##.##.###",
+  "#......##....##....##......#",
+  "#.##########.##.##########.#",
+  "#.##########.##.##########.#",
+  "#..........................#",
+  "############################"
+];
+const MP_LEVELS = [
+  { key:'mild',     name:'Mild',      mac:7.0, enemy:5.4, frightMult:1.20 },
+  { key:'medium',   name:'Medium',    mac:7.6, enemy:6.2, frightMult:1.00 },
+  { key:'welldone', name:'Well Done', mac:8.2, enemy:7.0, frightMult:0.70 }
+];
+// Special of the Day — bonus ingredient by level (MacPan_DD.md §2.3)
+const MP_SPECIALS = [
+  {name:'Pat of Butter', pts:100, col:'#ffe79a'}, {name:'Egg', pts:300, col:'#fff4d6'},
+  {name:'Mushroom', pts:500, col:'#d8b08a'}, {name:'Mushroom', pts:500, col:'#d8b08a'},
+  {name:'Strip of Bacon', pts:700, col:'#e0736b'}, {name:'Strip of Bacon', pts:700, col:'#e0736b'},
+  {name:'Cut of Steak', pts:1000, col:'#b8514e'}, {name:'Cut of Steak', pts:1000, col:'#b8514e'},
+  {name:'Wheel of Cheese', pts:2000, col:'#f2c84b'}, {name:'Wheel of Cheese', pts:2000, col:'#f2c84b'}
+];
+function mpSpecial(lv){ return MP_SPECIALS[Math.min(lv-1, MP_SPECIALS.length-1)] || {name:'Golden Truffle', pts:5000, col:'#d9c66a'}; }
+function mpBaseFright(lv){ if(lv<=1)return 7; if(lv<=3)return 6; if(lv<=5)return 4; if(lv<=8)return 3; if(lv<=11)return 2; return 0; }
+
+Views.macPan = function(c){
+  const cab = getCab('arcade_macpan');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('macpanMute');
+  const sndChomp =()=> blip(150,0.03,'square',0.025);
+  const sndBurner=()=> [330,494,659].forEach((f,i)=> setTimeout(()=>blip(f,0.08,'square',0.05), i*55));
+  const sndSizzle=()=> [880,1175].forEach((f,i)=> setTimeout(()=>blip(f,0.06,'triangle',0.05), i*45));
+  const sndBonus =()=> [659,880,1175].forEach((f,i)=> setTimeout(()=>blip(f,0.07,'square',0.045), i*50));
+  const sndLose  =()=> [300,220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.18,'sawtooth',0.06), i*110));
+
+  const ROWS=MP_MAZE.length, COLS=MP_MAZE[0].length, CELL=14, W=COLS*CELL, H=ROWS*CELL;
+  const cx=t=> t*CELL + CELL/2;                       // tile-centre coord -> pixel
+
+  // ---- DOM (matches the other arcade cabinets) ----
+  let levelIdx=1, diffCfg=MP_LEVELS[levelIdx];        // default Medium
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('macpanMute'));
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  MP_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; levelIdx=i; diffCfg=MP_LEVELS[i]; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▲ ▼ ▶ or W · A · S · D &nbsp;·&nbsp; swipe on screen &nbsp;·&nbsp; P pauses'});
+  const result = el('div',{});
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  // ---- maze helpers ----
+  function tileAt(col,row){ if(row<0||row>=ROWS) return '#'; let cc=((col%COLS)+COLS)%COLS; return MP_MAZE[row][cc]; }
+  // open for movement: walls block all; the pen door '-' opens only for enemies leaving/returning
+  function open(col,row,canDoor){ const ch=tileAt(col,row); if(ch==='#') return false; if(ch==='-') return !!canDoor; return true; }
+  const inPen=(col,row)=> row>=13 && row<=15 && col>=11 && col<=16;
+
+  // pre-render the static maze walls to an offscreen layer (neon blocks)
+  const wallCv=document.createElement('canvas'); wallCv.width=W; wallCv.height=H;
+  (function paintWalls(){
+    const b=wallCv.getContext('2d');
+    b.fillStyle='#050410'; b.fillRect(0,0,W,H);
+    function rr(x,y,w,h,r){ b.beginPath(); b.moveTo(x+r,y); b.arcTo(x+w,y,x+w,y+h,r); b.arcTo(x+w,y+h,x,y+h,r); b.arcTo(x,y+h,x,y,r); b.arcTo(x,y,x+w,y,r); b.closePath(); }
+    b.save(); b.shadowColor='#3556ff'; b.shadowBlur=6;
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(MP_MAZE[y][x]==='#'){
+      b.fillStyle='#101a52'; rr(x*CELL+1.5,y*CELL+1.5,CELL-3,CELL-3,4); b.fill();
+    }
+    b.shadowBlur=0;
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(MP_MAZE[y][x]==='#'){
+      b.strokeStyle='#4f6bff'; b.lineWidth=1.2; rr(x*CELL+1.5,y*CELL+1.5,CELL-3,CELL-3,4); b.stroke();
+      b.fillStyle='rgba(150,180,255,0.18)'; b.fillRect(x*CELL+3,y*CELL+3,CELL-6,2);
+    }
+    b.restore();
+  })();
+
+  // ---- enemy roster ----
+  // corners (scatter targets) + chase target rule per personality (Pac-Man ghost AIs)
+  const ENEMIES = [
+    { id:'roma',   produce:'tomato',     color:'#ef3a36', corner:{x:COLS-3,y:0} },
+    { id:'barry',  produce:'strawberry', color:'#ff6db0', corner:{x:2,y:0} },
+    { id:'brock',  produce:'broccoli',   color:'#3fbf6f', corner:{x:COLS-1,y:ROWS-1} },
+    { id:'ginger', produce:'carrot',     color:'#ff9a3c', corner:{x:0,y:ROWS-1} }
+  ];
+
+  // ---- game state ----
+  let playing=false, paused=false, raf=null, lastT=0;
+  let level=1, score=0, lives=3, pelletsLeft=0, bonusAwarded=false;
+  let pellet=[], burner=[], totalPellets=0, eatenCount=0;
+  let mac=null, foes=[];
+  let globalMode='scatter', waveIdx=0, waveTimer=0;
+  let frightTimer=0, frightDur=0, chain=0, fullCourseFlag=false, frightEats=0;
+  let levelsCleared=0;
+  let freezeTimer=0, deathTimer=0, dying=false;
+  let special=null, specialTimer=0, specialSpawns=0;
+  let popups=[];
+
+  const macSpeed =()=> diffCfg.mac + (level-1)*0.05;
+  const foeSpeed =(f)=>{
+    let s = Math.min(diffCfg.enemy + (level-1)*0.2, macSpeed()*0.96);
+    if(f.id==='roma'){ if(pelletsLeft<=10) s+=1.0; else if(pelletsLeft<=20) s+=0.5; }     // simplified "Elroy"
+    const row=Math.round(f.cy), col=Math.round(f.cx);
+    if(row===14 && (col<6 || col>COLS-7)) s*=0.5;                                          // grease channel
+    return s;
+  };
+
+  function buildPellets(){
+    pellet=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+    burner=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+    totalPellets=0;
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+      const ch=MP_MAZE[y][x];
+      if(ch==='.'){ pellet[y][x]=true; totalPellets++; }
+      else if(ch==='o'){ pellet[y][x]=true; burner[y][x]=true; totalPellets++; }
+    }
+    pelletsLeft=totalPellets; eatenCount=0;
+  }
+  function spawnActors(){
+    mac={ kind:'mac', cx:13.5, cy:23, dir:{x:-1,y:0}, want:{x:-1,y:0}, mouth:0 };
+    // Roma starts on patrol above the pen; the other three start penned and regrow out on a timer.
+    // NB: penned foes leave by moving vertically, so they MUST start on integer columns — a
+    // half-tile column never re-aligns to a lane and would slip through the pen wall.
+    foes = ENEMIES.map((e,i)=>({
+      id:e.id, produce:e.produce, color:e.color, corner:e.corner,
+      cx: i===0?13 : [13,12,15][i-1], cy: i===0?11 : 14,
+      dir: i===0?{x:-1,y:0}:{x:0,y:-1}, fright:false,
+      state: i===0?'hunt':'penned', release: [0,2.5,6,9.5][i], bob:Math.random()*6.28
+    }));
+  }
+  function resetPositions(){ spawnActors(); globalMode='scatter'; waveIdx=0; waveTimer=mpWave(0).dur; frightTimer=0; freezeTimer=0; special=null; }
+  function startLevel(fresh){
+    if(fresh){ buildPellets(); }
+    resetPositions(); specialSpawns=0; specialTimer=0;
+  }
+
+  // scatter/chase wave table (seconds), scatter phases compress with level
+  function mpWave(i){
+    const sc = level>=9?0 : level>=5?5:7;
+    const tbl=[['scatter',sc],['chase',20],['scatter',sc],['chase',20],['scatter',Math.max(0,sc-2)],['chase',1e9]];
+    const w=tbl[Math.min(i,tbl.length-1)]; return {mode:w[0], dur:w[1]};
+  }
+  function reverseHunters(){ foes.forEach(f=>{ if(f.state==='hunt'){ f.dir={x:-f.dir.x,y:-f.dir.y}; } }); }
+
+  // ---- targeting ----
+  function macTile(){ return {x:Math.round(mac.cx), y:Math.round(mac.cy)}; }
+  function chaseTarget(f){
+    const m=macTile(), d=mac.dir;
+    if(f.id==='roma') return m;
+    if(f.id==='barry') return {x:m.x+d.x*4, y:m.y+d.y*4};
+    if(f.id==='brock'){ const px=m.x+d.x*2, py=m.y+d.y*2; const r=foes[0];
+      const rx=Math.round(r.cx), ry=Math.round(r.cy); return {x:px+(px-rx), y:py+(py-ry)}; }
+    // ginger: chase when far, flee home when close
+    const dist=(f.cx-m.x)**2+(f.cy-m.y)**2; return dist>64? m : f.corner;
+  }
+  const TURN=[{x:0,y:-1},{x:-1,y:0},{x:0,y:1},{x:1,y:0}];   // up,left,down,right tie-break
+  function towardDir(f,col,row,target,canDoor){
+    let best=null,bd=Infinity;
+    for(const d of TURN){
+      if(d.x===-f.dir.x && d.y===-f.dir.y) continue;        // no reversing
+      if(!open(col+d.x,row+d.y,canDoor)) continue;
+      const dd=(col+d.x-target.x)**2+(row+d.y-target.y)**2;
+      if(dd<bd){ bd=dd; best=d; }
+    }
+    return best || {x:-f.dir.x,y:-f.dir.y};                 // dead end -> reverse
+  }
+  function randDir(f,col,row){
+    const opts=TURN.filter(d=> !(d.x===-f.dir.x&&d.y===-f.dir.y) && open(col+d.x,row+d.y,false));
+    return opts.length? opts[(Math.random()*opts.length)|0] : {x:-f.dir.x,y:-f.dir.y};
+  }
+  function leaveDir(f,col,row){
+    if(row<=11){ f.state='hunt'; f.fright = frightTimer>0; return {x:0,y:-1}; }   // cleared the door
+    if(col!==13 && col!==14) return {x: col<13?1:-1, y:0};                        // slide under the door gap
+    return {x:0,y:-1};
+  }
+  function decide(a,col,row){
+    if(a.kind==='mac'){
+      if(a.want && open(col+a.want.x,row+a.want.y,false)){ return {...a.want}; }
+      if(open(col+a.dir.x,row+a.dir.y,false)) return {...a.dir};
+      return {x:0,y:0};
+    }
+    if(a.state==='leaving') return leaveDir(a,col,row);
+    if(a.state==='eaten')   return towardDir(a,col,row,{x:13,y:14},true);
+    if(frightTimer>0 && a.fright) return randDir(a,col,row);
+    return towardDir(a,col,row, globalMode==='scatter'? a.corner : chaseTarget(a), false);
+  }
+
+  // ---- movement: lane-locked, snaps to tile centres so turns/cornering stay clean ----
+  function advance(a, dist){
+    const isEnemy = a.kind!=='mac';
+    let guard=0;
+    while(dist>1e-9 && guard++<64){
+      const ix=Math.round(a.cx), iy=Math.round(a.cy);
+      if(Math.abs(a.cx-ix)<1e-6 && Math.abs(a.cy-iy)<1e-6){
+        a.cx=ix; a.cy=iy; a.dir=decide(a,ix,iy);
+        if(a.dir.x===0 && a.dir.y===0) return;             // stuck against a wall
+      }
+      const nx = a.dir.x>0?Math.floor(a.cx+1e-9)+1 : a.dir.x<0?Math.ceil(a.cx-1e-9)-1 : a.cx;
+      const ny = a.dir.y>0?Math.floor(a.cy+1e-9)+1 : a.dir.y<0?Math.ceil(a.cy-1e-9)-1 : a.cy;
+      const seg = Math.abs((nx-a.cx)+(ny-a.cy));
+      const mv = Math.min(dist, seg);
+      a.cx += a.dir.x*mv; a.cy += a.dir.y*mv; dist-=mv;
+      if(Math.abs(a.cx-nx)<1e-6 && Math.abs(a.cy-ny)<1e-6){ a.cx=nx; a.cy=ny; }
+      if(a.cx < -0.5) a.cx += COLS; else if(a.cx > COLS-0.5) a.cx -= COLS;   // grease-channel wrap
+    }
+    void isEnemy;
+  }
+
+  // ---- simulation ----
+  function startFright(){
+    frightDur = mpBaseFright(level)*diffCfg.frightMult;
+    chain=0; frightEats=0;
+    if(frightDur<=0){ reverseHunters(); return; }           // late levels: no fright, just a scatter flip
+    frightTimer=frightDur;
+    foes.forEach(f=>{ if(f.state==='hunt'){ f.fright=true; f.dir={x:-f.dir.x,y:-f.dir.y}; } });
+  }
+  function eatPellet(col,row){
+    pellet[row][col]=false; pelletsLeft--; eatenCount++; score+=10; sndChomp();
+    if(burner[row][col]){ burner[row][col]=false; score+=40; sndBurner(); startFright(); }
+    awardBonusLife();
+    if((eatenCount===Math.round(totalPellets*0.30) || eatenCount===Math.round(totalPellets*0.66)) && specialSpawns<2){
+      const sp=mpSpecial(level); special={col:13,row:17,name:sp.name,pts:sp.pts,c:sp.col}; specialTimer=9; specialSpawns++;
+    }
+    if(pelletsLeft<=0) levelClear();
+  }
+  function awardBonusLife(){ if(!bonusAwarded && score>=10000){ bonusAwarded=true; lives++; } }
+  function levelClear(){
+    levelsCleared++; level++; playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">LEVEL ${level-1} CLEAR</div><div class="small">Heating up the next service…</div>`;
+    setTimeout(()=>{ if(!aliveView) return; startLevel(true); overlay.style.display='none'; playing=true; lastT=0; raf=requestAnimationFrame(frame); }, 1400);
+  }
+  function loseLife(){
+    lives--; dying=true; deathTimer=1.2; sndLose();
+    foes.forEach(f=> f.fright=false); frightTimer=0;
+  }
+  function afterDeath(){
+    dying=false;
+    if(lives<=0){ gameOver(); return; }
+    resetPositions();
+  }
+  function eatFoe(f){
+    chain++; frightEats++;
+    const pts=200*Math.pow(2,Math.min(chain-1,3));
+    score+=pts; sndSizzle();
+    popups.push({x:cx(f.cx), y:cx(f.cy), txt:'+'+pts, life:0.9});
+    f.state='eaten'; f.fright=false;
+    freezeTimer=0.32;
+    if(frightEats>=4) fullCourseFlag=true;
+    awardBonusLife();
+  }
+
+  function update(dt){
+    if(freezeTimer>0){ freezeTimer-=dt; return; }
+    if(dying){ deathTimer-=dt; if(deathTimer<=0) afterDeath(); return; }
+
+    // global scatter/chase clock (paused while frightened, like the original)
+    if(frightTimer>0){
+      frightTimer-=dt;
+      if(frightTimer<=0){ frightTimer=0; foes.forEach(f=>{ if(f.state==='hunt') f.fright=false; }); }
+    } else {
+      waveTimer-=dt;
+      if(waveTimer<=0){ waveIdx++; const w=mpWave(waveIdx); const prev=globalMode; globalMode=w.mode; waveTimer=w.dur; if(prev!==globalMode) reverseHunters(); }
+    }
+
+    // Mac
+    advance(mac, macSpeed()*dt);
+    mac.mouth += dt*12;
+    const mc=Math.round(mac.cx), mr=Math.round(mac.cy);
+    if(Math.abs(mac.cx-mc)<0.25 && Math.abs(mac.cy-mr)<0.25){
+      if(mr>=0&&mr<ROWS&&pellet[mr]&&pellet[mr][mc]) eatPellet(mc,mr);
+      if(special && mc===special.col && mr===special.row){ score+=special.pts; sndBonus(); popups.push({x:cx(special.col),y:cx(special.row),txt:'+'+special.pts,life:1.1}); special=null; }
+    }
+
+    // special timeout
+    if(special){ specialTimer-=dt; if(specialTimer<=0) special=null; }
+
+    // enemies
+    foes.forEach(f=>{
+      if(f.state==='penned'){
+        f.bob+=dt*4; f.release-=dt;
+        if(f.release<=0){ f.state='leaving'; f.cx=Math.round(f.cx); f.cy=14; f.dir={x:0,y:-1}; }
+        return;
+      }
+      let sp=foeSpeed(f);
+      if(f.fright && frightTimer>0) sp*=0.6;
+      if(f.state==='eaten') sp=Math.max(sp*2.2, 13);
+      advance(f, sp*dt);
+      if(f.state==='eaten' && inPen(Math.round(f.cx),Math.round(f.cy))){ f.state='penned'; f.cx=Math.round(f.cx); f.cy=14; f.release=1.4; f.dir={x:0,y:-1}; f.fright=false; }
+    });
+
+    // collisions (skip the eaten/penned harmless ones)
+    foes.forEach(f=>{
+      if(f.state==='penned'||f.state==='eaten') return;
+      if(Math.hypot(mac.cx-f.cx, mac.cy-f.cy) < 0.7){
+        if(f.fright && frightTimer>0) eatFoe(f);
+        else if(!dying) loseLife();
+      }
+    });
+
+    popups.forEach(p=> p.life-=dt); popups=popups.filter(p=>p.life>0);
+  }
+
+  // ---- rendering ----
+  function drawMac(){
+    const x=cx(mac.cx), y=cx(mac.cy), R=CELL*0.46;
+    const ang=Math.atan2(mac.dir.y, mac.dir.x);
+    const hot = frightTimer>0;
+    ctx2d.save();
+    if(dying){ const k=Math.max(0, deathTimer/1.2); ctx2d.globalAlpha=k; }
+    // handle (trails opposite the heading)
+    ctx2d.strokeStyle=hot?'#7a2a14':'#1c1c20'; ctx2d.lineWidth=4.5; ctx2d.lineCap='round';
+    ctx2d.beginPath(); ctx2d.moveTo(x-mac.dir.x*R*0.6, y-mac.dir.y*R*0.6);
+    ctx2d.lineTo(x-mac.dir.x*R*1.85, y-mac.dir.y*R*1.85); ctx2d.stroke();
+    // body
+    if(hot){ ctx2d.shadowColor='#ff6a1e'; ctx2d.shadowBlur=14; }
+    const m=(0.07+0.20*(0.5+0.5*Math.sin(mac.mouth)))*Math.PI;   // chomp
+    const grd=ctx2d.createRadialGradient(x-R*0.3,y-R*0.3,R*0.2, x,y,R);
+    if(hot){ grd.addColorStop(0,'#ffd27a'); grd.addColorStop(0.5,'#ff7a2e'); grd.addColorStop(1,'#9c2f12'); }
+    else { grd.addColorStop(0,'#5a5a62'); grd.addColorStop(0.6,'#34343a'); grd.addColorStop(1,'#1d1d22'); }
+    ctx2d.fillStyle=grd;
+    ctx2d.beginPath(); ctx2d.moveTo(x,y);
+    ctx2d.arc(x,y,R, ang+m, ang+Math.PI*2-m); ctx2d.closePath(); ctx2d.fill();
+    ctx2d.shadowBlur=0;
+    // seasoned-oil sheen
+    ctx2d.fillStyle='rgba(255,255,255,0.16)';
+    ctx2d.beginPath(); ctx2d.arc(x-R*0.32,y-R*0.34,R*0.26,0,Math.PI*2); ctx2d.fill();
+    ctx2d.restore();
+  }
+  function drawFoe(f){
+    const x=cx(f.cx), y=cx(f.cy), R=CELL*0.42;
+    const flashing = f.fright && frightTimer>0 && frightTimer < Math.min(2, frightDur*0.4);
+    const frightened = f.fright && frightTimer>0;
+    if(f.state==='eaten'){ drawEyes(x,y,f.dir,0.5); return; }   // just the core racing home
+    ctx2d.save();
+    let body = frightened ? (flashing && Math.floor(frightTimer*8)%2 ? '#ffffff' : '#2b46ff') : f.color;
+    // produce silhouette
+    if(!frightened){
+      if(f.produce==='tomato'){ disc(x,y,R,body); leaf(x,y-R*0.85,R*0.5); }
+      else if(f.produce==='strawberry'){ berry(x,y,R,body); }
+      else if(f.produce==='broccoli'){ broccoli(x,y,R,body); }
+      else { carrot(x,y,R,body); }
+    } else {
+      disc(x,y,R,body);                                          // wilted blob
+      ctx2d.fillStyle='rgba(180,210,255,0.6)'; ctx2d.fillRect(x+R*0.4,y-R*0.5,1.5,3);  // sweat bead
+    }
+    // face
+    if(frightened){
+      ctx2d.fillStyle= flashing && Math.floor(frightTimer*8)%2 ? '#2b46ff':'#bfe0ff';
+      ctx2d.fillRect(x-3,y-1,2,2); ctx2d.fillRect(x+1,y-1,2,2);
+      ctx2d.beginPath(); for(let i=-4;i<=4;i+=2){ ctx2d.lineTo(x+i, y+3+(i/2%2?1:-1)); } ctx2d.strokeStyle=ctx2d.fillStyle; ctx2d.stroke();
+    } else {
+      drawEyes(x,y-R*0.1,f.dir,1);
+    }
+    ctx2d.restore();
+  }
+  function disc(x,y,r,col){ ctx2d.fillStyle=col; ctx2d.beginPath(); ctx2d.arc(x,y,r,0,Math.PI*2); ctx2d.fill();
+    ctx2d.fillStyle='rgba(255,255,255,0.18)'; ctx2d.beginPath(); ctx2d.arc(x-r*0.3,y-r*0.3,r*0.3,0,Math.PI*2); ctx2d.fill(); }
+  function leaf(x,y,r){ ctx2d.fillStyle='#3fae57'; for(let i=0;i<5;i++){ const a=-Math.PI/2 + (i-2)*0.5;
+    ctx2d.beginPath(); ctx2d.moveTo(x,y); ctx2d.lineTo(x+Math.cos(a)*r, y+Math.sin(a)*r-1); ctx2d.lineTo(x+Math.cos(a+0.3)*r*0.6, y+Math.sin(a+0.3)*r*0.6); ctx2d.closePath(); ctx2d.fill(); } }
+  function berry(x,y,r,col){ ctx2d.fillStyle=col; ctx2d.beginPath(); ctx2d.moveTo(x,y+r);
+    ctx2d.quadraticCurveTo(x-r,y+r*0.2, x-r*0.8,y-r*0.4); ctx2d.quadraticCurveTo(x,y-r*0.9, x+r*0.8,y-r*0.4);
+    ctx2d.quadraticCurveTo(x+r,y+r*0.2, x,y+r); ctx2d.fill();
+    ctx2d.fillStyle='rgba(255,255,255,0.5)'; for(let i=0;i<5;i++){ ctx2d.fillRect(x-r*0.5+ (i%3)*r*0.45, y-r*0.2+ (i>2?r*0.35:0), 1.3,1.3); }
+    ctx2d.fillStyle='#3fae57'; ctx2d.beginPath(); ctx2d.arc(x,y-r*0.55,r*0.32,0,Math.PI*2); ctx2d.fill(); }
+  function broccoli(x,y,r,col){ ctx2d.fillStyle='#cdb98c'; ctx2d.fillRect(x-r*0.18,y,r*0.36,r*0.9);
+    ctx2d.fillStyle=col; [[-0.5,-0.2,0.55],[0.5,-0.2,0.55],[0,-0.55,0.6],[0,-0.05,0.5]].forEach(b=>{
+      ctx2d.beginPath(); ctx2d.arc(x+b[0]*r,y+b[1]*r,r*b[2],0,Math.PI*2); ctx2d.fill(); }); }
+  function carrot(x,y,r,col){ ctx2d.fillStyle='#3fae57'; for(let i=-1;i<=1;i++){ ctx2d.beginPath();
+    ctx2d.moveTo(x,y-r*0.4); ctx2d.lineTo(x+i*r*0.4, y-r*1.1); ctx2d.lineTo(x+i*r*0.4+2, y-r*0.4); ctx2d.closePath(); ctx2d.fill(); }
+    ctx2d.fillStyle=col; ctx2d.beginPath(); ctx2d.moveTo(x,y+r); ctx2d.lineTo(x-r*0.7,y-r*0.4); ctx2d.lineTo(x+r*0.7,y-r*0.4); ctx2d.closePath(); ctx2d.fill(); }
+  function drawEyes(x,y,dir,a){ ctx2d.save(); ctx2d.globalAlpha=a;
+    for(const s of [-1,1]){ const ex=x+s*3.2; ctx2d.fillStyle='#fff'; ctx2d.beginPath(); ctx2d.arc(ex,y,2.2,0,Math.PI*2); ctx2d.fill();
+      ctx2d.fillStyle='#10204a'; ctx2d.beginPath(); ctx2d.arc(ex+dir.x*1.1, y+dir.y*1.1, 1.1,0,Math.PI*2); ctx2d.fill(); }
+    ctx2d.restore(); }
+
+  function draw(){
+    ctx2d.drawImage(wallCv,0,0);
+    if(frightTimer>0){ ctx2d.fillStyle='rgba(255,90,30,0.06)'; ctx2d.fillRect(0,0,W,H); }   // heat wash
+    // door
+    ctx2d.fillStyle='#ff8fc4'; ctx2d.fillRect(13*CELL+2, 12*CELL+CELL/2-1, CELL*2-4, 2);
+    // pellets + burners
+    const t=performance.now();
+    const PAL=['#ffd23d','#37e35b','#ff6db0','#16f2c8','#ff9a3c'];
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){ if(!pellet[y][x]) continue;
+      const px=cx(x), py=cx(y);
+      if(burner[y][x]){ const pl=0.5+0.5*Math.sin(t/120+x); ctx2d.save(); ctx2d.shadowColor='#ff5a1e'; ctx2d.shadowBlur=8+pl*8;
+        ctx2d.fillStyle='#ff5a1e'; ctx2d.beginPath(); ctx2d.arc(px,py,3.4+pl*1.4,0,Math.PI*2); ctx2d.fill();
+        ctx2d.fillStyle='#ffd23d'; ctx2d.beginPath(); ctx2d.arc(px,py-1,1.8,0,Math.PI*2); ctx2d.fill();
+        ctx2d.fillStyle='#3fae57'; ctx2d.fillRect(px-0.8,py-5,1.6,2); ctx2d.restore(); }
+      else { ctx2d.fillStyle=PAL[(x+y)%PAL.length]; ctx2d.fillRect(px-1.4,py-1.4,2.8,2.8); }
+    }
+    // special of the day
+    if(special){ const px=cx(special.col), py=cx(special.row), pl=0.5+0.5*Math.sin(t/160);
+      ctx2d.save(); ctx2d.shadowColor=special.c; ctx2d.shadowBlur=8; ctx2d.fillStyle=special.c;
+      ctx2d.beginPath(); ctx2d.arc(px,py,4.2+pl,0,Math.PI*2); ctx2d.fill();
+      ctx2d.fillStyle='rgba(255,255,255,0.5)'; ctx2d.beginPath(); ctx2d.arc(px-1.4,py-1.4,1.4,0,Math.PI*2); ctx2d.fill(); ctx2d.restore(); }
+    foes.forEach(drawFoe);
+    drawMac();
+    // floating sauté/bonus scores
+    popups.forEach(p=>{ ctx2d.save(); ctx2d.globalAlpha=Math.max(0,Math.min(1,p.life*1.4)); ctx2d.fillStyle='#fff';
+      ctx2d.font='bold 11px monospace'; ctx2d.textAlign='center'; ctx2d.fillText(p.txt, p.x, p.y-(0.9-p.life)*14); ctx2d.restore(); });
+  }
+
+  const macBest = (diff)=>{ const b=Store.get().bests.arcade_macpan; return (b&&b.diff&&b.diff[diff])||0; };
+  function renderHud(){
+    hud.innerHTML = `<span class="pill">Mode <b>${diffCfg.name}</b></span>
+      <span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Lives <b>🍳×${Math.max(0,lives)}</b></span>
+      <span class="pill">Level <b>${level}</b></span>
+      <span class="pill">Best <b>${macBest(diffCfg.key)}</b></span>`;
+  }
+
+  function frame(t){
+    if(!playing){ return; }
+    const now=t; if(!lastT) lastT=now;
+    let dt=(now-lastT)/1000; lastT=now; if(dt>0.05) dt=0.05;
+    if(!paused) update(dt);
+    if(!playing) return;                                  // update() may have ended the run/level
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none';
+    level=1; score=0; lives=3; bonusAwarded=false; levelsCleared=0; fullCourseFlag=false; paused=false; popups=[];
+    startLevel(true); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=0; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    startBtn.innerHTML='▶ START';
+    const comp = clamp01(0.6*clamp01(score/12000) + 0.4*clamp01((level-1)/6));
+    const g = arcadeGrade(comp);
+    Attr.applyVector({control:12, strategy:8, focus:4}, comp);
+    recordMacPanRun(score, {level, diff:diffCfg.key, cleared:levelsCleared, fullCourse:fullCourseFlag});
+    Ach.evaluate({tool:'macpan', grade:g, score, level, diff:diffCfg.key, cleared:levelsCleared, fullCourse:fullCourseFlag});
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">${diffCfg.name} · Level ${level} · ${score} pts</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Level</div><div class="v">${level}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best (${diffCfg.name})</div><div class="v">${macBest(diffCfg.key)}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Mac Pan', glyph:'🍳', grade:g,
+      metric:[{k:'Mode', v:diffCfg.name}, {k:'Score', v:String(score)}, {k:'Level', v:String(level)}],
+      designation: g==='S'?'Iron Chef': g==='A'?'Line Cook': g==='B'?'Short-Order Pan':'Greasy Spoon',
+      badge: fullCourseFlag?'Full Course':null
+    }));
+  }
+
+  // ---- input ----
+  function setWant(x,y){ if(mac) mac.want={x,y}; }
+  function onKey(e){
+    const k=e.key;
+    if(k==='ArrowLeft'||k==='a'||k==='A') setWant(-1,0);
+    else if(k==='ArrowRight'||k==='d'||k==='D') setWant(1,0);
+    else if(k==='ArrowUp'||k==='w'||k==='W') setWant(0,-1);
+    else if(k==='ArrowDown'||k==='s'||k==='S') setWant(0,1);
+    else if((k==='p'||k==='P'||k==='Escape') && playing && !dying){ paused=!paused; if(paused){ overlay.style.display='flex'; overlay.innerHTML='<div class="big">PAUSED</div><div class="small">Press P to resume</div>'; } else { overlay.style.display='none'; lastT=0; } }
+    else if((k===' '||k==='Enter') && !playing){ startGame(); }
+    else return;
+    if(playing) e.preventDefault();
+  }
+  let touchStart=null;
+  function onTouchStart(e){ const t=e.touches[0]; if(t) touchStart={x:t.clientX,y:t.clientY}; }
+  function onTouchMove(e){ if(!touchStart) return; const t=e.touches[0]; if(!t) return;
+    const dx=t.clientX-touchStart.x, dy=t.clientY-touchStart.y;
+    if(Math.hypot(dx,dy)>18){ if(Math.abs(dx)>Math.abs(dy)) setWant(dx>0?1:-1,0); else setWant(0,dy>0?1:-1); touchStart={x:t.clientX,y:t.clientY}; e.preventDefault(); } }
+  window.addEventListener('keydown', onKey);
+  canvas.addEventListener('touchstart', onTouchStart, {passive:false});
+  canvas.addEventListener('touchmove', onTouchMove, {passive:false});
+
+  let aliveView=true;
+  startBtn.onclick=startGame;
+  buildPellets(); spawnActors(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">MAC PAN</div><div class="small">Press START to fire up the pan</div>`;
+
+  return ()=>{ aliveView=false; playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    window.removeEventListener('keydown', onKey); };
+};
+
 /* ---- ARCADE.4 Brick Breaker ---- */
 /* ---- Brick Breaker difficulty tiers ---- */
 // Three tiers driven by ball speed + paddle width (brick grid is identical across
@@ -10712,6 +11254,24 @@ function recordWhackRun(score, ctx){
     d.counters.whackRuns=(d.counters.whackRuns||0)+1;
   });
 }
+// record a Mac Pan run — honest-Gamer-Score contract (see MacPan_DD.md §6.2):
+// toolsCompleted credited once, best score (overall + per-difficulty), modest
+// arcade metagame points, counters for the cabinet achievements.
+function recordMacPanRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_macpan){ d.toolsCompleted++; d.bests.arcade_macpan={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_macpan.value){ d.bests.arcade_macpan.value=score; }
+    const diff=(ctx&&ctx.diff)||'medium';
+    const bd=d.bests.arcade_macpan.diff||(d.bests.arcade_macpan.diff={});
+    if(!(diff in bd) || score>bd[diff]) bd[diff]=score;
+    d.arcadePoints += Math.round(score/40);
+    d.counters.macpanRuns=(d.counters.macpanRuns||0)+1;
+    if(ctx && ctx.cleared>=1) d.counters.macpanCleared=(d.counters.macpanCleared||0)+1;
+    if(ctx && ctx.fullCourse) d.counters.macpanFullCourse=(d.counters.macpanFullCourse||0)+1;
+    if(ctx && ctx.level>=5 && diff==='welldone') d.counters.macpanMichelin=(d.counters.macpanMichelin||0)+1;
+  });
+}
 function recordSimonRun(score, ctx){
   Store.update(d=>{
     d.runs++;
@@ -13313,6 +13873,7 @@ Router.add('#/arcade/snake', Views.snake);
 Router.add('#/arcade/bricks', Views.brickBreaker);
 Router.add('#/arcade/whack', Views.whackMole);
 Router.add('#/arcade/sequence', Views.sequence);
+Router.add('#/arcade/macpan', Views.macPan);
 Router.add('#/arcade/packer', Views.packer);
 Router.add('#/arcade/sudoku', Views.sudoku);
 Router.add('#/arcade/b0ggle', Views.b0ggle);
