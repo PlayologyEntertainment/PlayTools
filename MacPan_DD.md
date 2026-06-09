@@ -128,7 +128,7 @@ produce.
 | Name | Produce | Color | Maps to | Personality |
 | --- | --- | --- | --- | --- |
 | **Roma** | Tomato | Red | Blinky | **The Chaser.** Targets Mac's exact tile — relentless direct pursuit. Speeds up as the maze empties (our simplified "Elroy": +speed at 20 pellets left, again at 10). |
-| **Berry** | Strawberry | Pink | Pinky | **The Ambusher.** Targets four tiles *ahead* of Mac's mouth to cut him off, not chase his tail. |
+| **Barry** | Strawberry | Pink | Pinky | **The Ambusher.** Targets four tiles *ahead* of Mac's mouth to cut him off, not chase his tail. |
 | **Brock** | Broccoli | Teal/green | Inky | **The Flanker.** Unpredictable: aims at a point projected from Mac using **Roma's** position as a pivot (the classic Inky vector), so the two pincer the player. |
 | **Ginger** | Carrot | Orange | Clyde | **The Shy One.** Chases when far from Mac, but bolts for his home corner when he gets close — loose, skittish, opens escape lanes. |
 
@@ -296,7 +296,7 @@ Add `recordMacPanRun(score, ctx)` following the exact pattern used by
 
 ## 9. Open Questions for Sign-off
 
-1. **Enemy names** — are *Roma / Berry / Brock / Ginger* good, or do you want
+1. **Enemy names** — are *Roma / Barry / Brock / Ginger* good, or do you want
    different produce / punnier names?
 2. **Difficulty labels** — *Mild / Medium / Cast Iron* — keep, or rename?
 3. **Bonus naming** — "Special of the Day" for the bonus ingredient: good?
