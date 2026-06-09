@@ -1810,6 +1810,10 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='snake' && c.length>=30) || !!(d.counters && d.counters.snakeLong>=1) },
     { id:'brick_buster', name:'Brick Buster', icon:'🧱', desc:'Clear an entire wall in Brick Breaker.',
       test:(d,c)=> (c && c.tool==='bricks' && c.cleared) || !!(d.counters && d.counters.brickClears>=1) },
+    { id:'brick_demolisher', name:'Wall Demolisher', icon:'🧱', desc:'Clear an entire wall on Hard difficulty in Brick Breaker.',
+      test:(d,c)=> (c && c.tool==='bricks' && c.cleared && c.diff==='hard') || !!(d.counters && d.counters.brickHardClears>=1) },
+    { id:'brick_flawless', name:'Flawless Wall', icon:'🧱', desc:'Clear a wall in Brick Breaker without losing a single life.',
+      test:(d,c)=> (c && c.tool==='bricks' && c.cleared && c.flawless) || !!(d.counters && d.counters.brickFlawless>=1) },
     { id:'mole_masher', name:'Mole Masher', icon:'🔨', desc:'Whack 25 moles in a single round.',
       test:(d,c)=> c && c.tool==='whack' && c.hits>=25 },
     { id:'sequence_savant', name:'Sequence Savant', icon:SEQ_ICON, desc:'Recall a sequence of length 12 in Sequence.',
@@ -6922,6 +6926,16 @@ Views.snake = function(c){
 };
 
 /* ---- ARCADE.4 Brick Breaker ---- */
+/* ---- Brick Breaker difficulty tiers ---- */
+// Three tiers driven by ball speed + paddle width (brick grid is identical across
+// tiers so max score stays 350 and the score/350 grade curve works on every tier).
+// `vx0`/`vy0` = launch velocity components, `maxSpeed` = ball speed cap after paddle
+// english, `padW` = paddle width. Easy mirrors the original single-config game.
+const BRK_LEVELS = [
+  { key:'easy',   name:'Easy',   vx0:120, vy0:210, maxSpeed:340, padW:58 },
+  { key:'medium', name:'Medium', vx0:140, vy0:250, maxSpeed:400, padW:48 },
+  { key:'hard',   name:'Hard',   vx0:165, vy0:290, maxSpeed:470, padW:40 }
+];
 Views.brickBreaker = function(c){
   const cab = getCab('arcade_bricks');
   const panel = toolShell(c, cab);
@@ -6933,12 +6947,25 @@ Views.brickBreaker = function(c){
 
   const W=360, H=300;
   const COLS=7, ROWS=5, BW=44, BH=14, BGAP=4, BTOP=34, BLEFT=(W-(COLS*(BW+BGAP)-BGAP))/2;
-  const PAD_W=58, PAD_H=10, PAD_Y=H-22, BALL_R=5;
+  const PAD_H=10, PAD_Y=H-22, BALL_R=5;
   const COLORS=['#ff3df0','#ffd23d','#16f2c8','#7c5cff','#37e35b'];
+
+  let levelIdx=0, lvl=BRK_LEVELS[levelIdx];   // default Easy
+  let PAD_W=lvl.padW;
 
   const startRow = el('div',{class:'controls-row'});
   const startBtn = el('button',{class:'btn primary', html:'▶ START'});
   startRow.append(startBtn, soundToggle('brickMute'));
+
+  // difficulty selector (matches the Whack-a-Mole segmented control)
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  BRK_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; levelIdx=i; lvl=BRK_LEVELS[i]; PAD_W=lvl.padW; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; reset(); draw(); renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
   const hud = el('div',{class:'mem-hud'});
   const stage = el('div',{class:'pd-stage'});
   const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
@@ -6947,7 +6974,7 @@ Views.brickBreaker = function(c){
   const hint = el('div',{class:'pd-hint', html:'◀ ▶ or A · D &nbsp;·&nbsp; move mouse to slide the paddle'});
   const result = el('div',{});
   const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
-  panel.append(startRow, hud, stageTV, hint, result);
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
   const ctx2d = canvas.getContext('2d');
 
   let playing=false, raf=null, lastT=0;
@@ -6960,15 +6987,16 @@ Views.brickBreaker = function(c){
     }
     live=bricks.length;
   }
-  function launchBall(){ ball={ x:W/2, y:PAD_Y-12, vx:(Math.random()<0.5?-1:1)*120, vy:-210, stuck:false }; }
-  function reset(){ padX=W/2; keyDir=0; score=0; lives=3; buildBricks(); launchBall(); }
+  function launchBall(){ ball={ x:W/2, y:PAD_Y-12, vx:(Math.random()<0.5?-1:1)*lvl.vx0, vy:-lvl.vy0, stuck:false }; }
+  function reset(){ lvl=BRK_LEVELS[levelIdx]; PAD_W=lvl.padW; padX=W/2; keyDir=0; score=0; lives=3; buildBricks(); launchBall(); }
 
+  const brickBest = (diff)=>{ const b=Store.get().bests.arcade_bricks; return (b&&b.diff&&b.diff[diff])||0; };
   function renderHud(){
-    const best=(Store.get().bests.arcade_bricks||{}).value||0;
-    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+    hud.innerHTML = `<span class="pill">Mode <b>${lvl.name}</b></span>
+      <span class="pill">Score <b>${score}</b></span>
       <span class="pill">Lives <b>${lives}</b></span>
       <span class="pill">Bricks <b>${live}</b></span>
-      <span class="pill">Best <b>${best}</b></span>`;
+      <span class="pill">Best <b>${brickBest(lvl.key)}</b></span>`;
   }
   function draw(){
     ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
@@ -6996,7 +7024,7 @@ Views.brickBreaker = function(c){
     if(ball.vy>0 && ball.y+BALL_R>=PAD_Y && ball.y-BALL_R<=PAD_Y+PAD_H && ball.x>=padX-PAD_W/2 && ball.x<=padX+PAD_W/2){
       ball.y=PAD_Y-BALL_R; ball.vy=-Math.abs(ball.vy);
       const off=(ball.x-padX)/(PAD_W/2); ball.vx += off*120; sndPad();
-      const sp=Math.min(340, Math.hypot(ball.vx,ball.vy)); const a=Math.atan2(ball.vy,ball.vx);
+      const sp=Math.min(lvl.maxSpeed, Math.hypot(ball.vx,ball.vy)); const a=Math.atan2(ball.vy,ball.vx);
       ball.vx=Math.cos(a)*sp; ball.vy=Math.sin(a)*sp;
     }
     // bricks
@@ -7030,25 +7058,26 @@ Views.brickBreaker = function(c){
     const comp=clamp01(score/350) * (cleared?1:0.85) + (cleared?0.1:0);
     const g=arcadeGrade(clamp01(comp));
     Attr.applyVector({precision:12, reflex:6, consistency:4}, clamp01(comp));
-    recordBrickRun(score, {cleared});
-    Ach.evaluate({tool:'bricks', grade:g, score, cleared});
+    const flawless = cleared && lives===3;
+    recordBrickRun(score, {cleared, diff:lvl.key, flawless});
+    Ach.evaluate({tool:'bricks', grade:g, score, cleared, diff:lvl.key, flawless});
     draw();
     overlay.style.display='flex';
-    overlay.innerHTML = `<div class="big">${cleared?'WALL CLEARED':'GAME OVER'}</div><div class="small">Score ${score}${cleared?' · flawless wall!':''}</div>`;
+    overlay.innerHTML = `<div class="big">${cleared?'WALL CLEARED':'GAME OVER'}</div><div class="small">${lvl.name} · Score ${score}${flawless?' · flawless wall!':(cleared?' · wall cleared!':'')}</div>`;
     renderHud();
     const r=el('div',{class:'results'});
     r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
       <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
       <div class="result-tile"><div class="k">Bricks Left</div><div class="v">${live}</div></div>
-      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_bricks.value}</div></div>`;
+      <div class="result-tile"><div class="k">Best (${lvl.name})</div><div class="v">${brickBest(lvl.key)}</div></div>`;
     result.append(r);
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
       lab:'RETRO ARCADE', tool:'Brick Breaker', glyph:'🧱', grade:g,
-      metric:[{k:'Score', v:String(score)}, {k:'Bricks Left', v:String(live)}],
+      metric:[{k:'Mode', v:lvl.name}, {k:'Score', v:String(score)}, {k:'Bricks Left', v:String(live)}],
       designation: g==='S'?'Wall Wrecker': g==='A'?'Ricochet Ace': g==='B'?'Steady Volley':'Loose Cannon',
-      badge: cleared?'Brick Buster':null
+      badge: flawless?'Flawless Wall':(cleared?'Brick Buster':null)
     }));
   }
   function onKeyDown(e){
@@ -8183,9 +8212,14 @@ function recordBrickRun(score, ctx){
     d.runs++;
     if(!d.bests.arcade_bricks){ d.toolsCompleted++; d.bests.arcade_bricks={value:score, mode:'max'}; }
     else if(score>d.bests.arcade_bricks.value){ d.bests.arcade_bricks.value=score; }
+    const diff=(ctx&&ctx.diff)||'easy';
+    const bd=d.bests.arcade_bricks.diff||(d.bests.arcade_bricks.diff={});
+    if(!(diff in bd) || score>bd[diff]) bd[diff]=score;
     d.arcadePoints += Math.round(score/25);
     d.counters.brickRuns=(d.counters.brickRuns||0)+1;
     if(ctx && ctx.cleared) d.counters.brickClears=(d.counters.brickClears||0)+1;
+    if(ctx && ctx.cleared && diff==='hard') d.counters.brickHardClears=(d.counters.brickHardClears||0)+1;
+    if(ctx && ctx.cleared && ctx.flawless) d.counters.brickFlawless=(d.counters.brickFlawless||0)+1;
   });
 }
 function recordWhackRun(score, ctx){
