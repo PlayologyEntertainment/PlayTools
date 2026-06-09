@@ -1,0 +1,15 @@
+{
+  "name": "playtools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PlayTools — gamified gaming tools (single-file HTML app) + headless browser test harness",
+  "type": "module",
+  "scripts": {
+    "test:browser": "node test/smoke.mjs",
+    "browser": "node test/browser.mjs"
+  },
+  "devDependencies": {
+    "@sparticuz/chromium": "^131.0.0",
+    "playwright": "^1.49.0"
+  }
+}
