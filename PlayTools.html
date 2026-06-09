@@ -376,7 +376,7 @@
   .cab .cab-icon{font-size:26px; line-height:1; margin-bottom:8px;}
   /* Sequence quadrant icon: scales to the surrounding font-size wherever it's dropped in */
   .seq-quads{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
-  .book-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
+  .pawn-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .cab .cab-name{font-family:var(--pixel); color:#fff; font-size:15px; letter-spacing:.5px; display:flex; gap:6px; align-items:center;}
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
@@ -1745,22 +1745,13 @@ const SEQ_ICON = '<svg class="seq-quads" viewBox="0 0 100 100" aria-hidden="true
   '<rect x="4" y="52" width="44" height="44" fill="#ffd23d"/>'+
   '<rect x="52" y="52" width="44" height="44" fill="#7c5cff"/></svg>';
 
-// SPELLBOOK_ICON — an open spellbook (violet pages with a central spine) and a
-// few sparkles rising from it, fitting the Fun Lab. Rendered wherever an applet
-// icon appears (lobby card + tool header). Sized to 1em like SEQ_ICON.
-const SPELLBOOK_ICON = '<svg class="book-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
-  '<path d="M50 54 C36 46 22 45 12 46 L10 82 C24 81 40 84 50 90 Z" fill="#b9a7ff" stroke="#070912" stroke-width="3" stroke-linejoin="round"/>'+
-  '<path d="M50 54 C64 46 78 45 88 46 L90 82 C76 81 60 84 50 90 Z" fill="#8b74ff" stroke="#070912" stroke-width="3" stroke-linejoin="round"/>'+
-  '<path d="M50 54 L50 90" stroke="#070912" stroke-width="3" fill="none"/>'+
-  '<path d="M20 55 C30 54 40 55 45 59" stroke="#070912" stroke-width="2" fill="none" opacity="0.35"/>'+
-  '<path d="M80 55 C70 54 60 55 55 59" stroke="#070912" stroke-width="2" fill="none" opacity="0.35"/>'+
-  '<path d="M11 70 C24 69 40 72 50 78" stroke="#070912" stroke-width="2" fill="none" opacity="0.5"/>'+
-  '<path d="M11 76 C25 75 40 78 50 84" stroke="#070912" stroke-width="2" fill="none" opacity="0.5"/>'+
-  '<path d="M89 70 C76 69 60 72 50 78" stroke="#070912" stroke-width="2" fill="none" opacity="0.5"/>'+
-  '<path d="M89 76 C75 75 60 78 50 84" stroke="#070912" stroke-width="2" fill="none" opacity="0.5"/>'+
-  '<path d="M70 10 C70 25 70 25 85 25 C70 25 70 25 70 40 C70 25 70 25 55 25 C70 25 70 25 70 10 Z" fill="#ffd23d" stroke="#ffd23d" stroke-width="4" stroke-linejoin="round"/>'+
-  '<path d="M52 11 C52 18 52 18 59 18 C52 18 52 18 52 25 C52 18 52 18 45 18 C52 18 52 18 52 11 Z" fill="#16f2c8" stroke="#ffd23d" stroke-width="4" stroke-linejoin="round"/>'+
-  '<path d="M86 37 C86 42 86 42 91 42 C86 42 86 42 86 47 C86 42 86 42 81 42 C86 42 86 42 86 37 Z" fill="#ffd23d" stroke="#ffd23d" stroke-width="4" stroke-linejoin="round"/></svg>';
+// PAWN_ICON — a board-game pawn silhouette (round head, flared body, base).
+// Rendered wherever an applet icon appears (lobby card + tool header). Sized to
+// 1em like SEQ_ICON.
+const PAWN_ICON = '<svg class="pawn-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
+  '<circle cx="50" cy="24" r="14" fill="#16f2c8" stroke="#070912" stroke-width="3"/>'+
+  '<path d="M40 36 Q45 44 42 54 Q38 66 30 80 L70 80 Q62 66 58 54 Q55 44 60 36 Z" fill="#16f2c8" stroke="#070912" stroke-width="3" stroke-linejoin="round"/>'+
+  '<rect x="24" y="78" width="52" height="13" rx="6.5" fill="#16f2c8" stroke="#070912" stroke-width="3"/></svg>';
 
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
@@ -2394,7 +2385,7 @@ const CABINETS = [
   // Fun Lab (DD §4.4) — identity profiling.
   { id:'gamer_quiz', lab:'Fun', name:'Gamer Quiz', railName:'Quiz', icon:'🎭', tag:'mvp', route:'#/fun/quiz',
     desc:'10-question archetype quiz — discover your player type.', dna:'Sets your Archetype tag' },
-  { id:'game_finder', lab:'Fun', name:'Game Night Planner', railName:'Finder', icon:SPELLBOOK_ICON, tag:'p2', route:'#/fun/gamefinder',
+  { id:'game_finder', lab:'Fun', name:'Game Night Planner', railName:'Finder', icon:PAWN_ICON, tag:'p2', route:'#/fun/gamefinder',
     desc:'Answer a few quick questions and land on the perfect tabletop pick for your group.', dna:'Pure fun · logs a tool' },
   { id:'dna_report', lab:'Fun', name:'Gamer DNA Report', railName:'Report', icon:'📊', tag:'mvp', route:'#/fun/report',
     desc:'Your class, strengths, weaknesses & tier — as a share card.', dna:'Logs a completed tool' },
