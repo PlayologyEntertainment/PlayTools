@@ -381,7 +381,12 @@
   .b0-ico{display:inline-flex; align-items:center; justify-content:center; width:1.18em; height:1em; padding:0 0.08em;
     border-radius:0.18em; background:var(--neon-4); color:#fff; font-family:var(--pixel); font-weight:800;
     line-height:1; vertical-align:-0.12em; box-shadow:0 0 9px rgba(124,92,255,0.5);}
-  .b0-ico span{font-size:0.58em; letter-spacing:0.5px;}
+  .b0-ico > span{font-size:0.58em; letter-spacing:0.5px;}
+  /* slashed zero — draw a diagonal stroke across a "0" so it reads as the
+     programmer/terminal slashed-zero glyph (used in the B0ggle wordmark + icon) */
+  .slz{position:relative; display:inline-block;}
+  .slz::after{content:''; position:absolute; left:50%; top:50%; width:0.95em; height:0.1em;
+    background:currentColor; border-radius:0.05em; transform:translate(-50%,-50%) rotate(-28deg); pointer-events:none;}
   .cab .cab-name{font-family:var(--pixel); color:#fff; font-size:15px; letter-spacing:.5px; display:flex; gap:6px; align-items:center;}
   .cab .cab-desc{font-size:12.5px; color:var(--ink-dim); margin-top:6px;}
   .cab .cab-dna{font-size:11px; color:var(--neon); margin-top:10px; letter-spacing:.5px;}
@@ -1787,7 +1792,7 @@ const PAWN_ICON = '<svg class="pawn-icon" viewBox="0 0 100 100" aria-hidden="tru
 
 // B0_ICON — B0ggle's cabinet badge: white "B0" on a purple chip, so it reads
 // distinctly from Sudoku's number glyph. Sized to ~1em like the SVG icons above.
-const B0_ICON = '<span class="b0-ico"><span>B0</span></span>';
+const B0_ICON = '<span class="b0-ico"><span>B<span class="slz">0</span></span></span>';
 
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
@@ -2476,7 +2481,7 @@ const CABINETS = [
     desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6 - Designed by Aysha!' },
   { id:'arcade_sudoku', lab:'Arcade', name:'Sudoku', railName:'Sudoku', icon:'🔢', tag:'mvp', route:'#/arcade/sudoku',
     desc:'Fill the 9×9 grid so every row, column & box holds 1–9 — pick a difficulty, beat the clock & lean on hints only if you must.', dna:'Focus +12 · Strategy +8' },
-  { id:'arcade_b0ggle', lab:'Arcade', name:'B0ggle', railName:'B0ggle', icon:B0_ICON, tag:'mvp', route:'#/arcade/b0ggle',
+  { id:'arcade_b0ggle', lab:'Arcade', name:'<span class="b0-word">B<span class="slz">0</span>ggle</span>', railName:'B0ggle', icon:B0_ICON, tag:'mvp', route:'#/arcade/b0ggle',
     desc:'Trace adjacent letter-nodes to DECRYPT words against the clock — longer words crack a bigger payload. Cyberpunk word-hunt with a retro-CRT skin.', dna:'Strategy +14 · Focus +6' }
 ];
 
