@@ -1,54 +1,61 @@
 # Overdrive — Retro Arcade Cabinet Design Spec
 
-**Version:** 0.1 (Draft — for sign-off, pre-code)
+**Version:** 0.2 (Draft — for sign-off, pre-code)
 **Author:** Playology Entertainment
 **Status:** Proposed — not yet built
 **Parent Doc:** `PlayTools_DD.md` (this cabinet extends §5.5 Retro Arcade Module)
-**Working title:** *Overdrive* (alternatives in §10.1 — name not yet locked)
 
-> **Brainstorm decisions (locked this round).** Single-player; **pseudo-3D
-> rear-view** racer (faithful to *Pole Position*); goal is to **reach the finish
-> line before the checkpoint clock runs out**, banking as much time as possible;
-> obstacles are **rival traffic cars + static hazards** (oil/debris/off-road);
-> collisions are a recoverable **spin-out**, not instant game-over;
-> **neon-cyberpunk reskin** (a data-highway street racer, kin to *Jack-In*) with
-> **automatic gears**. Proposed cabinet route `#/arcade/overdrive`, tool id
-> `arcade_overdrive`.
+> **Brainstorm decisions (locked).** Single-player; **pseudo-3D rear-view**
+> racer (faithful to *Pole Position*); goal is to **reach the finish line before
+> the checkpoint clock runs out**, banking as much time as possible; obstacles
+> are **rival traffic cars + static hazards** (oil/debris/off-road); collisions
+> are a recoverable **spin-out**, not instant game-over; **name is *Overdrive***;
+> setting is a **recognizable open-road race at a majestic sunset** (golden-hour
+> coastal highway, OutRun-style, orange/yellow/purple sky) with PlayTools'
+> neon/CRT treatment; **automatic gears**; **no hills** in v1 (flat road with
+> curves); single fixed course. Proposed cabinet route `#/arcade/overdrive`,
+> tool id `arcade_overdrive`.
 
 ---
 
 ## 1. Concept
 
-**Overdrive** is a *Pole Position*-faithful pseudo-3D racer, reskinned as a
-neon-cyberpunk dash down a **data-highway**. The player sits behind a low-slung
-light-cycle / street machine and screams toward a distant finish gate while the
-road curves and crests into the horizon, weaving through slower rival "traffic
-daemons" and dodging hazards on the asphalt. A **countdown clock** is the
-opponent: blow through the **data gates** to top the clock back up, and cross the
-finish line before it hits zero.
+**Overdrive** is a *Pole Position*-faithful pseudo-3D racer set on a **recognizable
+open highway at a majestic sunset**. The player sits behind a low-slung race car
+and screams toward a distant finish line as the road curves and streams into the
+horizon, weaving through slower rival cars and dodging hazards on the asphalt.
+A **countdown clock** is the opponent: blow through the **checkpoint gates** to
+top the clock back up, and cross the finish line before it hits zero.
+
+The setting is a sweeping golden-hour coast — a big **sunset gradient
+(orange → yellow → purple)** behind distant mountains and the sea, palms and
+billboards streaming past the roadside — i.e. the instantly-recognizable arcade
+racer backdrop (think *OutRun*/*Pole Position*), rendered in PlayTools' house
+style: crisp pixel sprites, neon-glow rumble strips, and the CRT bezel/scanlines
+that wrap every cabinet.
 
 The design philosophy matches the rest of the Arcade — **"a recognizable classic
-under a neon PlayTools skin"** (cf. Mac Pan = Pac-Man, Jack-In = Blackjack). The
+under a PlayTools skin"** (cf. Mac Pan = Pac-Man, Jack-In = Blackjack). The
 *Pole Position* core is kept faithful — the into-the-screen pseudo-3D road, the
 curve-induced lateral pull, slower traffic to thread, spin-out crashes, and the
 checkpoint-extended timer — while the edge cases (the original's qualifying-lap
 gate, the literal Lo/Hi manual gearbox, the exact 8086 speed/curve math) are
-trimmed or simplified into clean, readable approximations sized for a
-short browser arcade session.
+trimmed or simplified into clean, readable approximations sized for a short
+browser arcade session.
 
 ### 1.1 The hero — "the machine"
 
-* A low, wide street machine seen from **behind and slightly above** — the
-  classic rear-3/4 racer read. The rear wing, twin exhausts / thruster glow, and
-  two big rear tyres are the silhouette.
-* Neon under-glow in the player's **accent color** (pulled from the Gamer DNA
-  profile, same as the rest of PlayTools) so the car is unmistakably "yours."
+* A low, wide race car seen from **behind and slightly above** — the classic
+  rear-3/4 racer read. The rear wing, twin exhausts, and two big rear tyres are
+  the silhouette.
+* A subtle neon under-glow in the player's **accent color** (pulled from the
+  Gamer DNA profile, same as the rest of PlayTools) so the car is unmistakably
+  "yours" against the sunset.
 * Steering tilts/leans the body and offsets it left/right on screen; hard curves
   add a visible weight-shift lean. At top speed, motion-streaks and a subtle
   speed-shake sell velocity.
-* On a crash it **spins out** (a quick 360 + sparks/glitch burst), drifts to a
-  stop, then re-accelerates from low speed — *Pole Position*'s spin, reskinned as
-  a "signal scramble."
+* On a crash it **spins out** (a quick 360 + a puff of smoke/sparks), drifts to a
+  stop, then re-accelerates from low speed — *Pole Position*'s signature spin.
 
 ---
 
@@ -60,9 +67,9 @@ Faithful to *Pole Position* / OutRun-style projection, **fully procedural** (no
 image assets — consistent with DD §1.3 Sub-Second Asset Delivery and the existing
 `pxCanvas`/`astSprite` approach):
 
-* The track is a list of **road segments**, each with a length, a **curvature**
-  value (left/right), and a **pitch** (hill up/down). A fixed loop of segments
-  defines one course.
+* The track is a list of **road segments**, each with a length and a **curvature**
+  value (left/right). A fixed loop of segments defines one course. *(No pitch/hill
+  term in v1 — see §2.2.)*
 * A virtual **camera** sits a little behind and above the car at position `z`
   along the track. Each frame, `z` advances by the current speed.
 * The road is drawn back-to-front as **stacked horizontal bands** from the
@@ -71,37 +78,42 @@ image assets — consistent with DD §1.3 Sub-Second Asset Delivery and the exis
   accumulated curvature shifts each band sideways so curves *bend* into the
   distance.
 * Road furniture — **neon rumble strips** (alternating light/dark bands that
-  stream past to convey speed), **roadside pylons / billboards / data-spires**,
-  and the **start/finish gantry** — are sprites placed at a segment `z` + lateral
-  offset, scaled by the same projection.
+  stream past to convey speed), recognizable **roadside scenery** (palms,
+  billboards, distant mountains, the sea, a low sun on the horizon), and the
+  **start/finish gantry** — are sprites placed at a segment `z` + lateral offset,
+  scaled by the same projection.
 * **Sprites (rival cars, hazards)** are likewise placed by `(z, xOffset)`, scaled
   and z-sorted so nearer ones draw on top and "rush" the camera as you close in.
+* The **sky** is a big static **sunset gradient (orange → yellow → purple)** with
+  the sun near the horizon; the road meets it at a clean vanishing point. Distant
+  scenery parallax-scrolls slowly against it on curves.
 
 This is the standard pseudo-3D recipe and runs comfortably at 60fps on `<canvas>`
 with `imageSmoothingEnabled=false` for the crisp pixel look, wrapped in the
 existing `crtWrapTV()` bezel.
 
-### 2.2 Curves, hills & the road edge
+### 2.2 Curves & the road edge (flat road — no hills in v1)
 
+* **No hills/crests in v1 (locked).** The road is flat with **left/right curves
+  only**. This keeps the projection simple and the v1 build tight; hills remain a
+  candidate follow-up (§8).
 * **Curves** apply a **centrifugal pull**: in a corner the car drifts toward the
   outside of the bend unless the player steers into it — the core *Pole Position*
   skill. Pull scales with speed (fast + sharp = the car really wants to run wide).
-* **Hills/crests** briefly hide what's over the rise — a classic tension beat for
-  surprise traffic. (Optional for v1; flagged in §9.)
-* **Leaving the asphalt** (onto the neon "grass"/grid shoulder) is **not** a
-  crash but a heavy **drag**: the car slows hard and rumbles until steered back.
+* **Leaving the asphalt** (onto the roadside/grass shoulder) is **not** a crash
+  but a heavy **drag**: the car slows hard and rumbles until steered back.
   Clipping a roadside object **is** a spin-out (§4.2). This mirrors *Pole
   Position*'s off-road penalty.
 
 ### 2.3 Course structure
 
 * **v1 ships one fixed course** (locked, mirroring Mac Pan's single-maze launch
-  decision) — a hand-tuned ribbon of straights, sweepers, a couple of tight
-  corners, and (optionally) one crest, ending at the finish gantry.
+  decision) — a hand-tuned ribbon of straights, sweepers, and a couple of tight
+  corners, ending at the finish gantry.
 * The course has a defined **length** (per difficulty, §5) and is divided into
-  **sections by data gates** (§3).
-* Post-launch follow-ups: additional courses / a course select, procedural night
-  vs. day-grid skins, mirrored layouts (§8).
+  **sections by checkpoint gates** (§3).
+* Post-launch follow-ups: additional courses / a course-select, hills/crests,
+  alternate times-of-day skins, mirrored layouts (§8).
 
 ---
 
@@ -109,11 +121,11 @@ existing `crtWrapTV()` bezel.
 
 The opponent is the **clock**, exactly like *Pole Position*'s race timer:
 
-1. The run starts with a **time buffer** (e.g. 60s on Medium; see §5).
+1. The run starts with a **time buffer** (e.g. 60s on Rush; see §5).
 2. The buffer **counts down continuously** while racing.
-3. The course is split into **sections**, each ending at a **data gate** (a neon
-   arch across the road). Passing a gate **adds time** to the buffer (a "+TIME"
-   pop, the classic checkpoint extension).
+3. The course is split into **sections**, each ending at a **checkpoint gate** (a
+   banner/arch across the road). Passing a gate **adds time** to the buffer (a
+   "+TIME" pop — the classic checkpoint extension).
 4. **Win:** cross the **finish gantry** before the clock hits zero. Any time
    **remaining is banked as a bonus** (this is where "as fast as possible" turns
    into a bigger score — see §5.1).
@@ -121,8 +133,8 @@ The opponent is the **clock**, exactly like *Pole Position*'s race timer:
    score is whatever was accumulated to that point.
 
 There are **no "lives"** — spin-outs don't end the run, they just cost you the
-seconds you lose while crashed and re-accelerating. The clock is the only
-fail state. (This was the chosen failure model.)
+seconds you lose while crashed and re-accelerating. The clock is the only fail
+state.
 
 ### 3.1 Why this fits an all-high-score arcade
 
@@ -139,20 +151,20 @@ cabinet (§6).
 
 Both obstacle types from the brainstorm ship in v1:
 
-### 4.1 Rival traffic cars ("traffic daemons")
+### 4.1 Rival traffic cars
 
-* Slower neon vehicles that travel **the same direction** down their own lane,
-  weaving slightly. The player must thread or overtake them.
+* Slower cars that travel **the same direction** down their own lane, weaving
+  slightly. The player must thread or overtake them.
 * **Passing** a rival cleanly awards points (§5.1) and a small "overtaken" tick —
   the steady score drip that makes a clean run feel fast.
 * Density and rival speed scale with difficulty (§5).
 
 ### 4.2 Static hazards & spin-outs
 
-* **On-road hazards:** oil/data slicks, dropped debris, barrier sections — placed
-  at fixed `z` on the course.
+* **On-road hazards:** oil slicks, dropped debris, barrier sections — placed at
+  fixed `z` on the course.
 * **Collision result = spin-out (recoverable):** hitting a rival or a hazard
-  triggers the spin animation, a sparks/glitch burst, and a **speed reset** (drop
+  triggers the spin animation, a puff of smoke/sparks, and a **speed reset** (drop
   to a crawl, then re-accelerate). You **lose time**, not the run. This is the
   forgiving model chosen in the brainstorm — no single-collision game-over.
 * **Off-road** = drag/slow only (§2.2), not a spin.
@@ -170,7 +182,7 @@ re-collisions, and the car re-enters near the road center.
 | --- | --- |
 | Distance traveled | small drip per segment (keeps the score always moving) |
 | Overtake a rival | e.g. **100** each (clean pass) |
-| Pass a data gate | e.g. **+250** + the time extension |
+| Pass a checkpoint gate | e.g. **+250** + the time extension |
 | **Finish bonus** | **banked time × multiplier** (the headline reward — rewards speed) |
 | Spin-out | no point penalty; the cost is the **time lost** |
 
@@ -190,15 +202,17 @@ Dodge / Asteroid run is.)*
 ### 5.3 Difficulty selector
 
 Consistent with Snake/Bricks/Mac Pan, **three tiers** carrying a `diff` recorded
-per best-score. Working theme — neon "signal" tiers (name TBD, §10.1):
+per best-score:
 
 | Tier | Course length | Start clock + gate bonus | Traffic density | Top speed | Curve sharpness |
 | --- | --- | --- | --- | --- | --- |
 | **Cruise** (easy) | shorter | generous | light | moderate | gentle |
 | **Rush** (medium) | medium | balanced | medium | high | mixed |
-| **Overdrive** (hard) | longer | tight | heavy | very high | aggressive |
+| **Redline** (hard) | longer | tight | heavy | very high | aggressive |
 
-`diff` is recorded per best-score (§6).
+`diff` is recorded per best-score (§6). *(Tier names finalized: Cruise / Rush /
+Redline — the old "Overdrive" hard-tier label was renamed now that Overdrive is
+the cabinet name.)*
 
 ---
 
@@ -216,8 +230,8 @@ cabinets) and one router line:
 ```js
 { id:'arcade_overdrive', lab:'Arcade', name:'Overdrive', railName:'Overdrive',
   icon:'🏎️', tag:'mvp', route:'#/arcade/overdrive',
-  desc:'Floor it down the neon data-highway — weave the traffic, hammer the data
-        gates to beat the clock, and bank every second to the finish.',
+  desc:'Floor it down the sunset highway — weave the traffic, hammer the
+        checkpoint gates to beat the clock, and bank every second to the finish.',
   dna:'Reflex +12 · Control +8' }
 
 Router.add('#/arcade/overdrive', Views.overdrive);
@@ -260,7 +274,7 @@ Add `recordOverdriveRun(score, ctx)` following the exact pattern of
 | `overdrive_finisher` | Crossed the Line | 🏁 | Reach the finish before the clock runs out. |
 | `overdrive_clean` | No Scratches | ✨ | Finish a run with **zero** spin-outs. |
 | `overdrive_redline` | Redline | 🔥 | Score 20,000+ in a single run. |
-| `overdrive_overclocked` | Overclocked | ⚡ | Finish on **Overdrive** difficulty. |
+| `overdrive_sundown` | Sundown Sprint | 🌇 | Finish on **Redline** difficulty. |
 
 (Wired into the existing achievements array exactly like `pixel_pilot` /
 `dodge_ace`, via `Ach.evaluate({ tool:'overdrive', grade, score, … })`.)
@@ -272,17 +286,20 @@ Add `recordOverdriveRun(score, ctx)` following the exact pattern of
 * **Rendering:** procedurally drawn pixel sprites + projected road on `<canvas>`,
   in the style of the existing helpers — keeps the bundle lightweight and avoids
   image files.
-* **Palette:** deep CRT-black sky with a neon **synthwave** gradient, glowing grid
-  shoulders, hot magenta/cyan rumble strips, and the player's accent color on the
-  car's under-glow. Rivals are saturated, distinct hues so they read at distance.
+* **Palette — the sunset (locked direction):** a big **orange → yellow → purple**
+  sky gradient with a low sun on the horizon; warm-lit asphalt; recognizable
+  roadside scenery (palms, billboards, distant purple mountains, the sea) silhou-
+  etted/warm-rimmed against the sky. PlayTools' neon treatment shows in the
+  glowing rumble strips, the car's accent under-glow, and the CRT scanline wrap —
+  so it reads as a recognizable arcade racer, not an abstract world.
 * **Speed feedback:** streaming rumble strips, motion streaks, a subtle
-  speed-shake and FOV-ish widening at high velocity; corner lean on the car.
-* **Spin-out feedback:** glitch/scanline tear + sparks + a brief screen shudder
-  ("signal scramble"), then a clean re-acquire.
+  speed-shake at high velocity; corner lean on the car.
+* **Spin-out feedback:** smoke/sparks + a brief screen shudder, then a clean
+  re-acquire.
 * **Clock feedback:** the HUD clock pulses/strobes red in the final seconds —
   the classic "running out of time" tell.
 * **Audio:** optional/deferred for v1. If added, short **WebAudio** synth (engine
-  whine that pitches with speed, gate-pass chime, crash glitch) — no audio files,
+  whine that pitches with speed, gate-pass chime, crash thud) — no audio files,
   consistent with the asset-weight principle. The repo's MP3s are site music and
   are **not** part of this cabinet.
 
@@ -290,8 +307,10 @@ Add `recordOverdriveRun(score, ctx)` following the exact pattern of
 
 ## 8. Out of Scope for v1 (candidate follow-ups)
 
-* Multiple courses / a course-select; mirrored or night/day variants.
-* Hills/crests (if cut from v1 for simplicity — see §9).
+* Multiple courses / a course-select; mirrored layouts.
+* **Hills/crests** (cut from v1 — §2.2); would add the "surprise traffic over the
+  rise" tension later.
+* Alternate times-of-day / weather skins (the sunset is the v1 look).
 * A literal manual Lo/Hi gearbox as a skill mechanic.
 * Manual qualifying lap (the original's pre-race gate).
 * A rival "ghost" of your best run to race against.
@@ -304,39 +323,33 @@ Add `recordOverdriveRun(score, ctx)` following the exact pattern of
 ## 9. Build-Time Tuning Knobs (decide during implementation)
 
 * Exact point values, clock start, gate bonus, finish-bonus multiplier (§5.1).
-* Whether v1 includes **hills/crests** or ships flat-with-curves only (§2.2).
 * Whether to offer **mouse steering** alongside keyboard (§5.2).
 * Final **DNA split** (Reflex/Control, ± Speed) (§6.1).
 * Spin-out severity (speed reset depth + grace window) (§4.2).
+* Curve-pull strength curve vs. speed (the corner-difficulty feel) (§2.2).
 
 ---
 
-## 10. Open Questions for Sign-off
+## 10. Sign-off Status
 
-1. **Name.** Working title is *Overdrive* — see alternatives in §10.1. Lock one?
-2. **Difficulty labels.** *Cruise / Rush / Overdrive* — keep, or rename to match
-   another scheme? (Note "Overdrive" is reused as both a hard-tier label and a
-   candidate cabinet name — pick one use to avoid the clash.)
-3. **Gate naming.** "Data gates" for the time-extension checkpoints — good, or
-   prefer something else (checkpoints / relays / nodes)?
-4. **Theme literalness.** Full neon-cyberpunk data-highway (chosen), or dial it
-   toward a more literal "neon night street race" with recognizable cars?
-5. **Crest/hills in v1?** Include for surprise-traffic tension, or keep the road
-   flat-with-curves for the first build and add hills later (§8)?
+### 10.1 Decided
 
-### 10.1 Candidate names
-
-*Overdrive* · *Redline* · *Data Run* · *Gridrunner* · *Neon Drift* · *Slipstream*
-*(Note: "Neon Snake" and "Neon Bricks" already use the "Neon" prefix — leaning
-non-"Neon" here keeps the cabinet names distinct.)*
-
-### 10.2 Decided this round
-
-* **Perspective — pseudo-3D rear view (locked).** Faithful *Pole Position* into-
-  the-screen projection (§2.1).
+* **Name — *Overdrive* (locked).**
+* **Perspective — pseudo-3D rear view (locked).** Faithful *Pole Position*
+  into-the-screen projection (§2.1).
 * **Failure model — checkpoint clock (locked).** Beat the timer to the finish; no
   lives; spin-outs cost time, not the run (§3).
 * **Obstacles — rival traffic + static hazards (locked); recoverable spin-out
   (locked)** (§4).
-* **Theme — neon-cyberpunk reskin; automatic gears (locked)** (§1, §5.2).
+* **Setting/theme — recognizable open-road race at a majestic sunset (locked):**
+  golden-hour coastal highway, orange/yellow/purple sky, PlayTools neon/CRT
+  treatment (§1, §7).
+* **Road — flat with curves, no hills in v1 (locked)** (§2.2).
+* **Gears — automatic (locked)** (§5.2).
+* **Difficulty tiers — Cruise / Rush / Redline (locked)** (§5.3).
 * **Scope — single fixed course for launch (locked)**, mirroring Mac Pan (§2.3).
+
+### 10.2 Remaining minor calls (can be made at build time)
+
+* Mouse steering on/off (§5.2); final DNA split (§6.1); the numeric tuning in §9.
+* Achievement names/thresholds (§6.3) — proposed, easy to adjust.
