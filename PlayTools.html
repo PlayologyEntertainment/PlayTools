@@ -1594,6 +1594,8 @@ const Store = (function(){
         socials: { twitch:'', youtube:'', x:'', tiktok:'', instagram:'' }
       },
       attributes: { reflex:0, precision:0, speed:0, focus:0, consistency:0, control:0, strategy:0 },
+      attrPeaks:  { reflex:0, precision:0, speed:0, focus:0, consistency:0, control:0, strategy:0 }, // all-time peak per vector — anchors the idle-decay floor (DD §3.1.3 Stage 3)
+      attrActiveAt: Date.now(),   // last scored-run timestamp — idle decay measures from here
       toolsCompleted: 0,
       runs: 0,                 // total scored runs (any tool)
       arcadePoints: 0,         // points accumulated across arcade cabinets
@@ -1608,6 +1610,36 @@ const Store = (function(){
     };
   }
 
+  // Idle-decay tuning (DD §3.1.3 Stage 3): unexercised skill regresses toward a
+  // retained floor (a fraction of the all-time peak) on a fixed half-life, so a
+  // maxed radar visibly de-fills over an absence and "current form" must be kept.
+  const DECAY_HALF_LIFE_DAYS = 45;   // idle days to halve the gap to the floor
+  const DECAY_FLOOR_FRAC     = 0.5;  // retained floor = fraction of all-time peak
+  const DAY_MS               = 86400000;
+
+  // Seed peaks from current values (covers pre-existing saves that predate the
+  // attrPeaks field), then lazily apply idle decay for time elapsed since the
+  // last scored run. Persists the decayed snapshot so the idle window isn't
+  // re-counted on the next load. Returns the (mutated) profile.
+  function seedAndDecay(d){
+    if(!d.attrPeaks) d.attrPeaks = {};
+    ATTRS.forEach(k=>{ d.attrPeaks[k] = Math.max(d.attrPeaks[k]||0, d.attributes[k]||0); });
+    const now  = Date.now();
+    const last = d.attrActiveAt || d.updatedAt || now;
+    const days = Math.max(0, (now - last) / DAY_MS);
+    if(days >= 0.01){
+      const factor = Math.exp(-(Math.LN2 / DECAY_HALF_LIFE_DAYS) * days);
+      ATTRS.forEach(k=>{
+        const floor = DECAY_FLOOR_FRAC * (d.attrPeaks[k] || 0);
+        const A = d.attributes[k] || 0;
+        if(A > floor) d.attributes[k] = floor + (A - floor) * factor;
+      });
+      d.attrActiveAt = now;   // consume the elapsed idle window
+      try{ localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){}
+    }
+    return d;
+  }
+
   let dna = load();
   let prefs = loadPrefs();
   const listeners = [];
@@ -1617,14 +1649,16 @@ const Store = (function(){
       const raw = localStorage.getItem(KEY);
       if(!raw) return defaultDNA();
       const parsed = JSON.parse(raw);
-      return Object.assign(defaultDNA(), parsed, {
+      const merged = Object.assign(defaultDNA(), parsed, {
         profile: Object.assign(defaultDNA().profile, parsed.profile||{}),
         attributes: Object.assign(defaultDNA().attributes, parsed.attributes||{}),
+        attrPeaks: Object.assign(defaultDNA().attrPeaks, parsed.attrPeaks||{}),
         bests: parsed.bests||{}, counters: parsed.counters||{}, achievements: parsed.achievements||[],
         friends: Array.isArray(parsed.friends) ? parsed.friends : [],
         platforms: (parsed.platforms && typeof parsed.platforms==='object') ? parsed.platforms : {},
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites : []
       });
+      return seedAndDecay(merged);
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
   }
   function loadPrefs(){
@@ -1758,17 +1792,39 @@ const Attr = (function(){
     { name:'Arcade God',  min:35000, color:'#ff4d6d' }
   ];
 
-  // Apply a weighted, performance-scaled delta vector to the 7 attributes.
-  //   base: { reflex:12, focus:4, ... }  — max delta for a perfect run
-  //   quality: 0..1 performance score for this run
-  //   A_new = min(100, A_old + base * quality)            (DD §3.1.3)
+  // Hybrid form model (DD §3.1.3) — replaces the old additive accumulator
+  // A=min(100, A+base*quality), which let every vector march to 100 and fill
+  // the radar. Each run's benchmark-normalized `quality` sets a target
+  // A* = 100*quality; the attribute eases toward it with a headroom-damped step
+  // so the top is asymptotic (hard to max) and the value tracks current form
+  // rather than accumulated playtime. Idle decay (Store.seedAndDecay) pulls
+  // unexercised vectors back down over time.
+  //   base: { reflex:12, focus:4, ... } — per-attribute weights (max 16)
+  //   quality: 0..1 benchmark-normalized performance score for this run
+  const W_MAX    = 16;    // largest single-attribute weight across all tools → normalizes base to w∈(0,1]
+  const K_EXP    = 2;     // headroom exponent — stiffness of the asymptotic 100 ceiling
+  const ETA_UP   = 0.30;  // easing rate when a run beats the current value (improving)
+  const ETA_DOWN = 0.10;  // gentler easing when a run is below current form
   function applyVector(base, quality){
     quality = Math.max(0, Math.min(1, quality==null ? 1 : quality));
+    const target = 100 * quality;                 // A* — this run's quality target
     Store.update(d=>{
+      if(!d.attrPeaks) d.attrPeaks = {};
       Object.keys(base).forEach(k=>{
         if(d.attributes[k]==null) return;
-        d.attributes[k] = Math.max(0, Math.min(100, d.attributes[k] + base[k]*quality));
+        const A = d.attributes[k];
+        const w = Math.min(1, base[k] / W_MAX);   // normalized attribution weight
+        let next;
+        if(target >= A){                          // improving — diminishing returns near the top
+          const headroom = Math.pow(1 - A/100, K_EXP);
+          next = A + ETA_UP * w * (target - A) * headroom;
+        }else{                                     // sub-form run — ease down gently
+          next = A + ETA_DOWN * w * (target - A);
+        }
+        d.attributes[k] = Math.max(0, Math.min(100, next));
+        d.attrPeaks[k]  = Math.max(d.attrPeaks[k]||0, d.attributes[k]);   // track all-time peak for the decay floor
       });
+      d.attrActiveAt = Date.now();                // mark form fresh — resets the idle-decay clock
     });
   }
 
@@ -1792,15 +1848,18 @@ const Attr = (function(){
     d = d || Store.get();
     const a = d.attributes;
     if(d.runs < 2) return 'Unranked';
+    // Thresholds eased ~8–10 pts vs. the legacy additive engine: under the
+    // hybrid form model (DD §3.1.3) the top of the radar is asymptotic, so a
+    // sustained-elite player now plateaus in the 80s rather than pinning 90–100.
     const rules = [
-      [a.reflex>=90 && a.precision>=85 && a.focus>=75, 'Arena Duelist'],
-      [a.precision>=95 && a.control>=90,               'Sharpshooter'],
-      [a.speed>=92 && a.consistency>=85,               'Speedrunner'],
-      [a.reflex>=85 && a.focus>=80,                    'Reaction Master'],
-      [a.precision>=80 && a.control>=70,               'Precision Hunter'],
-      [a.strategy>=75 && a.consistency>=70,            'Tactical Commander'],
-      [a.control>=80,                                  'Controller Wizard'],
-      [a.consistency>=80,                              'Retro Veteran']
+      [a.reflex>=82 && a.precision>=78 && a.focus>=68, 'Arena Duelist'],
+      [a.precision>=88 && a.control>=82,               'Sharpshooter'],
+      [a.speed>=84 && a.consistency>=78,               'Speedrunner'],
+      [a.reflex>=78 && a.focus>=72,                    'Reaction Master'],
+      [a.precision>=72 && a.control>=63,               'Precision Hunter'],
+      [a.strategy>=68 && a.consistency>=63,            'Tactical Commander'],
+      [a.control>=72,                                  'Controller Wizard'],
+      [a.consistency>=72,                              'Retro Veteran']
     ];
     for(const [cond,name] of rules){ if(cond) return name; }
     // Fallback: name by dominant attribute
