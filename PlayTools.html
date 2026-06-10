@@ -1176,7 +1176,32 @@
   .footer-logo{
     display:block; height:38px; width:auto; margin:14px auto 0;
     filter:drop-shadow(0 0 10px rgba(22,242,200,0.28));
+    cursor:pointer; transition:filter .25s ease, transform .25s ease;
   }
+  .footer-logo:hover, .footer-logo:focus-visible{
+    outline:none;
+    transform:scale(1.06);
+    filter:drop-shadow(0 0 16px rgba(22,242,200,0.55)) drop-shadow(0 0 28px rgba(255,61,240,0.3));
+  }
+
+  /* Full-screen lightbox for the hidden "Serdar" easter egg behind the footer
+     mark. A single click anywhere on the backdrop (or Esc) dismisses it and
+     leaves the underlying view untouched. */
+  .serdar-overlay{
+    position:fixed; inset:0; z-index:10000;
+    display:flex; align-items:center; justify-content:center;
+    padding:24px; cursor:pointer; user-select:none;
+    background:rgba(2,3,10,0.92);
+    animation:serdarFade .25s ease;
+  }
+  .serdar-overlay img{
+    max-width:min(92vw,640px); max-height:90vh; width:auto; height:auto;
+    border-radius:10px;
+    box-shadow:0 0 40px rgba(22,242,200,0.35), 0 0 90px rgba(255,61,240,0.2);
+    animation:serdarPop .3s ease;
+  }
+  @keyframes serdarFade{from{opacity:0;}to{opacity:1;}}
+  @keyframes serdarPop{from{opacity:0; transform:scale(0.94);}to{opacity:1; transform:scale(1);}}
 
   .blink{animation:blink 1.1s steps(1) infinite;}
   @keyframes blink{50%{opacity:0.2;}}
@@ -13370,6 +13395,32 @@ const APP_VERSION = '1.0.0';
     footerLogo.addEventListener('error', ()=>{ footerLogo.style.display='none'; });
     const src = logo && logo.getAttribute('src');
     if(src) footerLogo.src = src; else footerLogo.style.display='none';
+
+    // The footer mark is a tiny easter egg: clicking it opens a full-screen
+    // lightbox; clicking anywhere on it (or pressing Esc) closes it again,
+    // leaving the current view exactly where the user left off.
+    const SERDAR_IMG = 'https://www.playologyentertainment.com/personal/Serdar.jpg';
+    function openSerdar(){
+      if(document.querySelector('.serdar-overlay')) return;  // already open
+      const ov = document.createElement('div');
+      ov.className = 'serdar-overlay';
+      const img = document.createElement('img');
+      img.src = SERDAR_IMG;
+      img.alt = 'Serdar';
+      ov.appendChild(img);
+      function close(){ ov.remove(); document.removeEventListener('keydown', onKey); }
+      function onKey(e){ if(e.key === 'Escape') close(); }
+      ov.addEventListener('click', close);
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(ov);
+    }
+    footerLogo.style.cursor = 'pointer';
+    footerLogo.setAttribute('role', 'button');
+    footerLogo.setAttribute('tabindex', '0');
+    footerLogo.addEventListener('click', openSerdar);
+    footerLogo.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openSerdar(); }
+    });
   }
 
   // ---- Boot intro, gated behind a "tap to begin" play button ---------------
