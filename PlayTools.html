@@ -378,7 +378,7 @@
   .seq-quads{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .pawn-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .jackin-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
-  /* Pixel Dodge badge: the in-game "Steel Raptor" pixel ship, scales to font-size */
+  /* The Last StarDodger badge: the in-game "Steel Raptor" pixel ship, scales to font-size */
   .dodge-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em; image-rendering:pixelated;}
   /* B0ggle badge: white "B0" on a purple chip, scales to the surrounding font-size */
   .b0-ico{display:inline-flex; align-items:center; justify-content:center; width:1.18em; height:1em; padding:0 0.08em;
@@ -773,7 +773,7 @@
   @keyframes memPop{0%{transform:rotateY(180deg) scale(1);} 50%{transform:rotateY(180deg) scale(1.08);} 100%{transform:rotateY(180deg) scale(1);}}
   .mem-win{text-align:center; font-family:var(--pixel); color:var(--neon-5); font-size:clamp(22px,4vw,30px); text-shadow:0 0 22px rgba(55,227,91,0.6); margin:14px 0 2px; letter-spacing:2px;}
 
-  /* ---- Pixel Dodge (Retro Arcade) ---- */
+  /* ---- The Last StarDodger (Retro Arcade) ---- */
   .pd-stage{position:relative; width:100%; max-width:380px; margin:10px auto 4px;}
   .pd-canvas{display:block; width:100%; height:auto; image-rendering:pixelated; image-rendering:crisp-edges;
     border:1px solid var(--neon-4); border-radius:8px; background:#05030f;
@@ -1910,7 +1910,7 @@ const JACKIN_ICON = '<svg class="jackin-icon" viewBox="0 0 100 100" aria-hidden=
   '<rect x="40" y="26" width="44" height="66" rx="7" fill="#f4f6ff" stroke="#070912" stroke-width="3"/>'+
   '<path d="M62 30 C62 30 42 52 42 64 C42 74 53 78 60 71 C59 79 56 84 50 88 L74 88 C68 84 65 79 64 71 C71 78 82 74 82 64 C82 52 62 30 62 30 Z" fill="#070912"/></svg>';
 
-// DODGE_ICON — Pixel Dodge's cabinet badge: the actual "Steel Raptor" ship you
+// DODGE_ICON — The Last StarDodger's cabinet badge: the actual "Steel Raptor" ship you
 // fly in the game, rebuilt from the same mirrored half-grid sprite the game
 // renders (see Views.pixelDodge) so the cabinet art matches the in-game craft.
 // Emitted as inline SVG (one rect per opaque pixel) sized to 1em like the icons
@@ -1971,9 +1971,9 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='quiz') || !!(d.profile && d.profile.archetype) },
     { id:'total_recall', name:'Total Recall', icon:'🧠', desc:'Clear a Yawny Mnemonic board with zero mismatches.',
       test:(d,c)=> (c && c.tool==='memory' && c.mismatches===0) || !!(d.counters && d.counters.memoryFlawless>=1) },
-    { id:'pixel_pilot', name:'Pixel Pilot', icon:'👾', desc:'Survive 60 seconds in a single Pixel Dodge run.',
+    { id:'pixel_pilot', name:'Pixel Pilot', icon:'👾', desc:'Survive 60 seconds in a single StarDodger run.',
       test:(d,c)=> (c && c.tool==='dodge' && c.time>=60) || !!(d.counters && d.counters.dodgeMinute>=1) },
-    { id:'untouchable', name:'Untouchable', icon:'🛸', desc:'Score 5,000 or more in a single Pixel Dodge run.',
+    { id:'untouchable', name:'Untouchable', icon:'🛸', desc:'Score 5,000 or more in a single StarDodger run.',
       test:(d,c)=> c && c.tool==='dodge' && c.score>=5000 },
     { id:'gunslinger', name:'Gunslinger', icon:'🔫', desc:'Average under 400ms per hit on Flick Trainer.',
       test:(d,c)=> c && c.tool==='flick' && c.accuracy>=90 && c.avgTime<400 },
@@ -2021,7 +2021,7 @@ const Ach = (function(){
     // ---- Arcade "Ace" set: earn an A grade or better in each cabinet ----
     { id:'memory_ace', name:'Memory Ace', icon:'🧠', desc:'Earn an A grade or better in Yawny Mnemonic.',
       test:(d,c)=> c && c.tool==='memory' && (c.grade==='A'||c.grade==='S') },
-    { id:'dodge_ace', name:'Dodge Ace', icon:'👾', desc:'Earn an A grade or better in Pixel Dodge.',
+    { id:'dodge_ace', name:'Dodge Ace', icon:'👾', desc:'Earn an A grade or better in StarDodger.',
       test:(d,c)=> c && c.tool==='dodge' && (c.grade==='A'||c.grade==='S') },
     { id:'snake_ace', name:'Snake Ace', icon:'🐍', desc:'Earn an A grade or better in Neon Snake.',
       test:(d,c)=> c && c.tool==='snake' && (c.grade==='A'||c.grade==='S') },
@@ -2638,7 +2638,7 @@ const CABINETS = [
     desc:'Improv seeds on demand — quest hooks, taverns, barkeeps & rumours.', dna:'Strategy +4 · spins a yarn' },
   { id:'arcade_memory', lab:'Arcade', name:'Yawny Mnemonic', railName:'Mnemonic', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
-  { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:DODGE_ICON, tag:'mvp', route:'#/arcade/dodge',
+  { id:'arcade_dodge', lab:'Arcade', name:'The Last StarDodger', railName:'StarDodger', icon:DODGE_ICON, tag:'mvp', route:'#/arcade/dodge',
     desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' },
   { id:'arcade_snake', lab:'Arcade', name:'Neon Snake', railName:'Snake', icon:'🐍', tag:'mvp', route:'#/arcade/snake',
     desc:'Steer the neon serpent, devour pellets & grow without biting your own tail.', dna:'Control +14 · Focus +6' },
@@ -6623,7 +6623,7 @@ Views.memoryMatch = function(c){
 };
 
 /* ============================================================================
-   RETRO ARCADE — Pixel Dodge (DD §5.5)
+   RETRO ARCADE — The Last StarDodger (DD §5.5)
    Vertical-scrolling survival cabinet: steer a pixel ship left/right to dodge
    falling blocks. The starting tier sets the baseline pace and the run auto-
    escalates (blocks fall faster and denser) the longer you survive. Feeds
@@ -6984,7 +6984,7 @@ Views.pixelDodge = function(c){
     result.append(row);
 
     result.append(shareRow({
-      lab:'RETRO ARCADE', tool:'Pixel Dodge', glyph:'👾',
+      lab:'RETRO ARCADE', tool:'The Last StarDodger', glyph:'👾',
       grade:g, metric:[{k:'Score', v:String(finalScore)}, {k:'Survived', v:elapsed.toFixed(1)+'s'}, {k:'Tier', v:tv.name}],
       designation: g==='S'?'Untouchable Ace': g==='A'?'Crack Pilot': g==='B'?'Steady Dodger':'Rookie Run',
       badge: elapsed>=60?'Minute Survivor':null
@@ -7014,7 +7014,7 @@ Views.pixelDodge = function(c){
   startBtn.onclick=startGame;
   reset(); draw(); renderHud();
   overlay.style.display='flex';
-  overlay.innerHTML = `<div class="big">PIXEL DODGE</div><div class="small">Press START to launch</div>`;
+  overlay.innerHTML = `<div class="big">THE LAST STARDODGER</div><div class="small">Press START to launch</div>`;
 
   return ()=>{
     playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
@@ -12068,7 +12068,7 @@ function recordMemoryRun(score, ctx){
     if(ctx && ctx.mismatches===0) d.counters.memoryFlawless=(d.counters.memoryFlawless||0)+1;
   });
 }
-// record a Pixel Dodge run. Replayable mini-game, so toolsCompleted is credited
+// record a StarDodger run. Replayable mini-game, so toolsCompleted is credited
 // only on the first-ever run to keep Gamer Score honest; best survival score,
 // arcade metagame points and counters update every run.
 function recordDodgeRun(score, ctx){

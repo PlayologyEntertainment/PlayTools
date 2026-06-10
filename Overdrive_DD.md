@@ -196,7 +196,7 @@ Dodge / Asteroid run is.)*
   **Auto gears** (no manual shift — decided). **P / Esc** pauses.
 * **Touch:** tilt or on-screen left/right + a hold-to-accelerate pedal (PlayTools
   is PC-focused per DD §3.1.2.1, but cabinets stay touch-playable).
-* Mouse steer is an option to evaluate (consistent with Pixel Dodge offering
+* Mouse steer is an option to evaluate (consistent with StarDodger offering
   mouse steering), flagged in §9.
 
 ### 5.3 Difficulty selector
@@ -238,7 +238,7 @@ Router.add('#/arcade/overdrive', Views.overdrive);
 ```
 
 * **DNA vector:** **Reflex + Control** — split-second hazard reaction (Reflex,
-  like Pixel Dodge) plus sustained steering precision through curves under speed
+  like StarDodger) plus sustained steering precision through curves under speed
   (Control, like Neon Snake / Tracking). (Adding **Speed** is an option, but
   PlayTools' `Speed` attribute is tied to *tapping/click* speed, so Reflex+Control
   is the cleaner fit. Final split tuned at build time — §9.)
