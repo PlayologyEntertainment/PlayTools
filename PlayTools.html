@@ -377,6 +377,7 @@
   /* Sequence quadrant icon: scales to the surrounding font-size wherever it's dropped in */
   .seq-quads{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .pawn-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
+  .jackin-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   /* B0ggle badge: white "B0" on a purple chip, scales to the surrounding font-size */
   .b0-ico{display:inline-flex; align-items:center; justify-content:center; width:1.18em; height:1em; padding:0 0.08em;
     border-radius:0.18em; background:var(--neon-4); color:#fff; font-family:var(--pixel); font-weight:800;
@@ -1834,6 +1835,13 @@ const PAWN_ICON = '<svg class="pawn-icon" viewBox="0 0 100 100" aria-hidden="tru
 // distinctly from Sudoku's number glyph. Sized to ~1em like the SVG icons above.
 const B0_ICON = '<span class="b0-ico"><span>B<span class="slz">0</span></span></span>';
 
+// JACKIN_ICON — Jack-In's cabinet badge: a light playing card with a large black
+// spade, drawn as inline SVG so it renders identically everywhere (the Unicode
+// playing-card glyphs have patchy font coverage). Sized to 1em like the icons above.
+const JACKIN_ICON = '<svg class="jackin-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
+  '<rect x="22" y="6" width="56" height="88" rx="9" fill="#f4f6ff" stroke="#070912" stroke-width="3"/>'+
+  '<path d="M50 24 C50 24 30 46 30 58 C30 68 41 72 48 65 C47 73 44 78 38 82 L62 82 C56 78 53 73 52 65 C59 72 70 68 70 58 C70 46 50 24 50 24 Z" fill="#070912"/></svg>';
+
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
    ============================================================================ */
@@ -2546,7 +2554,7 @@ const CABINETS = [
     desc:'Fill the 9×9 grid so every row, column & box holds 1–9 — pick a difficulty, beat the clock & lean on hints only if you must.', dna:'Focus +12 · Strategy +8' },
   { id:'arcade_b0ggle', lab:'Arcade', name:'<span class="b0-word">B<span class="slz">0</span>ggle</span>', railName:'B0ggle', icon:B0_ICON, tag:'mvp', route:'#/arcade/b0ggle',
     desc:'Trace adjacent letter-nodes to DECRYPT words against the clock — longer words crack a bigger payload. Cyberpunk word-hunt with a retro-CRT skin.', dna:'Strategy +14 · Focus +6' },
-  { id:'arcade_jackin', lab:'Arcade', name:'Jack-In', railName:'Jack-In', icon:'🃏', tag:'mvp', route:'#/arcade/jackin',
+  { id:'arcade_jackin', lab:'Arcade', name:'Jack-In', railName:'Jack-In', icon:JACKIN_ICON, tag:'mvp', route:'#/arcade/jackin',
     desc:'Jack into the casino mainframe and beat The House at 21 — bet your credits, hit or stand, and cash out before you OVERLOAD.', dna:'Strategy +12 · Focus +8' }
 ];
 
