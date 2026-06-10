@@ -378,6 +378,8 @@
   .seq-quads{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .pawn-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .jackin-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
+  /* Pixel Dodge badge: the in-game "Steel Raptor" pixel ship, scales to font-size */
+  .dodge-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em; image-rendering:pixelated;}
   /* B0ggle badge: white "B0" on a purple chip, scales to the surrounding font-size */
   .b0-ico{display:inline-flex; align-items:center; justify-content:center; width:1.18em; height:1em; padding:0 0.08em;
     border-radius:0.18em; background:var(--neon-4); color:#fff; font-family:var(--pixel); font-weight:800;
@@ -1849,6 +1851,26 @@ const JACKIN_ICON = '<svg class="jackin-icon" viewBox="0 0 100 100" aria-hidden=
   '<rect x="40" y="26" width="44" height="66" rx="7" fill="#f4f6ff" stroke="#070912" stroke-width="3"/>'+
   '<path d="M62 30 C62 30 42 52 42 64 C42 74 53 78 60 71 C59 79 56 84 50 88 L74 88 C68 84 65 79 64 71 C71 78 82 74 82 64 C82 52 62 30 62 30 Z" fill="#070912"/></svg>';
 
+// DODGE_ICON — Pixel Dodge's cabinet badge: the actual "Steel Raptor" ship you
+// fly in the game, rebuilt from the same mirrored half-grid sprite the game
+// renders (see Views.pixelDodge) so the cabinet art matches the in-game craft.
+// Emitted as inline SVG (one rect per opaque pixel) sized to 1em like the icons
+// above, so it renders wherever the icon string lands in innerHTML.
+const DODGE_ICON = (function(){
+  const PAL={ 'K':'#080a16','s':'#465678','S':'#788cb4','L':'#b4c8eb','H':'#e6f0ff',
+    'b':'#263454','w':'#50c8ff','W':'#bef5ff','o':'#ff9628','y':'#ffe65a','g':'#50ffb4' };
+  const HALF=[ ["           ",'K'],["          K",'S'],["         KS",'L'],["         Ks",'S'],
+    ["        KsS",'S'],["        Ksw",'w'],["       KsSw",'W'],["       KbSw",'w'],["      KbSSs",'S'],
+    ["     KbSSss",'s'],["    KbSSsss",'s'],["   KSLSssss",'s'],["  KSHLSssss",'s'],[" KSHLSsssss",'s'],
+    [" KKSLSsssss",'s'],["   KbSssbss",'s'],["    KbsbKbs",'s'],["    KbKgKbK",'g'],["    KKyoyKK",'o'],
+    ["     KyoyK ",'y'],["      KoK  ",'o'] ];
+  const rows=HALF.map(([l,ctr])=> l+ctr+l.split('').reverse().join(''));
+  const w=rows[0].length, h=rows.length, rects=[];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const col=PAL[rows[y][x]];
+    if(col) rects.push('<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+col+'"/>'); }
+  return '<svg class="dodge-icon" viewBox="0 0 '+w+' '+h+'" aria-hidden="true" focusable="false">'+rects.join('')+'</svg>';
+})();
+
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
    ============================================================================ */
@@ -2543,7 +2565,7 @@ const CABINETS = [
     desc:'Improv seeds on demand — quest hooks, taverns, barkeeps & rumours.', dna:'Strategy +4 · spins a yarn' },
   { id:'arcade_memory', lab:'Arcade', name:'Yawny Mnemonic', railName:'Mnemonic', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
-  { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:'👾', tag:'mvp', route:'#/arcade/dodge',
+  { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:DODGE_ICON, tag:'mvp', route:'#/arcade/dodge',
     desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' },
   { id:'arcade_snake', lab:'Arcade', name:'Neon Snake', railName:'Snake', icon:'🐍', tag:'mvp', route:'#/arcade/snake',
     desc:'Steer the neon serpent, devour pellets & grow without biting your own tail.', dna:'Control +14 · Focus +6' },
