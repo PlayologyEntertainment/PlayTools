@@ -379,7 +379,7 @@ $$q = \frac{\sum_{i}\,r_{i} - n_{\text{kept}}}{n_{\text{kept}} \cdot S - n_{\tex
 * **Gamer Setup Roast:** A playful interface where users type in their hardware specs and desk setups, and the engine generates a humorous, retro-styled critique card .
 
 ### 5.5 Retro Arcade Module
-* **Pixel Dodge:** A retro vertical-scrolling mini-game where the player moves a single-pixel ship left and right to dodge falling block obstacles . Metrics are tied to a total Survival Score .
+* **The Last StarDodger (StarDodger for short):** A retro vertical-scrolling mini-game where the player moves a single-pixel ship left and right to dodge falling block obstacles . Metrics are tied to a total Survival Score .
 * **Asteroid Survival:** A top-down space arena mini-game focusing on continuous multi-directional navigation and obstacle destruction . Outputs a classic high-score value .
 * **Yawny Mnemonic:** A rapid-fire grid pattern matching challenge designed around retro chiptune sounds . Evaluates visual memory recall ratings .
 * **Reflex Rush:** A high-speed, multi-key visual matching sequence that tests rapid keyboard responses . Outputs a Reflex Score .
