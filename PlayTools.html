@@ -2006,6 +2006,15 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='macpan' && c.score>=20000 },
     { id:'macpan_michelin', name:'Michelin Pan', icon:'⭐', desc:'Reach level 5 on Well Done difficulty in Mac Pan.',
       test:(d,c)=> (c && c.tool==='macpan' && c.level>=5 && c.diff==='welldone') || !!(d.counters && d.counters.macpanMichelin>=1) },
+    // ---- Overdrive (sunset pseudo-3D racer) set ----
+    { id:'overdrive_finisher', name:'Crossed the Line', icon:'🏁', desc:'Reach the finish before the clock runs out in Overdrive.',
+      test:(d,c)=> (c && c.tool==='overdrive' && c.finished) || !!(d.counters && d.counters.overdriveFinishes>=1) },
+    { id:'overdrive_clean', name:'No Scratches', icon:'✨', desc:'Finish an Overdrive run with zero spin-outs.',
+      test:(d,c)=> (c && c.tool==='overdrive' && c.finished && c.spins===0) || !!(d.counters && d.counters.overdriveClean>=1) },
+    { id:'overdrive_redline', name:'Redline', icon:'🔥', desc:'Score 20,000 or more in a single Overdrive run.',
+      test:(d,c)=> c && c.tool==='overdrive' && c.score>=20000 },
+    { id:'overdrive_sundown', name:'Sundown Sprint', icon:'🌇', desc:'Finish a run on Redline difficulty in Overdrive.',
+      test:(d,c)=> (c && c.tool==='overdrive' && c.finished && c.diff==='redline') || !!(d.counters && d.counters.overdriveSundown>=1) },
     // ---- Arcade "Ace" set: earn an A grade or better in each cabinet ----
     { id:'memory_ace', name:'Memory Ace', icon:'🧠', desc:'Earn an A grade or better in Yawny Mnemonic.',
       test:(d,c)=> c && c.tool==='memory' && (c.grade==='A'||c.grade==='S') },
@@ -2044,6 +2053,8 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='jackin' && c.maxBetWin) || !!(d.counters && d.counters.jackinMaxWins>=1) },
     { id:'jackin_cooler', name:'The Cooler', icon:'🧊', desc:'Claw back from under 100 credits to over 1000 in Jack-In.',
       test:(d,c)=> (c && c.tool==='jackin' && c.cooler) || !!(d.counters && d.counters.jackinCooler>=1) },
+    { id:'overdrive_ace', name:'Overdrive Ace', icon:'🏎️', desc:'Earn an A grade or better in Overdrive.',
+      test:(d,c)=> c && c.tool==='overdrive' && (c.grade==='A'||c.grade==='S') },
     // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded
     //      test (complements Reaction's stricter S-grade 'Reaction Master') ----
     { id:'reaction_ace', name:'Reaction Ace', icon:'⚡', desc:'Earn an A grade or better on Reaction Time.',
@@ -2643,7 +2654,9 @@ const CABINETS = [
   { id:'arcade_b0ggle', lab:'Arcade', name:'<span class="b0-word">B<span class="slz">0</span>ggle</span>', railName:'B0ggle', icon:B0_ICON, tag:'mvp', route:'#/arcade/b0ggle',
     desc:'Trace adjacent letter-nodes to DECRYPT words against the clock — longer words crack a bigger payload. Cyberpunk word-hunt with a retro-CRT skin.', dna:'Strategy +14 · Focus +6' },
   { id:'arcade_jackin', lab:'Arcade', name:'Jack-In', railName:'Jack-In', icon:JACKIN_ICON, tag:'mvp', route:'#/arcade/jackin',
-    desc:'Jack into the casino mainframe and beat The House at 21 — bet your credits, hit or stand, and cash out before you OVERLOAD.', dna:'Strategy +12 · Focus +8' }
+    desc:'Jack into the casino mainframe and beat The House at 21 — bet your credits, hit or stand, and cash out before you OVERLOAD.', dna:'Strategy +12 · Focus +8' },
+  { id:'arcade_overdrive', lab:'Arcade', name:'Overdrive', railName:'Overdrive', icon:'🏎️', tag:'mvp', route:'#/arcade/overdrive',
+    desc:'Floor it down the sunset highway — weave the traffic, hammer the checkpoint gates to beat the clock, and bank every second to the finish.', dna:'Reflex +12 · Control +8' }
 ];
 
 /* ============================================================================
@@ -7005,6 +7018,365 @@ Views.pixelDodge = function(c){
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
   };
+};
+
+/* ============================================================================
+   RETRO ARCADE — Overdrive (Overdrive_DD.md)
+   Pole-Position-style pseudo-3D racer: behind-the-car projected road that curves
+   into a sunset horizon. Beat the checkpoint clock to the finish — pass gates to
+   extend it, weave rival traffic + hazards (a hit spins you out, costing time,
+   never the run). Banked finish time is the headline score, so faster = bigger.
+   Feeds Reflex (hazard reaction) + Control (steering under speed), arcade
+   metagame points, achievements, and a Share Card. One fixed course per tier.
+   ============================================================================ */
+const OD_W = 320, OD_H = 200;            // fixed logical canvas resolution (pixelated upscale)
+const OD_SEG = 200, OD_ROADW = 2200, OD_CAMH = 1500, OD_CAMD = 0.84, OD_DRAW = 140;
+const OD_MAXSPEED = OD_SEG * 60;         // cap at one segment per frame @60fps (keeps collisions reliable)
+// Three difficulty tiers (Overdrive_DD.md §5.3). startTime/gateTime in seconds;
+// gateEvery in segments; maxKmh is display-only flavour; curveMul sharpens bends.
+const OD_TIERS = [
+  { key:'cruise',  name:'Cruise',  segs:900,  startTime:42, gateTime:14, gateEvery:200, maxKmh:250, cars:14, hazards:9,  curveMul:0.6 },
+  { key:'rush',    name:'Rush',    segs:1400, startTime:40, gateTime:12, gateEvery:230, maxKmh:290, cars:24, hazards:16, curveMul:1.0 },
+  { key:'redline', name:'Redline', segs:2000, startTime:38, gateTime:10, gateEvery:260, maxKmh:330, cars:38, hazards:26, curveMul:1.4 }
+];
+
+Views.overdrive = function(c){
+  const cab = getCab('arcade_overdrive');
+  const panel = toolShell(c, cab);
+
+  // ---- sound (mute-aware WebAudio blips, shared helper) ----
+  const blip = makeBlip('overdriveMute');
+  const sndStart=()=> [440,587,784].forEach((f,i)=> setTimeout(()=>blip(f,0.09),i*70));
+  const sndPass =()=> blip(720,0.05,'square',0.03);
+  const sndGate =()=> [660,990].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'triangle',0.05),i*70));
+  const sndHit  =()=> [200,140,90].forEach((f,i)=> setTimeout(()=>blip(f,0.20,'sawtooth',0.07),i*80));
+
+  // ---- starting-tier selector + controls ----
+  let tierIdx = 0;
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  OD_TIERS.forEach((tv,i)=>{
+    const b=el('button',{html:tv.name}); if(i===tierIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; tierIdx=i; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; reset(); draw(); renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('overdriveMute'));
+
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=OD_W; canvas.height=OD_H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▶ / A · D steer &nbsp;·&nbsp; ▲ / W gas &nbsp;·&nbsp; ▼ / S brake &nbsp;·&nbsp; P pause'});
+  const result = el('div',{});
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
+
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const W=OD_W, H=OD_H;
+
+  // ---- small maths helpers ----
+  const clamp=(v,a,b)=> Math.max(a, Math.min(b, v));
+  const easeInOut=(a,b,p)=> a+(b-a)*(-Math.cos(p*Math.PI)/2+0.5);
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  // axis-aligned overlap of two centred spans (widths are full extents; pct shrinks the test)
+  function overlap(x1,w1,x2,w2,pct){ const h=(pct||1)/2; return !((x1+w1*h < x2-w2*h) || (x1-w1*h > x2+w2*h)); }
+
+  // ---- procedural pixel sprites (rear-view cars + hazards) ----
+  function roundRect(x,r, X,Y,Wd,Ht,rad){ x.beginPath(); x.moveTo(X+rad,Y); x.arcTo(X+Wd,Y,X+Wd,Y+Ht,rad); x.arcTo(X+Wd,Y+Ht,X,Y+Ht,rad); x.arcTo(X,Y+Ht,X,Y,rad); x.arcTo(X,Y,X+Wd,Y,rad); x.closePath(); }
+  function outline(cv){ const w=cv.width,h=cv.height,x=cv.getContext('2d'); const id=x.getImageData(0,0,w,h),d=id.data,src=new Uint8ClampedArray(d);
+    const A=(px,py)=> (px<0||py<0||px>=w||py>=h)?0:src[(py*w+px)*4+3];
+    for(let y=0;y<h;y++) for(let px=0;px<w;px++){ const i=(y*w+px)*4; if(src[i+3]===0) continue;
+      if(!A(px+1,y)||!A(px-1,y)||!A(px,y+1)||!A(px,y-1)){ d[i]=8; d[i+1]=10; d[i+2]=22; d[i+3]=255; } }
+    x.putImageData(id,0,0); }
+  function carSprite(body, opt){
+    opt=opt||{}; const w=64,h=44, cv=document.createElement('canvas'); cv.width=w; cv.height=h; const x=cv.getContext('2d');
+    const dark=body.map(v=>v*0.45|0), lite=body.map(v=>Math.min(255,v*0.6+95|0)), col=a=>'rgb('+a[0]+','+a[1]+','+a[2]+')';
+    if(opt.glow){ const gg=x.createRadialGradient(w/2,h-3,2,w/2,h-3,w/2); gg.addColorStop(0,'rgba('+opt.glow.join(',')+',0.9)'); gg.addColorStop(1,'rgba('+opt.glow.join(',')+',0)'); x.fillStyle=gg; x.fillRect(0,h-13,w,13); }
+    x.fillStyle=col(dark); x.fillRect(6,6,w-12,5); x.fillRect(11,4,4,9); x.fillRect(w-15,4,4,9);   // rear wing
+    x.fillStyle=col(body); roundRect(x,0,12,12,w-24,24,5); x.fill();                                // body
+    x.fillStyle=col(lite); x.fillRect(16,13,w-32,4);
+    x.fillStyle=col(dark); x.fillRect(14,30,w-28,6);
+    x.fillStyle='rgba(18,22,38,0.92)'; roundRect(x,0,22,14,w-44,9,3); x.fill();                      // cockpit
+    x.fillStyle='#ff3b30'; x.fillRect(15,28,7,4); x.fillRect(w-22,28,7,4);                            // tail-lights
+    x.fillStyle='#ffd23d'; x.fillRect(17,29,2,2); x.fillRect(w-19,29,2,2);
+    x.fillStyle='#0c0d14'; x.fillRect(2,28,14,14); x.fillRect(w-16,28,14,14);                         // rear tyres
+    x.fillStyle='#2a2d3a'; x.fillRect(4,31,8,8); x.fillRect(w-12,31,8,8);
+    outline(cv); return cv;
+  }
+  function oilSprite(){ const w=70,h=24, cv=document.createElement('canvas'); cv.width=w; cv.height=h; const x=cv.getContext('2d');
+    x.fillStyle='#121018'; x.beginPath(); x.ellipse(w/2,h/2,w/2-1,h/2-1,0,0,7); x.fill();
+    x.fillStyle='rgba(120,90,220,0.45)'; x.beginPath(); x.ellipse(w*0.42,h*0.42,w*0.22,h*0.22,0,0,7); x.fill();
+    x.fillStyle='rgba(40,220,210,0.30)'; x.beginPath(); x.ellipse(w*0.62,h*0.55,w*0.16,h*0.16,0,0,7); x.fill(); return cv; }
+  function coneSprite(){ const w=30,h=40, cv=document.createElement('canvas'); cv.width=w; cv.height=h; const x=cv.getContext('2d');
+    x.fillStyle='#1a1d28'; x.fillRect(3,h-5,w-6,5);
+    x.fillStyle='#ff7a1a'; x.beginPath(); x.moveTo(w/2,3); x.lineTo(w-6,h-5); x.lineTo(6,h-5); x.closePath(); x.fill();
+    x.fillStyle='#fff2d8'; x.fillRect(8,h-20,w-16,5); x.fillRect(10,h-30,w-20,4); outline(cv); return cv; }
+  function debrisSprite(){ const w=42,h=24, cv=document.createElement('canvas'); cv.width=w; cv.height=h; const x=cv.getContext('2d');
+    const greys=['#3a3d48','#565a68','#23252e']; for(let i=0;i<6;i++){ x.fillStyle=greys[i%3]; const bx=3+Math.random()*(w-14), by=4+Math.random()*(h-12); x.fillRect(bx|0,by|0,5+Math.random()*7|0,5+Math.random()*6|0); }
+    outline(cv); return cv; }
+
+  const playerCar = carSprite([58,140,235], {glow:[120,210,255]});
+  const rivalImgs = [[230,70,70],[240,170,40],[80,200,120],[180,90,220],[60,170,230],[235,235,240]].map(c=>carSprite(c));
+  const oilImg=oilSprite(), coneImg=coneSprite(), debrisImg=debrisSprite();
+
+  // ---- pre-rendered sunset backdrop pieces (sun disc + mountain ridge) ----
+  const sunImg=(function(){ const r=52, cv=document.createElement('canvas'); cv.width=cv.height=r*2; const x=cv.getContext('2d');
+    const g=x.createRadialGradient(r,r,4,r,r,r); g.addColorStop(0,'#fff3b0'); g.addColorStop(0.5,'#ffd24a'); g.addColorStop(1,'#ff7a3c');
+    x.fillStyle=g; x.beginPath(); x.arc(r,r,r,0,7); x.fill();
+    x.globalCompositeOperation='destination-out'; for(let i=0;i<6;i++) x.fillRect(0, r+6+i*6, r*2, Math.max(1,3-i*0.4)); return cv; })();
+  const mtnImg=(function(){ const w=OD_W, h=80, cv=document.createElement('canvas'); cv.width=w; cv.height=h; const x=cv.getContext('2d');
+    const rng=mulberry32(7); x.fillStyle='#3a1f57'; x.beginPath(); x.moveTo(0,h); let px=0; x.lineTo(0,h-10);
+    while(px<w){ const nx=Math.min(w, px+22+rng()*40), ny=h-(22+rng()*52); x.lineTo((px+nx)/2, ny); x.lineTo(nx, h-12-rng()*8); px=nx; }
+    x.lineTo(w,h); x.closePath(); x.fill(); return cv; })();
+
+  // ---- game state ----
+  let tier=OD_TIERS[tierIdx];
+  let segments=[], gates=[], hazards=[], cars=[], finishSegIdx=0, finishZ=0;
+  let playing=false, paused=false, raf=null, lastT=0, elapsed=0;
+  let position=0, speed=0, playerX=0, steerLean=0, shakeX=0, bgShift=0;
+  let spinning=false, spinTimer=0, spinAngle=0, spinVel=0, graceTimer=0, spins=0;
+  let timeLeft=0, score=0, overtakes=0, gatesPassed=0, lastSegIdx=0, timePop=null;
+  let keyLeft=false, keyRight=false, keyUp=false, keyDown=false, baseSegIdx=0;
+
+  function buildCourse(){
+    segments=[]; gates=[]; hazards=[]; cars=[];
+    const rng=mulberry32(0x9E37+tierIdx*1013);
+    const addSeg=(curve)=>{ const n=segments.length; segments.push({index:n,curve, p1:{world:{z:n*OD_SEG},camera:{},screen:{}}, p2:{world:{z:(n+1)*OD_SEG},camera:{},screen:{}}, finish:false}); };
+    const stretch=(enter,hold,leave,curve)=>{ for(let i=0;i<enter;i++) addSeg(easeInOut(0,curve,i/enter)); for(let i=0;i<hold;i++) addSeg(curve); for(let i=0;i<leave;i++) addSeg(easeInOut(curve,0,i/leave)); };
+    stretch(0,40,0,0);                                        // launch straight
+    while(segments.length < tier.segs){
+      if(rng()<0.42){ stretch(10, 20+(rng()*40|0), 10, 0); } // straight
+      else { const mag=(1.2+rng()*2.8)*tier.curveMul; stretch(16, 22+(rng()*30|0), 16, (rng()<0.5?-1:1)*mag); }
+    }
+    stretch(0,30,0,0);                                        // run-in to the line
+    finishSegIdx=segments.length-1; finishZ=finishSegIdx*OD_SEG;
+    for(let i=Math.max(0,finishSegIdx-6);i<segments.length;i++) segments[i].finish=true;
+    for(let z=tier.gateEvery*OD_SEG; z<finishZ-OD_SEG*24; z+=tier.gateEvery*OD_SEG) gates.push({z, passed:false});
+    for(let i=0;i<tier.hazards;i++){ const si=70+(rng()*(segments.length-140)|0), k=rng(); let sprite,cw,wf;
+      if(k<0.4){ sprite=oilImg; cw=0.6; wf=0.8; } else if(k<0.75){ sprite=coneImg; cw=0.35; wf=0.4; } else { sprite=debrisImg; cw=0.45; wf=0.55; }
+      hazards.push({z:si*OD_SEG, offset:rng()*1.5-0.75, sprite, cw, wf}); }
+    for(let i=0;i<tier.cars;i++){ const si=55+(rng()*(segments.length-110)|0);
+      cars.push({z:si*OD_SEG, offset:rng()*1.4-0.7, sprite:rivalImgs[(rng()*rivalImgs.length)|0], wf:0.9, speed:OD_MAXSPEED*(0.4+rng()*0.22), passed:false, spinHit:false}); }
+  }
+
+  function reset(){
+    tier=OD_TIERS[tierIdx];
+    position=0; speed=0; playerX=0; steerLean=0; shakeX=0; bgShift=0;
+    spinning=false; spinTimer=0; spinAngle=0; graceTimer=0; spins=0;
+    timeLeft=tier.startTime; score=0; overtakes=0; gatesPassed=0; lastSegIdx=0; elapsed=0; timePop=null;
+    keyLeft=keyRight=keyUp=keyDown=false; paused=false;
+    buildCourse();
+  }
+
+  // ---- pseudo-3D projection + road render ----
+  function project(p, camX, camY, camZ){
+    p.camera.x=(p.world.x||0)-camX; p.camera.y=(p.world.y||0)-camY; p.camera.z=(p.world.z||0)-camZ;
+    p.screen.scale=OD_CAMD/p.camera.z;
+    p.screen.x=Math.round(W/2 + p.screen.scale*p.camera.x*W/2);
+    p.screen.y=Math.round(H/2 - p.screen.scale*p.camera.y*H/2);
+    p.screen.w=Math.round(p.screen.scale*OD_ROADW*W/2);
+  }
+  function polygon(x1,y1,x2,y2,x3,y3,x4,y4,col){ ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.lineTo(x4,y4); ctx.closePath(); ctx.fill(); }
+  function drawSeg(seg){
+    const a=seg.p1.screen, b=seg.p2.screen, stripe=Math.floor(seg.index/3)%2;
+    const grass = stripe? '#2f6f4a' : '#27623f';
+    const rumble= stripe? '#f0f0f6' : '#c0303a';
+    const road  = stripe? '#50505c' : '#474752';
+    const lane  = stripe? '#dcdce4' : null;
+    ctx.fillStyle=grass; ctx.fillRect(0, b.y, W, a.y-b.y);
+    const r1=a.w/3.2, r2=b.w/3.2;
+    polygon(a.x-a.w-r1,a.y, a.x-a.w,a.y, b.x-b.w,b.y, b.x-b.w-r2,b.y, rumble);
+    polygon(a.x+a.w+r1,a.y, a.x+a.w,a.y, b.x+b.w,b.y, b.x+b.w+r2,b.y, rumble);
+    polygon(a.x-a.w,a.y, a.x+a.w,a.y, b.x+b.w,b.y, b.x-b.w,b.y, road);
+    if(lane){ const l1=a.w/22, l2=b.w/22; for(const o of [-0.5,0.5]){
+      polygon(a.x+o*a.w-l1,a.y, a.x+o*a.w+l1,a.y, b.x+o*b.w+l2,b.y, b.x+o*b.w-l2,b.y, lane); } }
+    if(seg.finish){ const cols=10, par=Math.floor(seg.index/2)%2;
+      for(let i=0;i<cols;i++){ const o0=-1+2*i/cols, o1=-1+2*(i+1)/cols, cc=((i+par)%2)?'#0c0d14':'#f0f0f5';
+        polygon(a.x+o0*a.w,a.y, a.x+o1*a.w,a.y, b.x+o1*b.w,b.y, b.x+o0*b.w,b.y, cc); } }
+  }
+  function renderRoad(){
+    baseSegIdx=Math.max(0, Math.floor(position/OD_SEG));
+    if(!isFinite(baseSegIdx)) baseSegIdx=0;
+    const basePercent=(position%OD_SEG)/OD_SEG, camX=playerX*OD_ROADW;
+    let maxy=H, x=0, dx=-((segments[baseSegIdx]?segments[baseSegIdx].curve:0)*basePercent);
+    for(let n=0;n<OD_DRAW;n++){ const idx=baseSegIdx+n; if(idx<0||idx>=segments.length) break; const seg=segments[idx]; if(!seg) break;
+      project(seg.p1, camX-x,      OD_CAMH, position);
+      project(seg.p2, camX-x-dx,   OD_CAMH, position);
+      x+=dx; dx+=seg.curve;
+      if(seg.p1.camera.z<=OD_CAMD || seg.p2.screen.y>=seg.p1.screen.y || seg.p2.screen.y>=maxy) continue;
+      drawSeg(seg); maxy=seg.p2.screen.y;
+    }
+  }
+
+  // ---- props (gates / hazards / rival cars), drawn far→near ----
+  function screenAt(z){ const i=Math.floor(z/OD_SEG); if(i<baseSegIdx||i>=baseSegIdx+OD_DRAW||i<0||i>=segments.length) return null; const s=segments[i]; if(!s||s.p1.camera.z<=OD_CAMD) return null; return s.p1.screen; }
+  function drawProp(img, z, offset, widthFrac){ const sc=screenAt(z); if(!sc) return; const sx=sc.x+sc.scale*(offset*OD_ROADW)*(W/2), dW=sc.w*widthFrac; if(dW<2) return; const dH=dW*(img.height/img.width); ctx.drawImage(img, Math.round(sx-dW/2), Math.round(sc.y-dH), Math.round(dW), Math.round(dH)); }
+  function drawGate(z, isFinish){ const sc=screenAt(z); if(!sc) return; const lX=sc.x-sc.w, rX=sc.x+sc.w, pw=Math.max(1,sc.w*0.10), barY=sc.y-sc.w*1.25, barH=Math.max(1,sc.w*0.16), neon=isFinish?'#ff3b5c':'#19e0ff', glow=isFinish?'rgba(255,59,92,0.25)':'rgba(25,224,255,0.25)';
+    ctx.fillStyle=glow; ctx.fillRect(Math.round(lX-pw*2), Math.round(barY-2), Math.round((rX+pw*2)-(lX-pw*2)), Math.round(barH+4));
+    ctx.fillStyle=neon; ctx.fillRect(Math.round(lX-pw), Math.round(barY), Math.round(pw), Math.round(sc.y-barY));
+    ctx.fillRect(Math.round(rX), Math.round(barY), Math.round(pw), Math.round(sc.y-barY));
+    ctx.fillRect(Math.round(lX-pw), Math.round(barY), Math.round((rX+pw)-(lX-pw)), Math.round(barH)); }
+  function renderProps(){
+    const list=[];
+    for(const g of gates) list.push({z:g.z, kind:'gate'});
+    list.push({z:finishZ, kind:'finish'});
+    for(const hz of hazards) list.push({z:hz.z, kind:'haz', o:hz});
+    for(const cr of cars) list.push({z:cr.z, kind:'car', o:cr});
+    list.sort((p,q)=> q.z-p.z);
+    for(const it of list){
+      if(it.kind==='gate') drawGate(it.z,false);
+      else if(it.kind==='finish') drawGate(it.z,true);
+      else if(it.kind==='car') drawProp(it.o.sprite, it.z, it.o.offset, it.o.wf);
+      else drawProp(it.o.sprite, it.z, it.o.offset, it.o.wf);
+    }
+  }
+
+  function drawBackground(){
+    const g=ctx.createLinearGradient(0,0,0,H*0.6); g.addColorStop(0,'#2a1b53'); g.addColorStop(0.4,'#7d2a66'); g.addColorStop(0.7,'#ff7a3c'); g.addColorStop(1,'#ffd24a');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H/2+2);
+    ctx.drawImage(sunImg, Math.round(W/2-52-bgShift*0.12), Math.round(H/2-86));
+    let ox=-(((bgShift*0.5)%W)+W)%W; for(let k=-1;k<=1;k++) ctx.drawImage(mtnImg, Math.round(ox+k*W), H/2-mtnImg.height);
+  }
+  function drawPlayer(){
+    const cw=W*0.30, ch=cw*(playerCar.height/playerCar.width), baseY=H-4, lean=clamp(steerLean,-1.4,1.4);
+    ctx.save(); ctx.translate(W/2+lean*10+shakeX, baseY-ch/2);
+    ctx.rotate(spinning? spinAngle : lean*0.05);
+    ctx.drawImage(playerCar, -cw/2, -ch/2, cw, ch); ctx.restore();
+  }
+  function drawForeground(){ if(timePop){ ctx.fillStyle='rgba(60,255,140,'+clamp(timePop.t,0,1).toFixed(2)+')'; ctx.font='bold 15px monospace'; ctx.textAlign='center'; ctx.fillText(timePop.txt, W/2, 38); ctx.textAlign='left'; } }
+  function draw(){ drawBackground(); renderRoad(); renderProps(); drawPlayer(); drawForeground(); }
+
+  function renderHud(){
+    const best=Store.get().bests.arcade_overdrive ? Store.get().bests.arcade_overdrive.value : 0;
+    const kmh=Math.round(speed/OD_MAXSPEED*tier.maxKmh), low=timeLeft<=6;
+    hud.innerHTML = `<span class="pill">${tier.name}</span>
+      <span class="pill">Time <b style="color:${low?'#ff5a5a':'inherit'}">${timeLeft.toFixed(1)}s</b></span>
+      <span class="pill">Score <b>${Math.round(score)}</b></span>
+      <span class="pill">Speed <b>${kmh}</b></span>
+      <span class="pill">Best <b>${best}</b></span>`;
+  }
+
+  function triggerSpin(){ if(graceTimer>0||spinning) return; spinning=true; spinTimer=1.0; graceTimer=1.7; spinVel=(playerX>=0?1:-1)*13; spins++; speed=Math.min(speed,OD_MAXSPEED*0.12); sndHit(); }
+
+  function update(dt){
+    elapsed+=dt;
+    const curSeg=segments[Math.min(segments.length-1, Math.max(0,Math.floor(position/OD_SEG)))];
+    if(!curSeg) return;
+    const speedPct=speed/OD_MAXSPEED;
+    if(!spinning){ if(keyUp) speed+=OD_MAXSPEED/3.5*dt; else if(keyDown) speed-=OD_MAXSPEED*1.1*dt; else speed-=OD_MAXSPEED/6*dt; }
+    else speed-=OD_MAXSPEED*0.4*dt;
+    if(Math.abs(playerX)>1 && speed>OD_MAXSPEED*0.28) speed-=OD_MAXSPEED*1.4*dt;   // off-road drag
+    speed=clamp(speed,0,OD_MAXSPEED);
+
+    const dxStep=dt*3.0*Math.max(0.3,speedPct); let steerInput=0;
+    if(!spinning){ if(keyLeft){ playerX-=dxStep; steerInput=-1; } else if(keyRight){ playerX+=dxStep; steerInput=1; } }
+    playerX -= dxStep*speedPct*0.22*curSeg.curve;                                   // centrifugal pull (steerable except on the sharpest curves at top speed)
+    playerX = clamp(playerX,-2,2);
+    const targetLean=steerInput + curSeg.curve*0.15*speedPct;
+    steerLean += (clamp(targetLean,-1.4,1.4)-steerLean)*Math.min(1,dt*8);
+    shakeX = (Math.abs(playerX)>1 && speed>OD_MAXSPEED*0.2) ? (Math.random()*4-2) : 0;
+    if(spinning){ spinTimer-=dt; spinAngle+=spinVel*dt; if(spinTimer<=0){ spinning=false; spinAngle=0; } }
+    if(graceTimer>0) graceTimer-=dt;
+
+    position+=speed*dt;
+    const nSeg=Math.floor(position/OD_SEG); if(nSeg>lastSegIdx){ score+=(nSeg-lastSegIdx)*2; lastSegIdx=nSeg; }
+
+    const hitWin = OD_SEG + speed*dt*0.5;                                           // widen with frame travel so fast frames never skip a collision
+    for(const cr of cars){ cr.z+=cr.speed*dt;
+      if(!cr.passed && position>cr.z){ cr.passed=true; if(!cr.spinHit){ score+=150; overtakes++; sndPass(); } }
+      if(graceTimer<=0 && !spinning && Math.abs(cr.z-position)<hitWin && overlap(playerX,0.45,cr.offset,0.6,0.8)){ cr.spinHit=true; triggerSpin(); } }
+    for(const hz of hazards){ if(graceTimer<=0 && !spinning && Math.abs(hz.z-position)<hitWin && overlap(playerX,0.45,hz.offset,hz.cw,0.8)) triggerSpin(); }
+    for(const gt of gates){ if(!gt.passed && position>=gt.z){ gt.passed=true; timeLeft+=tier.gateTime; score+=300; gatesPassed++; timePop={txt:'+'+tier.gateTime+'s', t:1.3}; sndGate(); } }
+    if(timePop){ timePop.t-=dt; if(timePop.t<=0) timePop=null; }
+
+    bgShift += curSeg.curve*speed*dt*0.0009;
+    timeLeft-=dt; if(timeLeft<=0){ timeLeft=0; endRun(false); return; }
+    if(position>=finishZ){ position=finishZ; endRun(true); return; }
+  }
+
+  function frame(t){ if(!playing||paused) return; const now=t/1000; let dt=now-lastT; lastT=now; if(dt>0.05) dt=0.05;
+    update(dt); if(!playing||paused) return; draw(); renderHud(); raf=requestAnimationFrame(frame); }
+
+  function startGame(){ result.innerHTML=''; overlay.innerHTML=''; overlay.style.display='none'; reset(); playing=true; sndStart(); startBtn.innerHTML='⟳ Restart'; lastT=performance.now()/1000; raf=requestAnimationFrame(frame); renderHud(); }
+  function togglePause(){ if(paused){ paused=false; overlay.style.display='none'; lastT=performance.now()/1000; raf=requestAnimationFrame(frame); }
+    else { paused=true; if(raf) cancelAnimationFrame(raf); raf=null; overlay.style.display='flex'; overlay.innerHTML='<div class="big">PAUSED</div><div class="small">P or Esc to resume</div>'; } }
+
+  function endRun(won){
+    playing=false; paused=false; if(raf) cancelAnimationFrame(raf); raf=null; startBtn.innerHTML='▶ START';
+    const banked = won? timeLeft : 0; if(won) score += Math.round(banked*200);
+    const finalScore=Math.round(score), progress=clamp(position/finishZ,0,1);
+    const comp = won ? clamp(0.55 + 0.30*clamp(banked/(tier.startTime*0.7),0,1) + 0.15*clamp(1-spins/8,0,1), 0,1)
+                     : clamp(0.45*progress, 0,1);
+    const g=arcadeGrade(comp);
+    Attr.applyVector({reflex:12, control:8}, comp);
+    recordOverdriveRun(finalScore, {finished:won, banked, spins, diff:tier.key, elapsed});
+    Ach.evaluate({tool:'overdrive', grade:g, score:finalScore, finished:won, spins, diff:tier.key});
+
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = won
+      ? `<div class="big">FINISH!</div><div class="small">${tier.name} · ${banked.toFixed(1)}s banked · ${overtakes} passed</div>`
+      : `<div class="big">TIME UP</div><div class="small">${Math.round(progress*100)}% of the course · ${overtakes} passed</div>`;
+    renderHud();
+
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${finalScore}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Result</div><div class="v">${won?'Finish':'Time Up'}</div></div>
+      <div class="result-tile"><div class="k">Passed</div><div class="v">${overtakes}</div></div>
+      <div class="result-tile"><div class="k">Spin-outs</div><div class="v">${spins}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_overdrive.value}</div></div>`;
+    result.innerHTML=''; result.append(r);
+
+    const row=el('div',{class:'controls-row'});
+    if(won && tierIdx < OD_TIERS.length-1){ const next=el('button',{class:'btn primary', html:`⏫ Step Up · ${OD_TIERS[tierIdx+1].name}`});
+      next.onclick=()=>{ tierIdx++; [...diffSeg.children].forEach((x,i)=> x.className=(i===tierIdx?'on':'')); startGame(); }; row.append(next); }
+    const again=el('button',{class:'btn', html:'↻ Race Again'}); again.onclick=()=>startGame(); row.append(again);
+    result.append(row);
+
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Overdrive', glyph:'🏎️',
+      grade:g, metric:[{k:'Score', v:String(finalScore)}, {k:'Result', v:won?'Finish':'Time Up'}, {k:'Tier', v:tier.name}],
+      designation: g==='S'?'Track Demon': g==='A'?'Ace Driver': g==='B'?'Smooth Operator':'Rookie Run',
+      badge: (won && spins===0)?'Flawless Finish':null
+    }));
+  }
+
+  // ---- input ----
+  function onKeyDown(e){ const k=e.key;
+    if(k==='ArrowLeft'||k==='a'||k==='A'){ keyLeft=true; if(playing) e.preventDefault(); }
+    else if(k==='ArrowRight'||k==='d'||k==='D'){ keyRight=true; if(playing) e.preventDefault(); }
+    else if(k==='ArrowUp'||k==='w'||k==='W'){ keyUp=true; if(playing) e.preventDefault(); }
+    else if(k==='ArrowDown'||k==='s'||k==='S'){ keyDown=true; if(playing) e.preventDefault(); }
+    else if((k==='p'||k==='P'||k==='Escape') && playing){ e.preventDefault(); togglePause(); }
+    else if((k===' '||k==='Enter') && !playing){ e.preventDefault(); startGame(); } }
+  function onKeyUp(e){ const k=e.key;
+    if(k==='ArrowLeft'||k==='a'||k==='A') keyLeft=false;
+    else if(k==='ArrowRight'||k==='d'||k==='D') keyRight=false;
+    else if(k==='ArrowUp'||k==='w'||k==='W') keyUp=false;
+    else if(k==='ArrowDown'||k==='s'||k==='S') keyDown=false; }
+  function onTouch(e){ if(!playing||paused) return; e.preventDefault(); const tch=e.touches[0]; if(!tch) return; const rc=canvas.getBoundingClientRect(), frac=(tch.clientX-rc.left)/rc.width; keyLeft=frac<0.4; keyRight=frac>0.6; keyUp=true; }
+  function onTouchEnd(){ keyLeft=keyRight=keyUp=false; }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('touchstart', onTouch, {passive:false});
+  canvas.addEventListener('touchmove', onTouch, {passive:false});
+  canvas.addEventListener('touchend', onTouchEnd);
+
+  // ---- attract frame ----
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = '<div class="big">OVERDRIVE</div><div class="small">Press START to race the sunset</div>';
+
+  return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); };
 };
 
 /* ============================================================================
@@ -11632,6 +12004,24 @@ function recordDodgeRun(score, ctx){
     if(ctx && ctx.elapsed>=60) d.counters.dodgeMinute=(d.counters.dodgeMinute||0)+1;
   });
 }
+// record an Overdrive run — honest-Gamer-Score contract (see Overdrive_DD.md §6.2):
+// toolsCompleted credited once, best score (overall + per-difficulty), modest
+// arcade metagame points, counters for the cabinet achievements.
+function recordOverdriveRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_overdrive){ d.toolsCompleted++; d.bests.arcade_overdrive={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_overdrive.value){ d.bests.arcade_overdrive.value=score; }
+    const diff=(ctx&&ctx.diff)||'cruise';
+    const bd=d.bests.arcade_overdrive.diff||(d.bests.arcade_overdrive.diff={});
+    if(!(diff in bd) || score>bd[diff]) bd[diff]=score;
+    d.arcadePoints += Math.round(score/40);
+    d.counters.overdriveRuns=(d.counters.overdriveRuns||0)+1;
+    if(ctx && ctx.finished) d.counters.overdriveFinishes=(d.counters.overdriveFinishes||0)+1;
+    if(ctx && ctx.finished && ctx.spins===0) d.counters.overdriveClean=(d.counters.overdriveClean||0)+1;
+    if(ctx && ctx.finished && diff==='redline') d.counters.overdriveSundown=(d.counters.overdriveSundown||0)+1;
+  });
+}
 // Arcade Vol.2 run recorders — same honest-Gamer-Score contract as Memory/Dodge:
 // toolsCompleted credited once, best metric + modest arcadePoints + counters each run.
 function recordSnakeRun(score, ctx){
@@ -14314,6 +14704,7 @@ Router.add('#/arcade/packer', Views.packer);
 Router.add('#/arcade/sudoku', Views.sudoku);
 Router.add('#/arcade/b0ggle', Views.b0ggle);
 Router.add('#/arcade/jackin', Views.jackIn);
+Router.add('#/arcade/overdrive', Views.overdrive);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/gamefinder', Views.gameFinder);
 Router.add('#/fun/report', Views.dnaReport);
