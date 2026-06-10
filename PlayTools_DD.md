@@ -132,10 +132,47 @@ Every micro-tool execution securely passes performance indicators into a global 
 
 $$\mathbf{A} = \{ \text{Reflex}, \text{Precision}, \text{Speed}, \text{Focus}, \text{Consistency}, \text{Control}, \text{Strategy} \}$$
 
-* Each attribute operates on a normalized scale bounded between $0$ and $100$[cite: 2].
-* Every completed tool applies a weighted delta function to the target attributes[cite: 2]:
+Each attribute is surfaced as a **single value on the normalized $[0,100]$ radar** — the radar is the whole story (there is no separate prestige or mastery number). The legacy additive rule $A_{\text{new}} = \min(100,\, A_{\text{old}} + \Delta \cdot w)$ is **deprecated**: because every delta was positive and the only ceiling was the clamp, all seven vectors inevitably marched to $100$, filling the radar and flattening long-term motivation. It is replaced by a three-stage **hybrid form model** — absolute benchmark normalization, diminishing-returns easing, and idle decay — that keeps the displayed value fully client-side and cross-user comparable while making $100$ mean *world-class and currently in form* rather than *has played a lot*.
 
-$$A_{\text{new}} = \min\left(100, \, A_{\text{old}} + \Delta \cdot w\right)$$
+**Stage 1 — Benchmark normalization (absolute, per tool).** Each tool emits one raw performance scalar $x$ in its natural units (reaction ms, accuracy %, clicks/s, …). A per-tool **benchmark curve** maps that raw value to a run-quality score $q \in (0,1)$ via a logistic anchored on authored reference points, oriented so higher skill $\Rightarrow$ higher $q$:
+
+$$q = \frac{1}{1 + e^{-s\,(\hat{x} - m)}}, \qquad \hat{x} = \begin{cases} x & \text{higher-is-better metrics}\\ -x & \text{lower-is-better metrics (e.g. reaction time)} \end{cases}$$
+
+$m$ is the **median-human** anchor ($q=0.5$) and $s$ the steepness. Because the curve is authored to approximate the real human skill distribution, $q$ behaves like a percentile while requiring **no backend and no population query** — the curve constants ship inside the client (consistent with §1.3 / §3.1.2.1). $q \to 1$ only for near-elite raw input. Reference anchors (v1, tunable):
+
+| Tool / metric | Orientation | Floor ($q\approx0.1$) | Median $m$ ($q=0.5$) | Elite ($q\approx0.95$) |
+| --- | --- | --- | --- | --- |
+| Reflex Lab — avg reaction (ms) | lower-better | 420 | 270 | 160 |
+| Click Speed — CPS | higher-better | 4.0 | 6.5 | 11 |
+| Target Practice — accuracy % | higher-better | 55 | 78 | 97 |
+| Aim Tracking — control % | higher-better | 50 | 75 | 95 |
+| Dice — luck-normalized $q$ | (already $0$–$1$) | — | 0.5 | — |
+
+($s$ is derived per row so the floor / elite anchors land at $q\approx0.1$ / $q\approx0.95$.)
+
+**Stage 2 — Form update (diminishing returns).** Per completed run, the attribute eases toward its quality target $A_\star = 100\,q$ with a weight-scaled, headroom-damped step. Let $w \in (0,1]$ be the tool's normalized attribution weight (the legacy per-tool weights divided by the max weight, e.g. Reflex $12/16 = 0.75$):
+
+$$A_{\text{new}} = A_{\text{old}} + \eta\, w \,(A_\star - A_{\text{old}}) \cdot \Phi, \qquad \Phi = \begin{cases} \left(1 - \dfrac{A_{\text{old}}}{100}\right)^{k}, & A_\star \ge A_{\text{old}}\ \text{(improving, } \eta=\eta_{\text{up}})\\[2.2ex] 1, & A_\star < A_{\text{old}}\ \text{(sub-form, } \eta=\eta_{\text{down}}) \end{cases}$$
+
+The headroom term $(1 - A/100)^k$ makes the top **asymptotic** — each point above $\sim85$ costs progressively more, so $100$ is approached but practically never reached. Improving runs use the faster rate $\eta_{\text{up}}$; sub-form runs use the gentler $\eta_{\text{down}}$ so a single bad session nudges rather than tanks the value. The attribute converges toward your *demonstrated quality* $\approx 100\,\bar q$ (minus headroom drag), **not** the clamp — a $0.8$-quality player settles in the high-70s/low-80s, and only consistently near-perfect play reaches the upper radar.
+
+**Stage 3 — Idle decay (current form / "use it or lose it").** Skill that isn't exercised regresses. On profile load, each attribute is lazily decayed toward a **retained floor** $f = \beta\, A_{\text{peak}}$ (a fraction of its all-time peak, so lapsed players keep a credible baseline rather than resetting to zero) using elapsed idle time $\Delta t$ in days:
+
+$$A \leftarrow f + (A - f)\,e^{-\lambda\,\Delta t}, \qquad \lambda = \frac{\ln 2}{h}$$
+
+with half-life $h$ days. Decay visibly **de-fills** a maxed radar over an absence, converting the metagame from "fill it once" into "stay in form," and gives a concrete reason to return.
+
+**Tuning constants (v1).**
+
+| Symbol | Meaning | Default |
+| --- | --- | --- |
+| $k$ | headroom exponent (ceiling stiffness) | $2$ |
+| $\eta_{\text{up}}$ | improving learning rate | $0.30$ |
+| $\eta_{\text{down}}$ | sub-form learning rate | $0.10$ |
+| $\beta$ | retained-floor fraction of peak | $0.5$ |
+| $h$ | decay half-life (days) | $45$ |
+
+**Worked trace (Reflex, $w=0.75$).** Starting $A=0$ with repeated $\sim200$ ms runs ($q=0.8 \Rightarrow A_\star=80$): run 1 $\to +18.0 \to 18.0$; run 2 $\to +9.4 \to 27.4$; … the series eases toward $\sim80$ and then stalls. Pushing into the 90s requires sustained sub-$180$ ms ($q>0.95$) runs *and* still fights the headroom wall, while a 45-day layoff pulls the value back toward $0.5\,A_{\text{peak}}$. Maxing the full seven-vector radar now demands broad, sustained, near-elite play. Class thresholds (below) may be eased $\sim5$–$10$ pts in tuning, since $\ge 90$ now denotes genuinely elite, current form.
 
 * **Dynamic Class Allocation:** The specific balance of these seven attributes maps to discrete character archetypes . For example:
     * $\text{Reflex} \ge 90$, $\text{Precision} \ge 85$, $\text{Focus} \ge 75 \longrightarrow$ **Arena Duelist** 
