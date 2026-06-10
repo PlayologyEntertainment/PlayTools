@@ -7221,7 +7221,7 @@ Views.overdrive = function(c){
       if(k<0.4){ sprite=oilImg; cw=0.3; wf=0.4; } else if(k<0.75){ sprite=coneImg; cw=0.16; wf=0.18; } else { sprite=debrisImg; cw=0.225; wf=0.275; }
       const p=place(70, segments.length-140, cw); if(p) hazards.push({z:p.z, offset:p.off, sprite, cw, wf, lw:cw}); }
     for(let i=0;i<tier.cars;i++){ const p=place(55, segments.length-110, 0.6); if(!p) continue;
-      cars.push({z:p.z, offset:p.off, sprite:rivalImgs[(rng()*rivalImgs.length)|0], wf:0.8, lw:0.55, speed:OD_MAXSPEED*(0.4+rng()*0.22), passed:false, spinHit:false}); }
+      cars.push({z:p.z, offset:p.off, sprite:rivalImgs[(rng()*rivalImgs.length)|0], wf:0.4, lw:0.3, speed:OD_MAXSPEED*(0.4+rng()*0.22), passed:false, spinHit:false}); }
     for(let z=OD_SEG*30; z<finishZ-OD_SEG*6; z+=OD_SEG*(6+(rng()*10|0))){     // occasional roadside palms & plants (cosmetic)
       const off=(rng()<0.5?-1:1)*(1.25+rng()*0.7);
       if(rng()<0.62) decor.push({z, offset:off, sprite:palmImgs[(rng()*palmImgs.length)|0], wf:0.5});
