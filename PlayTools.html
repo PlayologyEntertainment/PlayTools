@@ -1993,7 +1993,7 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='bricks' && c.cleared && c.diff==='hard') || !!(d.counters && d.counters.brickHardClears>=1) },
     { id:'brick_flawless', name:'Flawless Wall', icon:'🧱', desc:'Clear a wall in Brick Breaker without losing a single life.',
       test:(d,c)=> (c && c.tool==='bricks' && c.cleared && c.flawless) || !!(d.counters && d.counters.brickFlawless>=1) },
-    { id:'mole_masher', name:'Mole Masher', icon:'🔨', desc:'Whack 25 moles in a single round.',
+    { id:'mole_masher', name:'Hopper Masher', icon:'🔨', desc:'Pop 25 hoppers in a single round.',
       test:(d,c)=> c && c.tool==='whack' && c.hits>=25 },
     { id:'sequence_savant', name:'Sequence Savant', icon:SEQ_ICON, desc:'Recall a sequence of length 12 in Sequence.',
       test:(d,c)=> c && c.tool==='sequence' && c.length>=12 },
@@ -2027,7 +2027,7 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='snake' && (c.grade==='A'||c.grade==='S') },
     { id:'brick_ace', name:'Brick Ace', icon:'🧱', desc:'Earn an A grade or better in Brick Breaker.',
       test:(d,c)=> c && c.tool==='bricks' && (c.grade==='A'||c.grade==='S') },
-    { id:'whack_ace', name:'Whack Ace', icon:'🔨', desc:'Earn an A grade or better in Whack-a-Mole.',
+    { id:'whack_ace', name:'Popper Ace', icon:'🔨', desc:'Earn an A grade or better in Hopper Popper.',
       test:(d,c)=> c && c.tool==='whack' && (c.grade==='A'||c.grade==='S') },
     { id:'sequence_ace', name:'Sequence Ace', icon:SEQ_ICON, desc:'Earn an A grade or better in Sequence.',
       test:(d,c)=> c && c.tool==='sequence' && (c.grade==='A'||c.grade==='S') },
@@ -2644,8 +2644,8 @@ const CABINETS = [
     desc:'Steer the neon serpent, devour pellets & grow without biting your own tail.', dna:'Control +14 · Focus +6' },
   { id:'arcade_bricks', lab:'Arcade', name:'Brick Breaker', railName:'Bricks', icon:'🧱', tag:'mvp', route:'#/arcade/bricks',
     desc:'Bounce the ball, shatter every brick & keep the paddle under it.', dna:'Precision +12 · Reflex +6' },
-  { id:'arcade_whack', lab:'Arcade', name:'Whack-a-Mole', railName:'Whack', icon:'🔨', tag:'mvp', route:'#/arcade/whack',
-    desc:'Thirty seconds, nine holes — smack every mole the instant it pops up.', dna:'Reflex +14 · Speed +6' },
+  { id:'arcade_whack', lab:'Arcade', name:'Hopper Popper', railName:'Popper', icon:'🔨', tag:'mvp', route:'#/arcade/whack',
+    desc:'Thirty seconds, nine holes — pop every hopper the instant it pops up.', dna:'Reflex +14 · Speed +6' },
   { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
     desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_packer', lab:'Arcade', name:'Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
@@ -2741,7 +2741,7 @@ const LAB_DESC = {
   'Setup'    :'Dial in your battlestation. Crunch eDPI, convert sensitivity between games, and calculate FOV, aspect ratio, refresh rate and a balanced play schedule.',
   'Fun'      :'Personality and pure mischief. Take the archetype quiz, generate gamertags, clans and loadouts, roll wild challenges, and get your rig gloriously roasted.',
   'RPG'      :'Tools for the tabletop. Forge D&D characters, roll any dice, conjure NPCs, track initiative, and spin up quests, taverns and rumours on the fly.',
-  'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Yawny Mnemonic, Whack-a-Mole and more — quick games that still feed your Gamer DNA.'
+  'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Yawny Mnemonic, Hopper Popper and more — quick games that still feed your Gamer DNA.'
 };
 function labDesc(lab){ return LAB_DESC[lab] || 'A shelf of applets all from this category. Pick <strong>Lobby</strong> in the sidebar to see everything again.'; }
 
@@ -7457,7 +7457,7 @@ Views.overdrive = function(c){
 };
 
 /* ============================================================================
-   RETRO ARCADE — Volume 2: My Anaconda, Brick Breaker, Whack-a-Mole, Sequence.
+   RETRO ARCADE — Volume 2: My Anaconda, Brick Breaker, Hopper Popper, Sequence.
    Shared helpers keep the four cabinets consistent: a mute-aware WebAudio blip,
    a sound-toggle button bound to a per-game pref, and the standard arcade grade
    curve. Like the other arcade games these are replayable, so toolsCompleted is
@@ -7527,7 +7527,7 @@ Views.snake = function(c){
   const startBtn = el('button',{class:'btn primary', html:'▶ START'});
   startRow.append(startBtn, soundToggle('snakeMute'));
 
-  // difficulty selector (matches the Brick Breaker / Whack-a-Mole segmented control)
+  // difficulty selector (matches the Brick Breaker / Hopper Popper segmented control)
   const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
   const diffSeg = el('div',{class:'seg'});
   SNAKE_LEVELS.forEach((lv,i)=>{
@@ -8258,7 +8258,7 @@ Views.brickBreaker = function(c){
   const startBtn = el('button',{class:'btn primary', html:'▶ START'});
   startRow.append(startBtn, soundToggle('brickMute'));
 
-  // difficulty selector (matches the Whack-a-Mole segmented control)
+  // difficulty selector (matches the Hopper Popper segmented control)
   const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
   const diffSeg = el('div',{class:'seg'});
   BRK_LEVELS.forEach((lv,i)=>{
@@ -8405,7 +8405,7 @@ Views.brickBreaker = function(c){
   };
 };
 
-/* ---- ARCADE.5 Whack-a-Mole ---- */
+/* ---- ARCADE.5 Hopper Popper ---- */
 // Difficulty tiers — flat pacing per tier (no in-round ramp). `up` = how long a mole
 // stays whackable, `gap` = seconds between pop attempts, `maxUp` = simultaneous moles.
 // `target` is the hit count for a top-grade run (sized to each tier's mole volume);
@@ -8445,7 +8445,7 @@ Views.whackMole = function(c){
   const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
   const overlay = el('div',{class:'pd-overlay'});
   stage.append(canvas, overlay);
-  const hint = el('div',{class:'pd-hint', html:'Tap or click a mole the instant it pops up'});
+  const hint = el('div',{class:'pd-hint', html:'Tap or click a hopper the instant it pops up'});
   const result = el('div',{});
   const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
   panel.append(diffField, startRow, hud, stageTV, hint, result);
@@ -8659,7 +8659,7 @@ Views.whackMole = function(c){
     Ach.evaluate({tool:'whack', grade:g, hits, difficulty:lvl.key});
     draw();
     overlay.style.display='flex';
-    overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${lvl.name} · ${hits} whacked · ${misses} missed</div>`;
+    overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${lvl.name} · ${hits} popped · ${misses} missed</div>`;
     renderHud();
     const r=el('div',{class:'results'});
     r.innerHTML = `<div class="result-tile"><div class="k">Hits</div><div class="v">${hits}</div></div>
@@ -8670,10 +8670,10 @@ Views.whackMole = function(c){
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
-      lab:'RETRO ARCADE', tool:'Whack-a-Mole', glyph:'🔨', grade:g,
+      lab:'RETRO ARCADE', tool:'Hopper Popper', glyph:'🔨', grade:g,
       metric:[{k:'Mode', v:lvl.name}, {k:'Hits', v:String(hits)}, {k:'Missed', v:String(misses)}],
       designation: g==='S'?'Mallet Maestro': g==='A'?'Quick Hammer': g==='B'?'Steady Swing':'Slow Reflexes',
-      badge: hits>=25?'Mole Masher':null
+      badge: hits>=25?'Hopper Masher':null
     }));
   }
   function onClick(e){
@@ -8692,7 +8692,7 @@ Views.whackMole = function(c){
   startBtn.onclick=startGame;
   reset(); draw(); renderHud();
   overlay.style.display='flex';
-  overlay.innerHTML = `<div class="big">WHACK-A-MOLE</div><div class="small">Press START · 30 seconds</div>`;
+  overlay.innerHTML = `<div class="big">HOPPER POPPER</div><div class="small">Press START · 30 seconds</div>`;
   return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
 };
 
