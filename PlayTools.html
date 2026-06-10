@@ -851,6 +851,46 @@
     border-radius:14px; padding:4px 10px; text-transform:uppercase; letter-spacing:1px;}
   .bg-chip i{color:var(--neon-5); font-style:normal; margin-left:6px; font-size:10px;}
 
+  /* ---- Jack-In (Retro Arcade) — cyberpunk Blackjack felt table + DOM cards ---- */
+  .ji-stage{position:relative; width:100%; max-width:460px; margin:10px auto 4px;}
+  .ji-felt{display:flex; flex-direction:column; gap:14px; width:100%; padding:18px 14px;
+    background:radial-gradient(120% 90% at 50% 0%, rgba(22,242,200,0.06), transparent 60%), #05030f;
+    border:2px solid var(--neon-4); border-radius:10px;
+    box-shadow:0 0 26px rgba(124,92,255,0.28), inset 0 0 60px rgba(124,92,255,0.08); min-height:240px;}
+  .ji-felt.overload{animation:ji-glitch .5s steps(2) 2;}
+  @keyframes ji-glitch{0%,100%{box-shadow:0 0 26px rgba(124,92,255,0.28), inset 0 0 60px rgba(124,92,255,0.08);}
+    50%{box-shadow:0 0 30px rgba(255,77,109,0.55), inset 0 0 70px rgba(255,77,109,0.30);}}
+  .ji-side{display:flex; flex-direction:column; gap:6px;}
+  .ji-side-head{display:flex; align-items:baseline; gap:10px; font-family:var(--pixel); font-size:11px;
+    letter-spacing:2px; text-transform:uppercase; color:var(--ink-dim);}
+  .ji-side-head .who{color:var(--neon-3);}
+  .ji-side-head .tot{margin-left:auto; font-family:var(--pixel); font-size:16px; color:var(--neon); letter-spacing:0;}
+  .ji-side-head .tot.over{color:var(--danger);}
+  .ji-side-head .tot.bj{color:var(--neon-5);}
+  .ji-hand{display:flex; gap:8px; flex-wrap:wrap; min-height:74px;}
+  .ji-card{position:relative; width:50px; height:72px; flex:0 0 auto; border-radius:7px; background:#0d0a1f;
+    border:1px solid var(--neon-4); box-shadow:0 0 12px rgba(124,92,255,0.30), inset 0 0 18px rgba(124,92,255,0.06);
+    display:flex; align-items:center; justify-content:center; font-family:var(--pixel); animation:ji-deal .22s ease;}
+  @keyframes ji-deal{from{opacity:0; transform:translateY(-12px) scale(0.9);} to{opacity:1; transform:none;}}
+  .ji-card .pip{position:absolute; top:4px; left:5px; font-size:13px; line-height:1; color:var(--neon-3);}
+  .ji-card .pip.br{top:auto; left:auto; bottom:4px; right:5px; transform:rotate(180deg);}
+  .ji-card .suit{font-size:24px; line-height:1;}
+  .ji-card.red{border-color:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.30), inset 0 0 18px rgba(255,77,109,0.06);}
+  .ji-card.red .pip{color:var(--danger);} .ji-card.red .suit{color:var(--danger);}
+  .ji-card.black .suit{color:#dfe6ff;}
+  .ji-card.back{background:repeating-linear-gradient(45deg,#140f2e,#140f2e 5px,#0d0a1f 5px,#0d0a1f 10px); color:var(--neon-2);}
+  .ji-card.back .enc{font-family:var(--mono); font-size:11px; letter-spacing:1px; color:var(--neon-2); opacity:0.8;}
+  .ji-bank{display:flex; gap:9px; justify-content:center; flex-wrap:wrap; margin:12px auto 2px; max-width:460px;}
+  .ji-chip{font-family:var(--pixel); font-size:13px; color:var(--neon-3); background:var(--panel-2);
+    border:1px solid var(--line); border-radius:22px; padding:9px 14px; cursor:pointer; transition:transform .08s, background .1s, border-color .12s;}
+  .ji-chip:hover{background:rgba(124,92,255,0.18);}
+  .ji-chip:active{transform:scale(0.94);}
+  .ji-chip.on{border-color:var(--neon); color:#fff; background:rgba(22,242,200,0.18); box-shadow:0 0 12px rgba(22,242,200,0.25);}
+  .ji-chip:disabled{opacity:0.3; pointer-events:none;}
+  .ji-actions{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:8px auto;}
+  .ji-actions .btn{padding:9px 16px; font-size:13px;}
+  .ji-actions .btn:disabled{opacity:0.35; pointer-events:none;}
+
   /* ---- Gamer Quiz (Fun Lab) ---- */
   .quiz-progress{height:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:6px 0 18px;}
   .quiz-progress .bar{height:100%; background:linear-gradient(90deg,var(--neon-4),var(--neon)); width:0; transition:width .4s ease;}
@@ -1897,6 +1937,17 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='b0ggle' && c.longest>=7) || !!(d.counters && d.counters.b0ggleLong>=1) },
     { id:'b0ggle_overclock', name:'Overclocked', icon:'⚡', desc:'Score 100+ in a single B0ggle round.',
       test:(d,c)=> c && c.tool==='b0ggle' && c.score>=100 },
+    // ---- Jack-In (cyberpunk Blackjack) set ----
+    { id:'jackin_ace', name:'Jack-In Ace', icon:'🃏', desc:'Earn an A grade or better in Jack-In.',
+      test:(d,c)=> c && c.tool==='jackin' && (c.grade==='A'||c.grade==='S') },
+    { id:'jackin_jackpot', name:'Jackpot', icon:'🂡', desc:'Land a natural blackjack (two-card 21) in Jack-In.',
+      test:(d,c)=> (c && c.tool==='jackin' && c.blackjack) || !!(d.counters && d.counters.jackinBlackjacks>=1) },
+    { id:'jackin_clean_run', name:'Clean Run', icon:'🔗', desc:'Win 5 hands in a row in a single Jack-In session.',
+      test:(d,c)=> (c && c.tool==='jackin' && c.bestStreak>=5) || !!(d.counters && d.counters.jackinBestStreak>=5) },
+    { id:'jackin_high_roller', name:'High Roller', icon:'💰', desc:'Win a hand staked at the table maximum in Jack-In.',
+      test:(d,c)=> (c && c.tool==='jackin' && c.maxBetWin) || !!(d.counters && d.counters.jackinMaxWins>=1) },
+    { id:'jackin_cooler', name:'The Cooler', icon:'🧊', desc:'Claw back from under 100 credits to over 1000 in Jack-In.',
+      test:(d,c)=> (c && c.tool==='jackin' && c.cooler) || !!(d.counters && d.counters.jackinCooler>=1) },
     // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded
     //      test (complements Reaction's stricter S-grade 'Reaction Master') ----
     { id:'reaction_ace', name:'Reaction Ace', icon:'⚡', desc:'Earn an A grade or better on Reaction Time.',
@@ -2494,7 +2545,9 @@ const CABINETS = [
   { id:'arcade_sudoku', lab:'Arcade', name:'Sudoku', railName:'Sudoku', icon:'🔢', tag:'mvp', route:'#/arcade/sudoku',
     desc:'Fill the 9×9 grid so every row, column & box holds 1–9 — pick a difficulty, beat the clock & lean on hints only if you must.', dna:'Focus +12 · Strategy +8' },
   { id:'arcade_b0ggle', lab:'Arcade', name:'<span class="b0-word">B<span class="slz">0</span>ggle</span>', railName:'B0ggle', icon:B0_ICON, tag:'mvp', route:'#/arcade/b0ggle',
-    desc:'Trace adjacent letter-nodes to DECRYPT words against the clock — longer words crack a bigger payload. Cyberpunk word-hunt with a retro-CRT skin.', dna:'Strategy +14 · Focus +6' }
+    desc:'Trace adjacent letter-nodes to DECRYPT words against the clock — longer words crack a bigger payload. Cyberpunk word-hunt with a retro-CRT skin.', dna:'Strategy +14 · Focus +6' },
+  { id:'arcade_jackin', lab:'Arcade', name:'Jack-In', railName:'Jack-In', icon:'🃏', tag:'mvp', route:'#/arcade/jackin',
+    desc:'Jack into the casino mainframe and beat The House at 21 — bet your credits, hit or stand, and cash out before you OVERLOAD. Cyberpunk Blackjack with a retro-CRT skin.', dna:'Strategy +12 · Focus +8' }
 ];
 
 /* ============================================================================
@@ -11150,6 +11203,277 @@ Views.b0ggle = function(c){
 };
 
 /* ============================================================================
+   RETRO ARCADE — Jack-In (cyberpunk Blackjack; see JackIn_DD.md)
+   Faithful 21 vs. The House AI dealer under a netrunner-heist skin. Bankroll
+   economy: start 1000 credits, bet per hand, play to bust-out or cash-out.
+   Hit / Stand / Double — Split deferred (DD §7). Score = peak bank reached.
+   ============================================================================ */
+const JI_START_BANK = 1000;     // starting credits each session
+const JI_MIN_BET    = 25;       // table minimum (and bust-out threshold)
+const JI_MAX_BET    = 500;      // table maximum (drives the High Roller achievement)
+const JI_CHIPS      = [25, 50, 100, 250];   // fixed chip denominations (+ MAX, handled separately)
+const JI_SUITS = [
+  { s:'♠', c:'black' }, { s:'♥', c:'red' }, { s:'♦', c:'red' }, { s:'♣', c:'black' }
+];
+const JI_RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+Views.jackIn = function(c){
+  const cab = getCab('arcade_jackin');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('jackinMute');
+  const sndDeal =()=> blip(330,0.05,'square',0.035);
+  const sndHit  =()=> blip(440,0.04,'square',0.03);
+  const sndChip =()=> blip(660,0.03,'triangle',0.03);
+  const sndWin  =()=> [523,659,784].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'square',0.05), i*90));
+  const sndPush =()=> blip(300,0.10,'sine',0.035);
+  const sndLose =()=> blip(120,0.18,'sawtooth',0.045);
+
+  // ---- session state ----
+  let bank=JI_START_BANK, bet=JI_MIN_BET, stake=JI_MIN_BET, peak=JI_START_BANK;
+  let streak=0, bestStreak=0, handsPlayed=0;
+  let sawBlackjack=false, sawMaxWin=false, sawCooler=false, wasBroke=false;
+  let deck=[], player=[], dealer=[];
+  let state='betting';            // 'betting' | 'player' | 'reveal' | 'over'
+  let revealHole=false, sessionOver=false, revealTO=null;
+
+  // ---- deck / hand math ----
+  function freshDeck(){
+    const d=[];
+    for(let s=0;s<4;s++) for(let r=0;r<13;r++) d.push({r, s});
+    for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+    return d;
+  }
+  function draw(){ if(deck.length<12) deck=freshDeck(); return deck.pop(); }
+  function cardVal(card){ return card.r===0 ? 11 : Math.min(10, card.r+1); }   // A=11, 2-10 face, J/Q/K=10
+  function handVal(cards){
+    let total=0, aces=0;
+    cards.forEach(card=>{ total+=cardVal(card); if(card.r===0) aces++; });
+    while(total>21 && aces>0){ total-=10; aces--; }   // demote aces 11→1 to dodge an overload
+    return { total, soft: aces>0 };
+  }
+  const isBlackjack=(cards)=> cards.length===2 && handVal(cards).total===21;
+
+  // ---- DOM ----
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'ji-stage'});
+  const felt = el('div',{class:'ji-felt'});
+  const dealerTot = el('span',{class:'tot'});
+  const dealerHead = el('div',{class:'ji-side-head', html:'<span class="who">The House</span>'}); dealerHead.append(dealerTot);
+  const dealerHand = el('div',{class:'ji-hand'});
+  const dealerSide = el('div',{class:'ji-side'}); dealerSide.append(dealerHead, dealerHand);
+  const playerTot = el('span',{class:'tot'});
+  const playerHead = el('div',{class:'ji-side-head', html:'<span class="who">You</span>'}); playerHead.append(playerTot);
+  const playerHand = el('div',{class:'ji-hand'});
+  const playerSide = el('div',{class:'ji-side'}); playerSide.append(playerHead, playerHand);
+  felt.append(dealerSide, playerSide);
+  stage.append(felt);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+
+  const msg = el('div',{class:'pd-hint', html:'Place your bet, then DEAL.'});
+
+  const betRow = el('div',{class:'ji-bank'});
+  const chipBtns=[];
+  JI_CHIPS.forEach(v=>{
+    const b=el('button',{class:'ji-chip', html:String(v)}); b._val=v;
+    b.onclick=()=>{ if(state!=='betting'||sessionOver) return; bet=Math.min(v, bank, JI_MAX_BET); sndChip(); renderHud(); updateControls(); };
+    betRow.append(b); chipBtns.push(b);
+  });
+  const maxBtn=el('button',{class:'ji-chip', html:'MAX'}); maxBtn._val=null;
+  maxBtn.onclick=()=>{ if(state!=='betting'||sessionOver) return; bet=Math.min(bank, JI_MAX_BET); sndChip(); renderHud(); updateControls(); };
+  betRow.append(maxBtn); chipBtns.push(maxBtn);
+
+  const actions = el('div',{class:'ji-actions'});
+  const dealBtn   = el('button',{class:'btn primary', html:'▶ DEAL'});      dealBtn.onclick=deal;
+  const hitBtn    = el('button',{class:'btn', html:'➕ Hit'});               hitBtn.onclick=hit;
+  const standBtn  = el('button',{class:'btn', html:'✋ Stand'});             standBtn.onclick=stand;
+  const doubleBtn = el('button',{class:'btn', html:'⏫ Double'});            doubleBtn.onclick=double;
+  const cashBtn   = el('button',{class:'btn ghost', html:'💼 Cash Out'});    cashBtn.onclick=()=> endSession(false);
+  const newBtn    = el('button',{class:'btn primary', html:'↻ New Session'}); newBtn.onclick=startSession;
+  actions.append(dealBtn, hitBtn, standBtn, doubleBtn, cashBtn, newBtn);
+  actions.append(soundToggle('jackinMute'));
+
+  const result = el('div',{});
+  panel.append(hud, stageTV, msg, betRow, actions, result);
+
+  // ---- rendering ----
+  function cardEl(card, faceDown){
+    if(faceDown){
+      const n=el('div',{class:'ji-card back'}); n.append(el('div',{class:'enc', html:'#%&'})); return n;
+    }
+    const suit=JI_SUITS[card.s], rank=JI_RANKS[card.r];
+    const n=el('div',{class:'ji-card '+suit.c});
+    n.append(el('div',{class:'pip', html:rank+suit.s}), el('div',{class:'suit', html:suit.s}), el('div',{class:'pip br', html:rank+suit.s}));
+    return n;
+  }
+  function renderHands(){
+    dealerHand.innerHTML=''; playerHand.innerHTML='';
+    dealer.forEach((card,i)=> dealerHand.append(cardEl(card, i===1 && !revealHole)));
+    player.forEach(card=> playerHand.append(cardEl(card, false)));
+    // dealer total — only the up-card while the hole stays encrypted
+    if(!dealer.length){ dealerTot.className='tot'; dealerTot.textContent=''; }
+    else if(!revealHole){ dealerTot.className='tot'; dealerTot.textContent=handVal([dealer[0]]).total+' +?'; }
+    else { const dv=handVal(dealer); dealerTot.className='tot'+(dv.total>21?' over':isBlackjack(dealer)?' bj':''); dealerTot.textContent=String(dv.total); }
+    // player total
+    if(!player.length){ playerTot.className='tot'; playerTot.textContent=''; }
+    else { const pv=handVal(player); playerTot.className='tot'+(pv.total>21?' over':isBlackjack(player)?' bj':''); playerTot.textContent=String(pv.total); }
+  }
+  function renderHud(){
+    const best=Store.get().bests.arcade_jackin;
+    const liveBet=(state==='player'||state==='reveal')? stake : bet;
+    hud.innerHTML = `<span class="pill">Credits <b>${bank}</b></span>
+      <span class="pill">Bet <b>${liveBet}</b></span>
+      <span class="pill">Streak <b>${streak}</b></span>
+      <span class="pill">Best <b>${best?best.value:'—'}</b></span>`;
+  }
+  function updateControls(){
+    const betting = state==='betting' && !sessionOver;
+    chipBtns.forEach(b=>{
+      if(b._val==null){ b.disabled=!betting; b.classList.toggle('on', betting && bet===Math.min(bank, JI_MAX_BET)); }
+      else { b.disabled = !betting || b._val>bank; b.classList.toggle('on', betting && bet===b._val); }
+    });
+    betRow.style.display = betting ? '' : 'none';
+    dealBtn.style.display   = betting ? '' : 'none';
+    dealBtn.disabled        = bank<JI_MIN_BET;
+    cashBtn.style.display   = (betting && handsPlayed>0) ? '' : 'none';
+    hitBtn.style.display    = state==='player' ? '' : 'none';
+    standBtn.style.display  = state==='player' ? '' : 'none';
+    doubleBtn.style.display = (state==='player' && player.length===2 && bank>=stake) ? '' : 'none';
+    newBtn.style.display    = sessionOver ? '' : 'none';
+  }
+
+  // ---- hand flow ----
+  function deal(){
+    if(state!=='betting' || sessionOver) return;
+    bet=Math.min(bet, bank, JI_MAX_BET); if(bet<JI_MIN_BET) bet=Math.min(JI_MIN_BET, bank);
+    if(bank<JI_MIN_BET) return;
+    stake=bet; bank-=stake; handsPlayed++;
+    player=[draw(), draw()]; dealer=[draw(), draw()];
+    state='player'; revealHole=false;
+    result.innerHTML=''; sndDeal();
+    renderHands(); renderHud(); updateControls();
+    msg.textContent='Hit, stand or double?';
+    if(isBlackjack(player) || isBlackjack(dealer)){ revealHole=true; settle(); }
+  }
+  function hit(){
+    if(state!=='player') return;
+    player.push(draw()); sndHit();
+    renderHands(); renderHud(); updateControls();
+    const pv=handVal(player).total;
+    if(pv>21) overload();
+    else if(pv===21) stand();
+  }
+  function double(){
+    if(state!=='player' || player.length!==2 || bank<stake) return;
+    bank-=stake; stake*=2; sndChip();
+    player.push(draw());
+    renderHands(); renderHud();
+    if(handVal(player).total>21) overload();
+    else stand();
+  }
+  function stand(){
+    if(state!=='player') return;
+    state='reveal'; revealHole=true;
+    renderHands(); renderHud(); updateControls();
+    const step=()=>{
+      if(handVal(dealer).total<17){ dealer.push(draw()); sndHit(); renderHands(); revealTO=setTimeout(step, 560); }
+      else settle();
+    };
+    revealTO=setTimeout(step, 560);
+  }
+  function overload(){
+    state='reveal'; revealHole=true; renderHands();
+    felt.classList.add('overload'); setTimeout(()=> felt.classList.remove('overload'), 1000);
+    resolve('lose', 'OVERLOAD — you went over 21.');
+  }
+  function settle(){
+    revealHole=true; renderHands();
+    const pBJ=isBlackjack(player), dBJ=isBlackjack(dealer);
+    if(pBJ) sawBlackjack=true;
+    const pv=handVal(player).total, dv=handVal(dealer).total;
+    if(pBJ && dBJ)       resolve('push', 'Push — both drew naturals.');
+    else if(pBJ)         resolve('blackjack', 'JACKPOT — natural blackjack! Pays 3:2.');
+    else if(dBJ)         resolve('lose', 'The House decrypted a natural blackjack.');
+    else if(dv>21)       resolve('win', 'The House OVERLOADED — you take it.');
+    else if(pv>dv)       resolve('win', 'You beat The House, '+pv+' to '+dv+'.');
+    else if(pv<dv)       resolve('lose', 'The House wins, '+dv+' to '+pv+'.');
+    else                 resolve('push', 'Push — '+pv+' apiece.');
+  }
+  function resolve(outcome, text){
+    if(outcome==='blackjack'){ bank += stake + Math.round(stake*1.5); streak++; sndWin(); if(stake>=JI_MAX_BET) sawMaxWin=true; }
+    else if(outcome==='win'){ bank += stake*2; streak++; sndWin(); if(stake>=JI_MAX_BET) sawMaxWin=true; }
+    else if(outcome==='push'){ bank += stake; sndPush(); }
+    else { streak=0; sndLose(); }
+    peak=Math.max(peak, bank);
+    bestStreak=Math.max(bestStreak, streak);
+    if(bank<100) wasBroke=true;
+    if(wasBroke && bank>1000) sawCooler=true;
+    state='betting';
+    bet=Math.min(bet, bank, JI_MAX_BET); if(bet<JI_MIN_BET && bank>=JI_MIN_BET) bet=JI_MIN_BET;
+    renderHud(); updateControls();
+    if(bank<JI_MIN_BET){ msg.textContent=text+' '; endSession(true); }
+    else msg.textContent=text+'  ·  Bet again, or cash out.';
+  }
+
+  // ---- session lifecycle ----
+  function startSession(){
+    if(revealTO) clearTimeout(revealTO);
+    bank=JI_START_BANK; bet=JI_MIN_BET; stake=JI_MIN_BET; peak=JI_START_BANK;
+    streak=0; bestStreak=0; handsPlayed=0;
+    sawBlackjack=false; sawMaxWin=false; sawCooler=false; wasBroke=false;
+    deck=freshDeck(); player=[]; dealer=[];
+    state='betting'; revealHole=false; sessionOver=false;
+    result.innerHTML=''; msg.textContent='Place your bet, then DEAL.';
+    renderHands(); renderHud(); updateControls();
+  }
+  function endSession(busted){
+    if(sessionOver) return;
+    sessionOver=true; state='over';
+    if(revealTO) clearTimeout(revealTO);
+    const score=peak;
+    const comp=clamp01((peak-JI_START_BANK)/2000);   // ~2x bank → A, ~3x → S (DD §3.1)
+    const g=arcadeGrade(comp);
+    Attr.applyVector({strategy:12, focus:8}, comp);
+    const ctx={ grade:g, score, peak, bestStreak, blackjack:sawBlackjack, maxBetWin:sawMaxWin, cooler:sawCooler };
+    recordJackInRun(score, ctx);
+    Ach.evaluate(Object.assign({tool:'jackin'}, ctx));
+    renderHud(); updateControls();
+    msg.textContent = busted ? 'BUST OUT — the mainframe drained your credits.' : 'Cashed out — run banked.';
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Peak Credits</div><div class="v">${peak}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best Streak</div><div class="v">${bestStreak}</div></div>
+      <div class="result-tile"><div class="k">Hands</div><div class="v">${handsPlayed}</div></div>`;
+    result.append(r);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Jack-In', glyph:'🃏', grade:g,
+      metric:[{k:'Peak', v:peak+' cr'}, {k:'Streak', v:String(bestStreak)}],
+      designation: g==='S'?'Mainframe Breaker': g==='A'?'High Roller': g==='B'?'Card Shark': g==='C'?'Table Regular':'Walked Away Light',
+      badge: sawBlackjack ? 'Natural 21' : null
+    }));
+  }
+
+  // ---- keyboard ----
+  function onKey(e){
+    if(sessionOver) return;
+    if(state==='betting'){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); deal(); } return; }
+    if(state!=='player') return;
+    const k=e.key.toLowerCase();
+    if(k==='h') hit();
+    else if(k==='s') stand();
+    else if(k==='d') double();
+  }
+  window.addEventListener('keydown', onKey);
+
+  startSession();
+
+  return ()=>{
+    sessionOver=true; state='over';
+    if(revealTO) clearTimeout(revealTO);
+    window.removeEventListener('keydown', onKey);
+  };
+};
+
+/* ============================================================================
    shared helpers for tool views
    ============================================================================ */
 // Defer to the OS "reduce motion" accessibility setting (no in-app toggle).
@@ -11306,6 +11630,22 @@ function recordSudokuRun(score, ctx){
     d.arcadePoints += Math.round(score/30);   // modest metagame contribution — avoids grind-farming the Gamer Score
     d.counters.sudokuSolves=(d.counters.sudokuSolves||0)+1;
     if(ctx && ctx.diff==='hard' && ctx.hints===0) d.counters.sudokuHardClean=(d.counters.sudokuHardClean||0)+1;
+  });
+}
+// record a Jack-In session. Replayable card game, so toolsCompleted is credited
+// only on the first-ever run to keep Gamer Score honest; best peak-bank score,
+// modest arcade points and counters (for the cabinet achievements) update each run.
+function recordJackInRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_jackin){ d.toolsCompleted++; d.bests.arcade_jackin={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_jackin.value){ d.bests.arcade_jackin.value=score; }
+    d.arcadePoints += Math.round(score/40);   // modest metagame contribution — avoids grind-farming the Gamer Score
+    d.counters.jackinRuns=(d.counters.jackinRuns||0)+1;
+    if(ctx && ctx.blackjack) d.counters.jackinBlackjacks=(d.counters.jackinBlackjacks||0)+1;
+    if(ctx && ctx.maxBetWin) d.counters.jackinMaxWins=(d.counters.jackinMaxWins||0)+1;
+    if(ctx && ctx.cooler) d.counters.jackinCooler=(d.counters.jackinCooler||0)+1;
+    if(ctx && ctx.bestStreak>(d.counters.jackinBestStreak||0)) d.counters.jackinBestStreak=ctx.bestStreak;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -13877,6 +14217,7 @@ Router.add('#/arcade/macpan', Views.macPan);
 Router.add('#/arcade/packer', Views.packer);
 Router.add('#/arcade/sudoku', Views.sudoku);
 Router.add('#/arcade/b0ggle', Views.b0ggle);
+Router.add('#/arcade/jackin', Views.jackIn);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/gamefinder', Views.gameFinder);
 Router.add('#/fun/report', Views.dnaReport);
