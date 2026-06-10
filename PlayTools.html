@@ -751,7 +751,7 @@
   .dice-log .row .t{font-family:var(--pixel); color:var(--neon-3);}
   .dice-log .empty{color:var(--ink-dim); font-size:12px;}
 
-  /* ---- Memory Match (Retro Arcade) ---- */
+  /* ---- Yawny Mnemonic (Retro Arcade) ---- */
   .mem-hud{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:12px 0 6px; font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim);}
   .mem-hud .pill{background:var(--panel-2); border:1px solid var(--line); border-radius:5px; padding:6px 12px;}
   .mem-hud .pill b{font-family:var(--pixel); color:var(--neon-3); font-size:16px; margin-left:6px; letter-spacing:0;}
@@ -1885,7 +1885,7 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='dice' && c.total>=50 },
     { id:'self_aware', name:'Self-Aware', icon:'🎭', desc:'Complete the Gamer Quiz and reveal your archetype.',
       test:(d,c)=> (c && c.tool==='quiz') || !!(d.profile && d.profile.archetype) },
-    { id:'total_recall', name:'Total Recall', icon:'🧠', desc:'Clear a Memory Match board with zero mismatches.',
+    { id:'total_recall', name:'Total Recall', icon:'🧠', desc:'Clear a Yawny Mnemonic board with zero mismatches.',
       test:(d,c)=> (c && c.tool==='memory' && c.mismatches===0) || !!(d.counters && d.counters.memoryFlawless>=1) },
     { id:'pixel_pilot', name:'Pixel Pilot', icon:'👾', desc:'Survive 60 seconds in a single Pixel Dodge run.',
       test:(d,c)=> (c && c.tool==='dodge' && c.time>=60) || !!(d.counters && d.counters.dodgeMinute>=1) },
@@ -1926,7 +1926,7 @@ const Ach = (function(){
     { id:'macpan_michelin', name:'Michelin Pan', icon:'⭐', desc:'Reach level 5 on Well Done difficulty in Mac Pan.',
       test:(d,c)=> (c && c.tool==='macpan' && c.level>=5 && c.diff==='welldone') || !!(d.counters && d.counters.macpanMichelin>=1) },
     // ---- Arcade "Ace" set: earn an A grade or better in each cabinet ----
-    { id:'memory_ace', name:'Memory Ace', icon:'🧠', desc:'Earn an A grade or better in Memory Match.',
+    { id:'memory_ace', name:'Memory Ace', icon:'🧠', desc:'Earn an A grade or better in Yawny Mnemonic.',
       test:(d,c)=> c && c.tool==='memory' && (c.grade==='A'||c.grade==='S') },
     { id:'dodge_ace', name:'Dodge Ace', icon:'👾', desc:'Earn an A grade or better in Pixel Dodge.',
       test:(d,c)=> c && c.tool==='dodge' && (c.grade==='A'||c.grade==='S') },
@@ -2541,7 +2541,7 @@ const CABINETS = [
     desc:'Auto-roll initiative, sort the turn order & track HP through the fight.', dna:'Strategy +3 · runs the table' },
   { id:'rpg_quest',  lab:'RPG', name:'Quest & Tavern', railName:'Quest', icon:'📜', tag:'mvp', route:'#/rpg/quest',
     desc:'Improv seeds on demand — quest hooks, taverns, barkeeps & rumours.', dna:'Strategy +4 · spins a yarn' },
-  { id:'arcade_memory', lab:'Arcade', name:'Memory Match', railName:'Memory', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
+  { id:'arcade_memory', lab:'Arcade', name:'Yawny Mnemonic', railName:'Mnemonic', icon:'🧠', tag:'mvp', route:'#/arcade/memory',
     desc:'Flip-and-match retro grid — find every pair from memory against the clock.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_dodge', lab:'Arcade', name:'Pixel Dodge', railName:'Dodge', icon:'👾', tag:'mvp', route:'#/arcade/dodge',
     desc:'Steer a pixel ship through falling blocks — survive the escalating swarm for score.', dna:'Reflex +14 · Consistency +6' },
@@ -2644,7 +2644,7 @@ const LAB_DESC = {
   'Setup'    :'Dial in your battlestation. Crunch eDPI, convert sensitivity between games, and calculate FOV, aspect ratio, refresh rate and a balanced play schedule.',
   'Fun'      :'Personality and pure mischief. Take the archetype quiz, generate gamertags, clans and loadouts, roll wild challenges, and get your rig gloriously roasted.',
   'RPG'      :'Tools for the tabletop. Forge D&D characters, roll any dice, conjure NPCs, track initiative, and spin up quests, taverns and rumours on the fly.',
-  'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Memory Match, Whack-a-Mole and more — quick games that still feed your Gamer DNA.'
+  'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Yawny Mnemonic, Whack-a-Mole and more — quick games that still feed your Gamer DNA.'
 };
 function labDesc(lab){ return LAB_DESC[lab] || 'A shelf of applets all from this category. Pick <strong>Lobby</strong> in the sidebar to see everything again.'; }
 
@@ -2711,7 +2711,7 @@ function crtDressTV(host, bodyHTML, opts){
    dress an empty box first, then relocate the node onto the .crt-content screen
    surface. Used to give the Arcade play-areas the same retro-television look as
    the lobby cabinet cards. opts are passed straight through to crtDressTV;
-   opts.wide widens the housing for grid-based games (e.g. Memory Match). */
+   opts.wide widens the housing for grid-based games (e.g. Yawny Mnemonic). */
 function crtWrapTV(node, opts){
   opts = opts || {};
   const box = el('div',{class:'crt-wrap'+(opts.wide?' wide':'')});
@@ -3459,7 +3459,7 @@ Views.friends = function(c){
    FRIEND CARD AVATAR — shared between the Friend Card box and the Gamer DNA
    header. Defaults to the handle's first initial on the persona accent color;
    a custom emoji and/or background color (set via the Gamer DNA hub) override it.
-   The emoji set mirrors the Memory Match deck (MEM_SYMBOLS) by design.
+   The emoji set mirrors the Yawny Mnemonic deck (MEM_SYMBOLS) by design.
    ---------------------------------------------------------------------------- */
 const AVATAR_SWATCHES = ['#16f2c8','#7c5cff','#ff5cc8','#ffd23d','#2d9bff','#ff6b3d','#3dff7c','#ff3d6b','#b56cff','#5cf0ff','#f5f7ff','#9aa3c0'];
 
@@ -6331,7 +6331,7 @@ Views.questGen = function(c){
 };
 
 /* ============================================================================
-   RETRO ARCADE — Memory Match (DD §5.5)
+   RETRO ARCADE — Yawny Mnemonic (DD §5.5)
    Classic flip-and-match pairs on a retro grid. Selectable difficulty that
    escalates (Easy→Medium→Hard); evaluates visual memory recall. Feeds Focus
    (primary) + Consistency, awards arcade metagame points, and emits a share card.
@@ -6504,7 +6504,7 @@ Views.memoryMatch = function(c){
     result.append(row);
 
     result.append(shareRow({
-      lab:'RETRO ARCADE', tool:'Memory Match', glyph:'🧠',
+      lab:'RETRO ARCADE', tool:'Yawny Mnemonic', glyph:'🧠',
       grade:g, metric:[{k:'Score', v:String(boardScore)}, {k:'Recall', v:Math.round(efficiency*100)+'%'}, {k:'Level', v:lv.name}],
       designation: g==='S'?'Photographic Memory': g==='A'?'Sharp Recall': g==='B'?'Steady Memory':'Warming Up',
       badge: mismatches===0?'Flawless Recall':null
@@ -11525,7 +11525,7 @@ function recordDiceRoll(total, isNat20){
     if(isNat20) d.counters.nat20s=(d.counters.nat20s||0)+1;
   });
 }
-// record a Memory Match board clear. Like dice, this is a replayable mini-game,
+// record a Yawny Mnemonic board clear. Like dice, this is a replayable mini-game,
 // so toolsCompleted is credited only on the first-ever clear to keep Gamer Score
 // honest; best board score, arcade metagame points and counters update each clear.
 function recordMemoryRun(score, ctx){
