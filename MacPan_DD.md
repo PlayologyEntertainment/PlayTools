@@ -233,7 +233,7 @@ Router.add('#/arcade/macpan', Views.macPan);
 ```
 
 * **DNA vector:** **Control + Strategy** — pathing under pressure (Control, like
-  Neon Snake) plus route planning around four pursuers (Strategy). Final split
+  My Anaconda) plus route planning around four pursuers (Strategy). Final split
   to be tuned against existing tools at build time.
 * **View:** `Views.macPan = function(container){ … return teardown; }`, mounting
   a `canvas.game`, START overlay, HUD (score / hi-score / lives as little pan

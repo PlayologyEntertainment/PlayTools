@@ -239,7 +239,7 @@ Router.add('#/arcade/overdrive', Views.overdrive);
 
 * **DNA vector:** **Reflex + Control** — split-second hazard reaction (Reflex,
   like StarDodger) plus sustained steering precision through curves under speed
-  (Control, like Neon Snake / Tracking). (Adding **Speed** is an option, but
+  (Control, like My Anaconda / Tracking). (Adding **Speed** is an option, but
   PlayTools' `Speed` attribute is tied to *tapping/click* speed, so Reflex+Control
   is the cleaner fit. Final split tuned at build time — §9.)
 * **View:** `Views.overdrive = function(c){ … return teardown; }`, mounting a
