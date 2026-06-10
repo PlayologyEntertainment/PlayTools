@@ -1835,12 +1835,19 @@ const PAWN_ICON = '<svg class="pawn-icon" viewBox="0 0 100 100" aria-hidden="tru
 // distinctly from Sudoku's number glyph. Sized to ~1em like the SVG icons above.
 const B0_ICON = '<span class="b0-ico"><span>B<span class="slz">0</span></span></span>';
 
-// JACKIN_ICON — Jack-In's cabinet badge: a light playing card with a large black
-// spade, drawn as inline SVG so it renders identically everywhere (the Unicode
+// JACKIN_ICON — Jack-In's cabinet badge: two fanned playing cards — a tilted
+// back card with a red heart, and an upright front card with a black spade —
+// drawn as inline SVG so it renders identically everywhere (the Unicode
 // playing-card glyphs have patchy font coverage). Sized to 1em like the icons above.
 const JACKIN_ICON = '<svg class="jackin-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
-  '<rect x="22" y="6" width="56" height="88" rx="9" fill="#f4f6ff" stroke="#070912" stroke-width="3"/>'+
-  '<path d="M50 24 C50 24 30 46 30 58 C30 68 41 72 48 65 C47 73 44 78 38 82 L62 82 C56 78 53 73 52 65 C59 72 70 68 70 58 C70 46 50 24 50 24 Z" fill="#070912"/></svg>';
+  // back card — slightly tilted, red heart
+  '<g transform="rotate(-16 46 54)">'+
+    '<rect x="18" y="20" width="44" height="66" rx="7" fill="#f4f6ff" stroke="#070912" stroke-width="3"/>'+
+    '<path d="M40 64 C28 54 26 48 26 44 C26 38 32 36 36 40 C38 42 40 44 40 46 C40 44 42 42 44 40 C48 36 54 38 54 44 C54 48 52 54 40 64 Z" fill="#e23048"/>'+
+  '</g>'+
+  // front card — upright, black spade
+  '<rect x="40" y="26" width="44" height="66" rx="7" fill="#f4f6ff" stroke="#070912" stroke-width="3"/>'+
+  '<path d="M62 30 C62 30 42 52 42 64 C42 74 53 78 60 71 C59 79 56 84 50 88 L74 88 C68 84 65 79 64 71 C71 78 82 74 82 64 C82 52 62 30 62 30 Z" fill="#070912"/></svg>';
 
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
