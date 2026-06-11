@@ -8587,7 +8587,7 @@ Views.whackMole = function(c){
     ctx2d.fillStyle='rgba(240,216,184,0.9)';
     ctx2d.beginPath(); ctx2d.ellipse(0,-30,23,28,0,0,Math.PI*2); ctx2d.fill();
     // neon rim light (upper-left) + warm key (upper-right)
-    ctx2d.save(); ctx2d.strokeStyle='rgba(110,231,255,0.9)'; ctx2d.lineWidth=3; ctx2d.shadowColor='#6ee7ff'; ctx2d.shadowBlur=8;
+    ctx2d.save(); ctx2d.strokeStyle='rgba(110,231,255,0.32)'; ctx2d.lineWidth=2; ctx2d.shadowColor='#6ee7ff'; ctx2d.shadowBlur=4;
     ctx2d.beginPath(); ctx2d.ellipse(0,-40,38,42,0,Math.PI*0.95,Math.PI*1.5); ctx2d.stroke(); ctx2d.restore();
     ctx2d.save(); ctx2d.strokeStyle='rgba(255,206,150,0.5)'; ctx2d.lineWidth=2.5;
     ctx2d.beginPath(); ctx2d.ellipse(0,-40,38,42,0,Math.PI*1.5,Math.PI*1.95); ctx2d.stroke(); ctx2d.restore();
