@@ -185,9 +185,13 @@ sessions.)
 ## 5. Art & Audio Direction
 
 * **Rendering:** a **canvas** board (like the action cabinets) of procedurally
-  drawn shards — **6 distinct color *and* glyph** pairs (◆ ▲ ⬢ ● ★ ✚) so the game
-  stays playable under the global **Reduce-CRT** / colorblind-safe preference (no
-  image files — DD §1.3 Sub-Second Asset Delivery).
+  drawn shards. Each shard type carries **three independent cues** so colour is
+  never the only signal — a widely-separated **hue**, a distinct centred **glyph**
+  (◆ ▲ ★ ⬢ ● ✚ ■, dark-outlined for legibility on light shards), and a unique
+  **geometric texture** (diagonal stripes / horizontal bars / polka dots /
+  cross-hatch / bullseye rings / vertical bars / checkerboard). This keeps the
+  board fully playable under the global **Reduce-CRT** / colourblind-safe
+  preference (no image files — DD §1.3 Sub-Second Asset Delivery).
 * **Specials:** Lance cores show a directional streak; the Hypercore is a
   rainbow-spun glyph; Nova pulses. Detonations flash the shared neon palette.
 * **Cascade tell:** each chain step bumps a **CASCADE ×N** banner and pitches the

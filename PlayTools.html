@@ -12095,8 +12095,8 @@ Views.jackIn = function(c){
    score-chase and a no-timer Zen run. Trains Focus (board scanning) + Speed
    (under the clock). Colour AND glyph encode each shard for colourblind-safe
    play and full deference to the Reduce-Motion preference. */
-const DF_COLORS = ['#ff4d6d','#ffb454','#46e8a0','#36d6ff','#5b7cff','#b07cff','#ff7cf0'];
-const DF_GLYPHS = ['◆','▲','⬢','●','★','✚','■'];
+const DF_COLORS = ['#ff3344','#ff9020','#ffe14d','#3ddc46','#3a7bff','#a35bff','#ff5bc4'];
+const DF_GLYPHS = ['◆','▲','★','⬢','●','✚','■'];
 const DF_LEVELS = [
   { key:'sector', name:'Sector', colors:5, time:75, par:5000 },   // easy — livelier board, more time
   { key:'volume', name:'Volume', colors:6, time:60, par:4000 },   // normal — the standard run
@@ -12182,6 +12182,47 @@ Views.defrag = function(c){
     return '#'+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x*f))).toString(16).padStart(2,'0')).join('');
   }
   function rr(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+  // A distinct geometric texture per shard type, so colour is never the only cue
+  // (greens/blues read very differently as stripes vs. rings vs. checkers).
+  function drawPattern(g, ox, oy, ss, type){
+    g.save();
+    rr(g, ox+1, oy+1, ss-2, ss-2, ss*0.24); g.clip();
+    const dark='rgba(8,4,18,0.5)', lite='rgba(255,255,255,0.55)';
+    g.lineWidth=Math.max(1.5, ss*0.07); g.lineCap='round';
+    switch(type){
+      case 0: // diagonal stripes ⫽
+        g.strokeStyle=lite;
+        for(let i=-ss;i<ss;i+=ss*0.3){ g.beginPath(); g.moveTo(ox+i,oy); g.lineTo(ox+i+ss,oy+ss); g.stroke(); }
+        break;
+      case 1: // horizontal bars ≡
+        g.fillStyle=dark;
+        for(let y=oy+ss*0.22;y<oy+ss-1;y+=ss*0.3){ g.fillRect(ox, y, ss, ss*0.12); }
+        break;
+      case 2: // polka dots ⣿
+        g.fillStyle=dark;
+        for(let yy=oy+ss*0.27; yy<oy+ss-2; yy+=ss*0.3) for(let xx=ox+ss*0.27; xx<ox+ss-2; xx+=ss*0.3){ g.beginPath(); g.arc(xx,yy,ss*0.085,0,7); g.fill(); }
+        break;
+      case 3: // cross-hatch grid ▦
+        g.strokeStyle=dark;
+        for(let x=ox+ss*0.24;x<ox+ss;x+=ss*0.26){ g.beginPath(); g.moveTo(x,oy); g.lineTo(x,oy+ss); g.stroke(); }
+        for(let y=oy+ss*0.24;y<oy+ss;y+=ss*0.26){ g.beginPath(); g.moveTo(ox,y); g.lineTo(ox+ss,y); g.stroke(); }
+        break;
+      case 4: // bullseye rings ◎
+        g.strokeStyle=lite;
+        for(let rad=ss*0.14; rad<ss*0.5; rad+=ss*0.14){ g.beginPath(); g.arc(ox+ss/2,oy+ss/2,rad,0,7); g.stroke(); }
+        break;
+      case 5: // vertical bars ‖
+        g.fillStyle=dark;
+        for(let x=ox+ss*0.2;x<ox+ss-1;x+=ss*0.3){ g.fillRect(x, oy, ss*0.12, ss); }
+        break;
+      case 6: { // checkerboard ▩
+        g.fillStyle=dark; const n=4, cs=ss/n;
+        for(let i=0;i<n;i++)for(let j=0;j<n;j++){ if((i+j)%2) g.fillRect(ox+i*cs, oy+j*cs, cs+0.5, cs+0.5); }
+        break;
+      }
+    }
+    g.restore();
+  }
   function drawShard(g,px,py,cell){
     const s=CELL, scale=cell.sc==null?1:cell.sc;
     if(scale<=0.02) return;
@@ -12198,14 +12239,14 @@ Views.defrag = function(c){
       const grad=g.createLinearGradient(ox,oy,ox,oy+ss);
       grad.addColorStop(0,shade(col,1.3)); grad.addColorStop(1,shade(col,0.7));
       g.fillStyle=grad; rr(g,ox+1,oy+1,ss-2,ss-2,ss*0.24); g.fill();
+      g.globalAlpha=Math.min(1,scale); drawPattern(g, ox, oy, ss, idx); g.globalAlpha=1;
       g.lineWidth=1.5; g.strokeStyle=shade(col,1.5); g.shadowColor=col; g.shadowBlur=Math.min(8,ss*0.24); g.stroke(); g.shadowBlur=0;
-      // top gloss
-      g.globalAlpha=0.4*Math.min(1,scale); g.fillStyle='#ffffff'; rr(g,ox+ss*0.2,oy+ss*0.15,ss*0.6,ss*0.14,ss*0.06); g.fill(); g.globalAlpha=1;
     }
-    // glyph
-    g.fillStyle= idx<0?'#0a0618':'rgba(255,255,255,0.92)';
-    g.font='700 '+Math.round(ss*0.42)+'px "Share Tech Mono", monospace'; g.textAlign='center'; g.textBaseline='middle';
-    g.fillText(idx<0?'✶':DF_GLYPHS[idx], cx, cy+1);
+    // glyph — dark-outlined white so it stays legible on light shards (yellow) and any pattern
+    g.font='800 '+Math.round(ss*0.4)+'px "Share Tech Mono", monospace'; g.textAlign='center'; g.textBaseline='middle';
+    const glyph = idx<0?'✶':DF_GLYPHS[idx];
+    g.lineJoin='round'; g.lineWidth=Math.max(2,ss*0.09); g.strokeStyle='rgba(8,4,18,0.85)'; g.strokeText(glyph, cx, cy+1);
+    g.fillStyle= idx<0?'#0a0618':'#ffffff'; g.fillText(glyph, cx, cy+1);
     // Lance stripe overlay
     if(cell.s==='lance'){
       g.fillStyle='rgba(255,255,255,0.82)';
