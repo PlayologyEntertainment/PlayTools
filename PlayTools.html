@@ -7490,17 +7490,28 @@ Views.overdrive = function(c){
    ============================================================================ */
 function makeBlip(muteKey){
   let ac=null;
-  return function(freq, dur, type, vol){
+  // Create the context (once) and keep it running. Contexts first touched
+  // outside a user gesture — e.g. during pattern playback via setTimeout — are
+  // born suspended with a frozen clock, so scheduled tones never sound. Call
+  // blip.prime() from a real gesture (a tap/click) to warm it up beforehand.
+  function ensure(){
+    ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==='suspended' && ac.resume) ac.resume();
+    return ac;
+  }
+  function blip(freq, dur, type, vol){
     if(Store.getPrefs()[muteKey]) return;
     try{
-      ac = ac || new (window.AudioContext||window.webkitAudioContext)();
-      const o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime;
+      const c=ensure();
+      const o=c.createOscillator(), g=c.createGain(), t=c.currentTime;
       o.type=type||'square'; o.frequency.value=freq;
-      o.connect(g); g.connect(ac.destination);
+      o.connect(g); g.connect(c.destination);
       g.gain.setValueAtTime(vol||0.04, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
       o.start(t); o.stop(t+dur);
     }catch(e){}
-  };
+  }
+  blip.prime=function(){ try{ ensure(); }catch(e){} };
+  return blip;
 }
 function soundToggle(muteKey){
   const b=el('button',{class:'btn ghost'});
@@ -8792,6 +8803,7 @@ Views.sequence = function(c){
     timers.push(setTimeout(showNext, 450));
   }
   function startGame(){
+    blip.prime();  // warm the audio context on this gesture so playback tones sound
     clearTimers(); result.innerHTML=''; overlay.style.display='none';
     seq=[]; score=0; inputIdx=0; active=-1; playing=true; startBtn.innerHTML='⟳ Restart';
     addStep(); playback(); renderHud();
@@ -8834,6 +8846,7 @@ Views.sequence = function(c){
     }));
   }
   function onClick(e){
+    blip.prime();  // keep the context live on direct taps too
     if(mode!=='input') return;
     const rc=canvas.getBoundingClientRect();
     const x=(e.clientX-rc.left)/rc.width*W, y=(e.clientY-rc.top)/rc.height*H;
