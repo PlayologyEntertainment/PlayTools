@@ -2673,7 +2673,7 @@ const CABINETS = [
     desc:'Thirty seconds, nine holes — pop every hopper the instant it pops up.', dna:'Reflex +14 · Speed +6' },
   { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
     desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' },
-  { id:'arcade_packer', lab:'Arcade', name:'Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
+  { id:'arcade_packer', lab:'Arcade', name:'Hack Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
     desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6 - Designed by Aysha!' },
   { id:'arcade_macpan', lab:'Arcade', name:'Mac Pan', railName:'Mac Pan', icon:'🍳', tag:'mvp', route:'#/arcade/macpan',
     desc:'Steer Mac the cast-iron pan through the maze — gobble the food, dodge the produce, grab a Burner and sauté your pursuers.', dna:'Control +12 · Strategy +8' },
@@ -9125,7 +9125,7 @@ Views.packer = function(c){
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
-      lab:'RETRO ARCADE', tool:'Packer', glyph:'📦', grade:g,
+      lab:'RETRO ARCADE', tool:'Hack Packer', glyph:'📦', grade:g,
       metric:[{k:'Score', v:String(score)}, {k:'Lines', v:String(linesCleared)}, {k:'Best Combo', v:'×'+maxCombo}],
       designation: g==='S'?'Master Packer': g==='A'?'Space Optimizer': g==='B'?'Tidy Stacker': g==='C'?'Block Juggler':'Box Fumbler',
       badge: maxClear>=3 ? 'Multi-Line Master' : null
