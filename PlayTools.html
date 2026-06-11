@@ -8740,7 +8740,7 @@ Views.sequence = function(c){
   const TONES=[330,415,494,622];
   const PAD_COL=['#16f2c8','#ff3df0','#ffd23d','#7c5cff'];
   const PAD_DIM=['#0c5e51','#5e1659','#5e4f16','#2d2160'];
-  const sndFail=()=> [220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+  const sndFail=()=> [220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.11), i*90));
 
   const W=320, H=320;
   const startRow = el('div',{class:'controls-row'});
@@ -8787,7 +8787,7 @@ Views.sequence = function(c){
       ctx2d.fillText(ROMAN[i], px+pw/2, py+ph/2);
     });
   }
-  function tone(i){ blip(TONES[i],0.22,'square',0.05); }
+  function tone(i){ blip(TONES[i],0.22,'square',0.1); }
   function flash(i, done){
     active=i; draw(); tone(i);
     const dur=Math.max(220, 480-seq.length*14);
