@@ -2083,6 +2083,17 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='jackin' && c.cooler) || !!(d.counters && d.counters.jackinCooler>=1) },
     { id:'overdrive_ace', name:'Overdrive Ace', icon:'🏎️', desc:'Earn an A grade or better in Overdrive.',
       test:(d,c)=> c && c.tool==='overdrive' && (c.grade==='A'||c.grade==='S') },
+    // ---- Defrag (cyberpunk match-3) set ----
+    { id:'defrag_ace', name:'Defrag Ace', icon:'💎', desc:'Earn an A grade or better in Defrag.',
+      test:(d,c)=> c && c.tool==='defrag' && (c.grade==='A'||c.grade==='S') },
+    { id:'defrag_cascade', name:'Chain Reaction', icon:'⚡', desc:'Trigger a 4-deep cascade in Defrag.',
+      test:(d,c)=> (c && c.tool==='defrag' && c.bestChain>=4) || !!(d.counters && d.counters.defragBestChain>=4) },
+    { id:'defrag_hypercore', name:'Hypercore', icon:'🌀', desc:'Forge and detonate a Hypercore in Defrag.',
+      test:(d,c)=> (c && c.tool==='defrag' && c.hyper) || !!(d.counters && d.counters.defragHypercores>=1) },
+    { id:'defrag_overclock', name:'Overclock', icon:'🔥', desc:'Score 4000+ in a single Defrag run.',
+      test:(d,c)=> c && c.tool==='defrag' && c.score>=4000 },
+    { id:'defrag_marathon', name:'Drive Surgeon', icon:'🩺', desc:'Purge 1,000 total shards in Defrag.',
+      test:(d,c)=> !!(d.counters && d.counters.defragRecovered>=1000) },
     // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded
     //      test (complements Reaction's stricter S-grade 'Reaction Master') ----
     { id:'reaction_ace', name:'Reaction Ace', icon:'⚡', desc:'Earn an A grade or better on Reaction Time.',
@@ -2684,7 +2695,9 @@ const CABINETS = [
   { id:'arcade_jackin', lab:'Arcade', name:'Jack-In', railName:'Jack-In', icon:JACKIN_ICON, tag:'mvp', route:'#/arcade/jackin',
     desc:'Jack into the casino mainframe and beat The House at 21 — bet your credits, hit or stand, and cash out before you OVERLOAD.', dna:'Strategy +12 · Focus +8' },
   { id:'arcade_overdrive', lab:'Arcade', name:'Overdrive', railName:'Overdrive', icon:OVERDRIVE_ICON, tag:'mvp', route:'#/arcade/overdrive',
-    desc:'Floor it down the sunset highway — weave the traffic, hammer the checkpoint gates to beat the clock, and bank every second to the finish.', dna:'Reflex +12 · Control +8' }
+    desc:'Floor it down the sunset highway — weave the traffic, hammer the checkpoint gates to beat the clock, and bank every second to the finish.', dna:'Reflex +12 · Control +8' },
+  { id:'arcade_defrag', lab:'Arcade', name:'Defrag', railName:'Defrag', icon:'💎', tag:'mvp', route:'#/arcade/defrag',
+    desc:'Swap adjacent data shards to purge runs of three, trigger chain CASCADES and forge Lance & Hypercore specials — defrag the drive before the clock flatlines.', dna:'Focus +12 · Speed +8' }
 ];
 
 /* ============================================================================
@@ -12074,6 +12087,459 @@ Views.jackIn = function(c){
   };
 };
 
+/* ---- ARCADE.13 Defrag (Bejeweled-faithful match-3) — see Defrag_DD.md ----
+   Swap adjacent data shards to purge runs of 3+; matched shards clear, the
+   stack collapses, fresh data streams in and new lines CASCADE for chain
+   bonuses. Match-4 forges a Lance (clears its row/column); match-5 forges a
+   Hypercore (purges a whole colour). Two modes ship at launch — a timed Sprint
+   score-chase and a no-timer Zen run. Trains Focus (board scanning) + Speed
+   (under the clock). Colour AND glyph encode each shard for colourblind-safe
+   play and full deference to the Reduce-Motion preference. */
+const DF_COLORS = ['#ff4d6d','#ffb454','#46e8a0','#36d6ff','#5b7cff','#b07cff','#ff7cf0'];
+const DF_GLYPHS = ['◆','▲','⬢','●','★','✚','■'];
+const DF_LEVELS = [
+  { key:'sector', name:'Sector', colors:5, time:75, par:5000 },   // easy — livelier board, more time
+  { key:'volume', name:'Volume', colors:6, time:60, par:4000 },   // normal — the standard run
+  { key:'kernel', name:'Kernel', colors:7, time:45, par:3000 },   // hard — sparse, scan-heavy
+];
+
+Views.defrag = function(c){
+  const cab = getCab('arcade_defrag');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('defragMute');
+  const sndSwap    =()=> blip(440,0.05,'square',0.04);
+  const sndFail    =()=> blip(150,0.09,'sawtooth',0.035);
+  const sndClear   =()=> blip(560,0.07,'square',0.045);
+  const sndCascade =(n)=> blip(520+Math.min(8,n)*70,0.08,'triangle',0.05);
+  const sndForge   =()=> [740,1040].forEach((f,i)=> setTimeout(()=>blip(f,0.08,'square',0.05), i*60));
+  const sndHyper   =()=> [523,659,784,1047].forEach((f,i)=> setTimeout(()=>blip(f,0.1,'square',0.05), i*70));
+  const sndShuffle =()=> blip(300,0.12,'sine',0.04);
+  const sndOver    =()=> [392,330,262].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'sawtooth',0.05), i*120));
+
+  const COLS=8, ROWS=8, GAP=3, PAD=6, W=384, H=384;
+  const CELL=(W-PAD*2-GAP*(COLS-1))/COLS;     // logical px per cell
+  const reduce = prefersReducedMotion();
+  const EASE = reduce?1:0.34;                  // per-frame approach toward target
+  const CLEAR_DUR = reduce?40:200;             // shrink-flash duration (ms)
+
+  // ---- state ----
+  let grid=null;                               // ROWS×COLS of cell | null
+  let mode='sprint', diffIdx=1;                // locked at START
+  let phase='idle';                            // idle | anim | clear | over
+  let settleCb=null, clearInfo=null;
+  let selected=null, cursor={r:0,c:0}, downCell=null;
+  let score=0, best=0, chain=0, bestChain=0, recovered=0, hyperDetonated=false;
+  let running=false, over=false, timeLeft=0, elapsed=0, timeUp=false;
+  let raf=null, lastT=0;
+
+  // cell: { c:colorIdx(-1=hyper), s:null|'lance'|'hyper', dir:'h'|'v'|null, px, py, sc }
+  function newCell(color, special, dir){ return { c:color, s:special||null, dir:dir||null, px:0, py:0, sc:1 }; }
+  function colorsCount(){ return DF_LEVELS[diffIdx].colors; }
+  function randColor(){ return Math.floor(Math.random()*colorsCount()); }
+  const targetPx=(col)=> PAD+col*(CELL+GAP);
+  const targetPy=(row)=> PAD+row*(CELL+GAP);
+  const key=(r,c)=> r+','+c;
+  const bestScore =()=>{ const b=Store.get().bests.arcade_defrag; return (b&&b.value)||0; };
+
+  // ---- DOM ----
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  const bankBtn  = el('button',{class:'btn', html:'⏏ Bank Run'}); bankBtn.style.display='none';
+  startRow.append(startBtn, bankBtn, soundToggle('defragMute'));
+
+  const modeField = el('div',{class:'field', html:'<label>Mode</label>'});
+  const modeSeg = el('div',{class:'seg'});
+  [['sprint','Sprint'],['zen','Zen']].forEach(([k,name],i)=>{
+    const b=el('button',{html:name}); if(k===mode) b.className='on';
+    b.onclick=()=>{ if(running) return; mode=k; [...modeSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    modeSeg.append(b);
+  });
+  modeField.append(modeSeg);
+
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  DF_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===diffIdx) b.className='on';
+    b.onclick=()=>{ if(running) return; diffIdx=i; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H; canvas.style.touchAction='none';
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  const hint = el('div',{class:'pd-hint', html:'Tap or drag a shard onto an adjacent one · line up 3+ to purge · chain CASCADES for big scores'});
+  const result = el('div',{});
+  panel.append(startRow, modeField, diffField, hud, stageTV, hint, result);
+  const ctx = canvas.getContext('2d');
+
+  // ---- rendering ----
+  function shade(hex,f){
+    const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+    return '#'+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x*f))).toString(16).padStart(2,'0')).join('');
+  }
+  function rr(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+  function drawShard(g,px,py,cell){
+    const s=CELL, scale=cell.sc==null?1:cell.sc;
+    if(scale<=0.02) return;
+    const cx=px+s/2, cy=py+s/2, ss=s*scale, ox=cx-ss/2, oy=cy-ss/2;
+    const idx=cell.c;
+    g.save();
+    if(idx<0){ // Hypercore — rainbow data core
+      const grad=g.createLinearGradient(ox,oy,ox+ss,oy+ss);
+      DF_COLORS.forEach((col,i)=> grad.addColorStop(i/(DF_COLORS.length-1), col));
+      g.fillStyle=grad; rr(g,ox+1,oy+1,ss-2,ss-2,ss*0.26); g.fill();
+      g.lineWidth=2; g.strokeStyle='#ffffff'; g.shadowColor='#ffffff'; g.shadowBlur=Math.min(10,ss*0.3); g.stroke(); g.shadowBlur=0;
+    } else {
+      const col=DF_COLORS[idx];
+      const grad=g.createLinearGradient(ox,oy,ox,oy+ss);
+      grad.addColorStop(0,shade(col,1.3)); grad.addColorStop(1,shade(col,0.7));
+      g.fillStyle=grad; rr(g,ox+1,oy+1,ss-2,ss-2,ss*0.24); g.fill();
+      g.lineWidth=1.5; g.strokeStyle=shade(col,1.5); g.shadowColor=col; g.shadowBlur=Math.min(8,ss*0.24); g.stroke(); g.shadowBlur=0;
+      // top gloss
+      g.globalAlpha=0.4*Math.min(1,scale); g.fillStyle='#ffffff'; rr(g,ox+ss*0.2,oy+ss*0.15,ss*0.6,ss*0.14,ss*0.06); g.fill(); g.globalAlpha=1;
+    }
+    // glyph
+    g.fillStyle= idx<0?'#0a0618':'rgba(255,255,255,0.92)';
+    g.font='700 '+Math.round(ss*0.42)+'px "Share Tech Mono", monospace'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText(idx<0?'✶':DF_GLYPHS[idx], cx, cy+1);
+    // Lance stripe overlay
+    if(cell.s==='lance'){
+      g.fillStyle='rgba(255,255,255,0.82)';
+      if(cell.dir==='h') rr(g, ox+ss*0.1, cy-ss*0.075, ss*0.8, ss*0.15, ss*0.07);
+      else rr(g, cx-ss*0.075, oy+ss*0.1, ss*0.15, ss*0.8, ss*0.07);
+      g.fill();
+    }
+    g.restore();
+  }
+  function draw(){
+    const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#0a0618'); bg.addColorStop(1,'#05030f');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+    // empty cell wells
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      const x=targetPx(c), y=targetPy(r);
+      ctx.fillStyle='rgba(124,92,255,0.05)'; rr(ctx,x,y,CELL,CELL,CELL*0.16); ctx.fill();
+      ctx.strokeStyle='rgba(124,92,255,0.14)'; ctx.lineWidth=1; rr(ctx,x+0.5,y+0.5,CELL-1,CELL-1,CELL*0.16); ctx.stroke();
+    }
+    if(grid){
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cell=grid[r][c]; if(cell) drawShard(ctx, cell.px, cell.py, cell); }
+      // selection / cursor highlight
+      const hi = selected || (running?cursor:null);
+      if(hi && grid[hi.r] && grid[hi.r][hi.c]){
+        const x=targetPx(hi.c), y=targetPy(hi.r);
+        ctx.save(); ctx.strokeStyle = selected?'#ffffff':'rgba(255,255,255,0.5)';
+        ctx.lineWidth = selected?3:2; ctx.setLineDash(selected?[]:[5,4]);
+        ctx.shadowColor='#fff'; ctx.shadowBlur=selected?10:0;
+        rr(ctx,x+1.5,y+1.5,CELL-3,CELL-3,CELL*0.2); ctx.stroke(); ctx.restore();
+      }
+    }
+  }
+  function renderHud(){
+    const lv=DF_LEVELS[diffIdx];
+    const tEl = mode==='sprint' ? `<span class="pill">Time <b>${Math.ceil(Math.max(0,timeLeft))}s</b></span>`
+                                : `<span class="pill">Time <b>${Math.floor(elapsed)}s</b></span>`;
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      ${tEl}
+      <span class="pill">Chain <b>×${Math.max(1,chain)}</b></span>
+      <span class="pill">Best <b>${Math.max(best,bestScore())}</b></span>`;
+  }
+
+  // ---- board logic ----
+  function positionsToTarget(){ for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cell=grid[r][c]; if(cell){ cell.px=targetPx(c); cell.py=targetPy(r); cell.sc=1; } } }
+  function buildBoard(){
+    grid=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      let color;
+      do{ color=randColor(); }while(
+        (c>=2 && grid[r][c-1].c===color && grid[r][c-2].c===color) ||
+        (r>=2 && grid[r-1][c].c===color && grid[r-2][c].c===color)
+      );
+      grid[r][c]=newCell(color);
+    }
+    let guard=0; while(!hasLegalMove() && guard++<25) reshuffleBoard(true);
+    positionsToTarget();
+  }
+  function findMatches(){
+    const runs=[];
+    for(let r=0;r<ROWS;r++){ let c=0; while(c<COLS){ const cell=grid[r][c];
+      if(cell && cell.c>=0){ let c2=c+1; while(c2<COLS && grid[r][c2] && grid[r][c2].c===cell.c) c2++;
+        if(c2-c>=3){ const cells=[]; for(let k=c;k<c2;k++) cells.push({r,c:k}); runs.push({cells,dir:'h',len:c2-c,color:cell.c}); }
+        c=c2; } else c++; } }
+    for(let c=0;c<COLS;c++){ let r=0; while(r<ROWS){ const cell=grid[r][c];
+      if(cell && cell.c>=0){ let r2=r+1; while(r2<ROWS && grid[r2][c] && grid[r2][c].c===cell.c) r2++;
+        if(r2-r>=3){ const cells=[]; for(let k=r;k<r2;k++) cells.push({r:k,c}); runs.push({cells,dir:'v',len:r2-r,color:cell.c}); }
+        r=r2; } else r++; } }
+    return runs;
+  }
+  function makesMatchAfterSwap(r1,c1,r2,c2){
+    const a=grid[r1][c1], b=grid[r2][c2];
+    if(!a||!b) return false;
+    if(a.s==='hyper'||b.s==='hyper') return true;     // swapping a Hypercore is always a move
+    grid[r1][c1]=b; grid[r2][c2]=a;
+    const ok=findMatches().length>0;
+    grid[r1][c1]=a; grid[r2][c2]=b;
+    return ok;
+  }
+  function hasLegalMove(){
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      if(c+1<COLS && makesMatchAfterSwap(r,c,r,c+1)) return true;
+      if(r+1<ROWS && makesMatchAfterSwap(r,c,r+1,c)) return true;
+    }
+    return false;
+  }
+  function reshuffleBoard(silent){
+    let guard=0;
+    do{
+      const colors=[];
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cell=grid[r][c]; if(cell && cell.s!=='hyper') colors.push(cell.c); }
+      for(let i=colors.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=colors[i]; colors[i]=colors[j]; colors[j]=t; }
+      let k=0; for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cell=grid[r][c]; if(cell && cell.s!=='hyper') cell.c=colors[k++]; }
+    } while((findMatches().length>0 || !hasLegalMove()) && guard++<40);
+    positionsToTarget();
+    if(!silent) sndShuffle();
+  }
+  function randomPresentColor(){
+    const present=[]; const seen={};
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cl=grid[r][c]; if(cl&&cl.c>=0&&!seen[cl.c]){ seen[cl.c]=1; present.push(cl.c); } }
+    return present.length? present[Math.floor(Math.random()*present.length)] : 0;
+  }
+  function pickForge(run, prefs){
+    if(prefs){ for(const p of prefs){ if(p && run.cells.some(q=>q.r===p.r&&q.c===p.c)) return p; } }
+    return run.cells[Math.floor(run.cells.length/2)];
+  }
+  // expand a clear-set so any specials caught in it detonate (chains allowed)
+  function expandClear(keys){
+    const queue=[...keys];
+    while(queue.length){
+      const k=queue.pop(); const parts=k.split(','); const r=+parts[0], c=+parts[1];
+      const cell=grid[r][c]; if(!cell) continue;
+      if(cell.s==='lance'){
+        if(cell.dir==='h'){ for(let cc=0;cc<COLS;cc++){ if(grid[r][cc]){ const nk=key(r,cc); if(!keys.has(nk)){ keys.add(nk); queue.push(nk); } } } }
+        else { for(let rr2=0;rr2<ROWS;rr2++){ if(grid[rr2][c]){ const nk=key(rr2,c); if(!keys.has(nk)){ keys.add(nk); queue.push(nk); } } } }
+      } else if(cell.s==='hyper'){
+        const col=randomPresentColor(); hyperDetonated=true;
+        for(let rr2=0;rr2<ROWS;rr2++)for(let cc=0;cc<COLS;cc++){ const cl=grid[rr2][cc]; if(cl&&cl.c===col){ const nk=key(rr2,cc); if(!keys.has(nk)){ keys.add(nk); queue.push(nk); } } }
+      }
+    }
+    return keys;
+  }
+  function applyGravity(){
+    for(let c=0;c<COLS;c++){
+      let write=ROWS-1;
+      for(let r=ROWS-1;r>=0;r--){ if(grid[r][c]){ if(write!==r){ grid[write][c]=grid[r][c]; grid[r][c]=null; } write--; } }
+      let spawn=0;
+      for(let r=write;r>=0;r--){ const cell=newCell(randColor()); cell.px=targetPx(c); cell.py=targetPy(-1-spawn); cell.sc=1; grid[r][c]=cell; spawn++; }
+    }
+  }
+  // resolve a set of runs: forge specials, clear, then cascade
+  function resolveRuns(runs, prefs, ch){
+    if(over) return;
+    ch = ch||1; chain=ch; if(ch>bestChain) bestChain=ch;
+    const keys=new Set(); let extra=0;
+    runs.forEach(run=>{ run.cells.forEach(p=> keys.add(key(p.r,p.c))); if(run.len>3) extra+=(run.len-3)*15; });
+    const forges=[];
+    runs.forEach(run=>{ if(run.len>=4){ const sp=run.len>=5?'hyper':'lance'; const f=pickForge(run, prefs);
+      forges.push({ r:f.r, c:f.c, special:sp, dir:run.dir }); } });
+    expandClear(keys);
+    finishClear(keys, forges, ch, extra);
+  }
+  function resolveHyperSwap(r1,c1,r2,c2,a,b){
+    const keys=new Set(); hyperDetonated=true;
+    if(a.s==='hyper' && b.s==='hyper'){
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ if(grid[r][c]) keys.add(key(r,c)); }
+    } else {
+      const hyperPos = a.s==='hyper'? {r:r2,c:c2} : {r:r1,c:c1};
+      const other = a.s==='hyper'? b : a;
+      const col = other.c>=0? other.c : randomPresentColor();
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cl=grid[r][c]; if(cl&&cl.c===col) keys.add(key(r,c)); }
+      keys.add(key(hyperPos.r,hyperPos.c));
+    }
+    expandClear(keys); sndHyper();
+    finishClear(keys, [], 1, 0);
+  }
+  function finishClear(keys, forges, ch, extra){
+    forges.forEach(f=> keys.delete(key(f.r,f.c)));     // forged specials survive the purge
+    const cleared=keys.size;
+    recovered += cleared;
+    const gained = Math.round((cleared*10 + (extra||0)) * ch) + forges.length*50;
+    score += gained; if(score>best) best=score;
+    if(forges.length) sndForge();
+    if(ch>=2) sndCascade(ch); else sndClear();
+    renderHud();
+    // flash-shrink the cleared cells, then collapse + cascade
+    phase='clear'; clearInfo={ t0:performance.now(), dur:CLEAR_DUR, keys, cb:()=>{
+      forges.forEach(f=>{ const cell=grid[f.r][f.c]; if(cell){ cell.s=f.special; cell.dir=f.dir; if(f.special==='hyper') cell.c=-1; } });
+      keys.forEach(k=>{ const p=k.split(','); grid[+p[0]][+p[1]]=null; });
+      applyGravity();
+      phase='anim'; settleCb=()=>{
+        const more=findMatches();
+        if(more.length) resolveRuns(more, null, ch+1);
+        else afterStable();
+      };
+    } };
+  }
+  function afterStable(){
+    phase='idle'; chain=0; renderHud();
+    if(over) return;
+    if(!hasLegalMove()){
+      reshuffleBoard(false);
+      const m=findMatches();
+      if(m.length){ resolveRuns(m, null, 1); return; }
+    }
+    if(timeUp) endGame();
+  }
+  function trySwap(p1,p2){
+    if(phase!=='idle'||over||!running) return;
+    if(Math.abs(p1.r-p2.r)+Math.abs(p1.c-p2.c)!==1) return;
+    const a=grid[p1.r][p1.c], b=grid[p2.r][p2.c];
+    if(!a||!b) return;
+    grid[p1.r][p1.c]=b; grid[p2.r][p2.c]=a;     // positions stay, so they slide into place
+    selected=null; sndSwap();
+    phase='anim'; settleCb=()=>{
+      if(a.s==='hyper'||b.s==='hyper'){ resolveHyperSwap(p1.r,p1.c,p2.r,p2.c,a,b); return; }
+      const runs=findMatches();
+      if(!runs.length){
+        grid[p1.r][p1.c]=a; grid[p2.r][p2.c]=b;  // illegal — snap back
+        sndFail(); phase='anim'; settleCb=()=>{ phase='idle'; };
+      } else {
+        resolveRuns(runs, [{r:p1.r,c:p1.c},{r:p2.r,c:p2.c}], 1);
+      }
+    };
+  }
+
+  // ---- input ----
+  function cellAt(e){
+    const rect=canvas.getBoundingClientRect(), scale=rect.width/W;
+    const x=(e.clientX-rect.left)/scale, y=(e.clientY-rect.top)/scale;
+    const c=Math.floor((x-PAD)/(CELL+GAP)), r=Math.floor((y-PAD)/(CELL+GAP));
+    if(r<0||r>=ROWS||c<0||c>=COLS) return null;
+    return {r,c};
+  }
+  const adj=(a,b)=> a&&b&&Math.abs(a.r-b.r)+Math.abs(a.c-b.c)===1;
+  function onDown(e){ if(!running||over||phase!=='idle') return; downCell=cellAt(e); }
+  function onUp(e){
+    if(!running||over||phase!=='idle'){ downCell=null; return; }
+    const up=cellAt(e);
+    if(downCell && up && adj(downCell,up)){ trySwap(downCell, up); downCell=null; draw(); return; }   // drag-swap
+    if(up){ cursor=up;
+      if(selected && adj(selected,up)){ trySwap(selected,up); }
+      else { selected = (selected && selected.r===up.r && selected.c===up.c) ? null : up; }
+    }
+    downCell=null; draw();
+  }
+  function onKey(e){
+    if(!running||over) return;
+    const k=e.key;
+    if(k==='ArrowLeft'||k==='ArrowRight'||k==='ArrowUp'||k==='ArrowDown'){
+      e.preventDefault();
+      const nc={r:cursor.r,c:cursor.c};
+      if(k==='ArrowLeft') nc.c=Math.max(0,nc.c-1);
+      if(k==='ArrowRight') nc.c=Math.min(COLS-1,nc.c+1);
+      if(k==='ArrowUp') nc.r=Math.max(0,nc.r-1);
+      if(k==='ArrowDown') nc.r=Math.min(ROWS-1,nc.r+1);
+      if(selected && adj(selected,nc)){ trySwap(selected,nc); selected=null; }
+      cursor=nc; draw();
+    } else if(k===' '||k==='Enter'){
+      e.preventDefault();
+      if(selected && selected.r===cursor.r && selected.c===cursor.c) selected=null;
+      else if(selected && adj(selected,cursor)){ trySwap(selected,cursor); selected=null; }
+      else selected={r:cursor.r,c:cursor.c};
+      draw();
+    }
+  }
+
+  // ---- lifecycle ----
+  function frame(now){
+    raf=requestAnimationFrame(frame);
+    const dt=Math.min(60, now-(lastT||now)); lastT=now;
+    if(running && !over){
+      if(mode==='sprint'){ timeLeft-=dt/1000;
+        if(timeLeft<=0){ timeLeft=0; running=false; if(phase==='idle') endGame(); else timeUp=true; }
+      } else { elapsed+=dt/1000; }
+      if((now|0)%4===0) renderHud();
+    }
+    if(phase==='anim'){
+      let settled=true;
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cell=grid[r][c]; if(!cell) continue;
+        const tx=targetPx(c), ty=targetPy(r);
+        cell.px+=(tx-cell.px)*EASE; cell.py+=(ty-cell.py)*EASE;
+        if(Math.abs(tx-cell.px)>0.6||Math.abs(ty-cell.py)>0.6) settled=false; else { cell.px=tx; cell.py=ty; }
+      }
+      if(settled){ const cb=settleCb; settleCb=null; phase='idle'; if(cb) cb(); }
+    } else if(phase==='clear' && clearInfo){
+      const p=clamp01((now-clearInfo.t0)/clearInfo.dur);
+      clearInfo.keys.forEach(k=>{ const q=k.split(','); const cell=grid[+q[0]][+q[1]]; if(cell) cell.sc=1-p; });
+      if(p>=1){ const cb=clearInfo.cb; clearInfo=null; phase='idle'; cb(); }
+    }
+    draw();
+  }
+  function startGame(){
+    score=0; best=bestScore(); chain=0; bestChain=0; recovered=0; hyperDetonated=false;
+    over=false; timeUp=false; running=true; selected=null; downCell=null; cursor={r:0,c:0};
+    timeLeft=DF_LEVELS[diffIdx].time; elapsed=0; phase='idle'; settleCb=null; clearInfo=null;
+    result.innerHTML=''; overlay.style.display='none';
+    startBtn.innerHTML='⟳ Restart';
+    bankBtn.style.display = mode==='zen' ? '' : 'none';
+    buildBoard(); renderHud(); draw();
+  }
+  function endGame(){
+    if(over) return;
+    over=true; running=false; timeUp=false; selected=null; bankBtn.style.display='none'; sndOver();
+    startBtn.innerHTML='▶ START';
+    const par = DF_LEVELS[diffIdx].par * (mode==='zen'?3:1);
+    const comp = clamp01(score/par);
+    const g = arcadeGrade(comp);
+    Attr.applyVector({focus:12, speed:8}, comp);
+    recordDefragRun(score, { mode, diff:DF_LEVELS[diffIdx].key, bestChain, hyper:hyperDetonated, recovered });
+    Ach.evaluate({ tool:'defrag', grade:g, score, bestChain, hyper:hyperDetonated, recovered });
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">DRIVE DEFRAGGED</div><div class="small">${score} pts · ${recovered} shards · best chain ×${bestChain}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best Chain</div><div class="v">×${bestChain}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Math.max(best,bestScore())}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Defrag', glyph:'💎', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Best Chain', v:'×'+bestChain}, {k:'Shards', v:String(recovered)}],
+      designation: g==='S'?'Drive Surgeon': g==='A'?'Sector Sweeper': g==='B'?'Cache Cleaner': g==='C'?'Bit Shuffler':'Fragmented',
+      badge: hyperDetonated ? 'Hypercore Detonator' : (bestChain>=4 ? 'Chain Reactor' : null)
+    }));
+  }
+
+  // ---- wiring ----
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointerup', onUp);
+  function onStartKey(e){ if((e.key===' '||e.key==='Enter') && !running && !over){ e.preventDefault(); startGame(); } }
+  window.addEventListener('keydown', onStartKey);
+  window.addEventListener('keydown', onKey);
+  startBtn.onclick=startGame;
+  bankBtn.onclick=()=>{ if(running && !over) endGame(); };
+
+  // idle state
+  best=bestScore(); renderHud(); draw();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">DEFRAG</div><div class="small">Pick a mode &amp; difficulty · press START</div>`;
+  raf=requestAnimationFrame(frame);
+
+  return ()=>{
+    running=false; over=true;
+    if(raf) cancelAnimationFrame(raf);
+    canvas.removeEventListener('pointerdown', onDown);
+    canvas.removeEventListener('pointerup', onUp);
+    window.removeEventListener('keydown', onStartKey);
+    window.removeEventListener('keydown', onKey);
+  };
+};
+
 /* ============================================================================
    shared helpers for tool views
    ============================================================================ */
@@ -12265,6 +12731,25 @@ function recordJackInRun(score, ctx){
     if(ctx && ctx.maxBetWin) d.counters.jackinMaxWins=(d.counters.jackinMaxWins||0)+1;
     if(ctx && ctx.cooler) d.counters.jackinCooler=(d.counters.jackinCooler||0)+1;
     if(ctx && ctx.bestStreak>(d.counters.jackinBestStreak||0)) d.counters.jackinBestStreak=ctx.bestStreak;
+  });
+}
+// record a Defrag run (see Defrag_DD.md §4.2). Replayable match-3, so
+// toolsCompleted is credited only on the first-ever run to keep Gamer Score
+// honest; best score (overall + per mode/difficulty), modest arcade points and
+// counters (for the cabinet achievements) update each run.
+function recordDefragRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_defrag){ d.toolsCompleted++; d.bests.arcade_defrag={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_defrag.value){ d.bests.arcade_defrag.value=score; }
+    const key=((ctx&&ctx.mode)||'sprint')+'_'+((ctx&&ctx.diff)||'volume');
+    const bd=d.bests.arcade_defrag.diff||(d.bests.arcade_defrag.diff={});
+    if(!(key in bd) || score>bd[key]) bd[key]=score;
+    d.arcadePoints += Math.round(score/40);   // modest metagame contribution — avoids grind-farming the Gamer Score
+    d.counters.defragRuns=(d.counters.defragRuns||0)+1;
+    if(ctx && ctx.bestChain>(d.counters.defragBestChain||0)) d.counters.defragBestChain=ctx.bestChain;
+    if(ctx && ctx.hyper) d.counters.defragHypercores=(d.counters.defragHypercores||0)+1;
+    if(ctx && ctx.recovered) d.counters.defragRecovered=(d.counters.defragRecovered||0)+ctx.recovered;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -14864,6 +15349,7 @@ Router.add('#/arcade/sudoku', Views.sudoku);
 Router.add('#/arcade/b0ggle', Views.b0ggle);
 Router.add('#/arcade/jackin', Views.jackIn);
 Router.add('#/arcade/overdrive', Views.overdrive);
+Router.add('#/arcade/defrag', Views.defrag);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/gamefinder', Views.gameFinder);
 Router.add('#/fun/report', Views.dnaReport);
