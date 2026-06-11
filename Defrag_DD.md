@@ -1,8 +1,8 @@
 # Defrag — Retro Arcade Cabinet Design Spec
 
-**Version:** 0.1 (brainstorm draft — for sign-off)
+**Version:** 1.0 (signed off — ready for implementation)
 **Author:** Playology Entertainment
-**Status:** Proposed — fills the open **match-3** genre gap in the Retro Arcade (§5.5)
+**Status:** Approved — fills the open **match-3** genre gap in the Retro Arcade (§5.5)
 **Parent Doc:** `PlayTools_DD.md` (this cabinet extends §5.5 Retro Arcade Module)
 
 > **Why this cabinet.** The Arcade roster covers maze (Mac Pan), snake, paddle
@@ -63,19 +63,29 @@ pre-existing matches** and is guaranteed to contain **at least one legal move**.
    * **T / L shape (5 in an intersection)** → **Nova**: clears a **3×3** blast.
 6. **No-moves reshuffle.** If the board has no legal move, it auto-**reshuffles**
    (re-seeds with a guaranteed move) — no dead boards, no penalty.
-7. **Time out.** The run ends when the **clock hits zero** → grade + Share Card.
+7. **Run end.** Sprint ends when the **clock hits zero**; Zen ends when the board
+   **stalls out** (see §2.1) → grade + Share Card.
 
-### 2.1 Game mode (v1)
+### 2.1 Game modes (v1) — **two at launch**
 
-**Sprint** — a **60-second** score-attack (in the family of Hopper Popper's 30s
-and the B0ggle clock). One mode, three **difficulties** that tune the timer and
-color count, mirroring `Views.sudoku`'s difficulty selector:
+A **mode toggle** on the cabinet front (default **Sprint**). Both share the same
+**8×8 board / 6 colors** baseline and the same scoring.
+
+**Sprint** — a timed score-attack (in the family of Hopper Popper's 30s and the
+B0ggle clock), the headline high-score chase. Three **difficulties** tune the
+timer and color count, mirroring `Views.sudoku`'s difficulty selector:
 
 | Difficulty | Timer | Colors | Feel |
 | --- | --- | --- | --- |
 | **Sector** (easy) | 75s | 5 | More matches on screen, gentle |
-| **Volume** (normal) | 60s | 6 | The standard run |
+| **Volume** (normal) | 60s | **6** | The standard run |
 | **Kernel** (hard) | 45s | 7 | Sparse, scan-heavy, expert |
+
+**Zen** — no timer; the relaxed counterpart. Play continues on a guaranteed-move
+board until the player chooses to **bank the run**, or (optional stall rule) until
+**N consecutive reshuffles** signal a dead drive. Same scoring and grade ladder,
+so a long careful Zen session and a frantic Sprint both produce a comparable
+score/grade for the Share Card. Zen is the on-ramp; Sprint is the score chase.
 
 ---
 
@@ -210,7 +220,6 @@ sessions.)
 
 ## 7. Out of Scope for v1 (candidate follow-ups)
 
-* **Endless / "Zen" mode** (no timer, play to a dead board) as a second mode.
 * **Move-limited "puzzle" mode** with hand-authored boards (the Candy Crush half).
 * Obstacle tiles (locked / encrypted / armored shards needing 2 matches).
 * Daily-seed board for fair score comparison.
@@ -219,19 +228,19 @@ sessions.)
 
 ---
 
-## 8. Open Questions for Sign-off
+## 8. Sign-off — Decided
 
-1. **Name** — *Defrag* (netrunner skin, ties to Jack-In / B0ggle). Keep, or prefer
-   a gem-forward name (*Crystik*, *Shardware*, *Core Match*)?
-2. **Primary mode** — v1 ships a **60s timed Sprint** (fits the short-session
-   cabinet mandate). Good, or lead with an **endless/Zen** board instead?
-3. **DNA vector** — proposed **Focus + Speed** to diversify away from the
-   Strategy-heavy cluster. Keep, or weight toward **Strategy** to reward cascade
-   planning?
-4. **Board size / colors** — **8×8 / 6 colors** as the Volume default. Confirm, or
-   go classic Bejeweled **8×8 / 7 colors**?
+All four open questions were resolved at brainstorm sign-off (2026-06-11):
 
-### 8.1 To be decided at sign-off
+1. **Name — *Defrag* (locked).** Netrunner skin, ties to Jack-In / B0ggle.
+2. **Modes — *Sprint + Zen, both at launch* (locked).** Sprint is the headline
+   timed score chase; Zen is the no-timer on-ramp. Mode toggle on the cabinet
+   front, default Sprint (§2.1).
+3. **DNA vector — *Focus + Speed* (locked).** Deliberately diversifies away from
+   the Strategy-heavy B0ggle / Sudoku / Packer cluster (§4.1).
+4. **Board — *8×8 / 6 colors* (locked)** as the Volume (normal) baseline (§2.1).
 
-* **Special-piece set** — Lance / Hypercore / Nova proposed (§2.5); confirm the
-  match-4/5/T-L mapping or trim to just Lance + Hypercore for v1.
+### 8.1 Still to confirm at implementation
+
+* **Special-piece set** — Lance / Hypercore / Nova proposed (§2 step 5); confirm
+  the match-4/5/T-L mapping or trim to just Lance + Hypercore for v1.
