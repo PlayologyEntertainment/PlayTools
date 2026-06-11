@@ -374,7 +374,7 @@
   .cab.locked{opacity:0.55; cursor:not-allowed;}
   .cab.locked:hover{border-color:var(--line); box-shadow:none; transform:none;}
   .cab .cab-icon{font-size:26px; line-height:1; margin-bottom:8px;}
-  /* Sequence quadrant icon: scales to the surrounding font-size wherever it's dropped in */
+  /* SighMan quadrant icon: scales to the surrounding font-size wherever it's dropped in */
   .seq-quads{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .pawn-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   .jackin-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
@@ -1897,7 +1897,7 @@ const Attr = (function(){
   return { RANKS, applyVector, gamerScore, rankFor, nextRank, classFor };
 })();
 
-/* Sequence (Simon) branding — four neon quadrant pads matching the in-game
+/* SighMan (Simon) branding — four neon quadrant pads matching the in-game
    colours (teal/pink/yellow/purple), connected with a thin dark gap. SEQ_ICON
    is an inline SVG so it renders anywhere the icon string lands in innerHTML
    (cabinet tile, rail, page title, achievement row, toast). SEQ_PADS feeds the
@@ -2020,7 +2020,7 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='bricks' && c.cleared && c.flawless) || !!(d.counters && d.counters.brickFlawless>=1) },
     { id:'mole_masher', name:'Hopper Masher', icon:'🔨', desc:'Pop 25 hoppers in a single round.',
       test:(d,c)=> c && c.tool==='whack' && c.hits>=25 },
-    { id:'sequence_savant', name:'Sequence Savant', icon:SEQ_ICON, desc:'Recall a sequence of length 12 in Sequence.',
+    { id:'sequence_savant', name:'SighMan Savant', icon:SEQ_ICON, desc:'Recall a sequence of length 12 in SighMan.',
       test:(d,c)=> c && c.tool==='sequence' && c.length>=12 },
     { id:'controller_wizard', name:'Controller Wizard', icon:'🎮', desc:'Link 3 platforms in Platform Link.',
       test:(d)=> !!(d.counters && d.counters.platformsLinked>=3) },
@@ -2054,7 +2054,7 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='bricks' && (c.grade==='A'||c.grade==='S') },
     { id:'whack_ace', name:'Popper Ace', icon:'🔨', desc:'Earn an A grade or better in Hopper Popper.',
       test:(d,c)=> c && c.tool==='whack' && (c.grade==='A'||c.grade==='S') },
-    { id:'sequence_ace', name:'Sequence Ace', icon:SEQ_ICON, desc:'Earn an A grade or better in Sequence.',
+    { id:'sequence_ace', name:'SighMan Ace', icon:SEQ_ICON, desc:'Earn an A grade or better in SighMan.',
       test:(d,c)=> c && c.tool==='sequence' && (c.grade==='A'||c.grade==='S') },
     { id:'packer_ace', name:'Packer Ace', icon:'📦', desc:'Earn an A grade or better in Packer.',
       test:(d,c)=> c && c.tool==='packer' && (c.grade==='A'||c.grade==='S') },
@@ -2671,7 +2671,7 @@ const CABINETS = [
     desc:'Bounce the ball, shatter every brick & keep the paddle under it.', dna:'Precision +12 · Reflex +6' },
   { id:'arcade_whack', lab:'Arcade', name:'Hopper Popper', railName:'Popper', icon:'🔨', tag:'mvp', route:'#/arcade/whack',
     desc:'Thirty seconds, nine holes — pop every hopper the instant it pops up.', dna:'Reflex +14 · Speed +6' },
-  { id:'arcade_seq', lab:'Arcade', name:'Sequence', railName:'Sequence', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
+  { id:'arcade_seq', lab:'Arcade', name:'SighMan', railName:'SighMan', icon:SEQ_ICON, tag:'mvp', route:'#/arcade/sequence',
     desc:'Watch the pattern, repeat it back & push your memory one step further.', dna:'Focus +14 · Consistency +6' },
   { id:'arcade_packer', lab:'Arcade', name:'Hack Packer', railName:'Packer', icon:'📦', tag:'mvp', route:'#/arcade/packer',
     desc:'Drag blocks onto the grid & pack full rows and columns to clear them — chain combos before you run out of room.', dna:'Strategy +14 · Control +6 - Designed by Aysha!' },
@@ -7482,7 +7482,7 @@ Views.overdrive = function(c){
 };
 
 /* ============================================================================
-   RETRO ARCADE — Volume 2: My Anaconda, Brick Breaker, Hopper Popper, Sequence.
+   RETRO ARCADE — Volume 2: My Anaconda, Brick Breaker, Hopper Popper, SighMan.
    Shared helpers keep the four cabinets consistent: a mute-aware WebAudio blip,
    a sound-toggle button bound to a per-game pref, and the standard arcade grade
    curve. Like the other arcade games these are replayable, so toolsCompleted is
@@ -8721,7 +8721,7 @@ Views.whackMole = function(c){
   return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
 };
 
-/* ---- ARCADE.6 Sequence (Simon) ---- */
+/* ---- ARCADE.6 SighMan (Simon) ---- */
 Views.sequence = function(c){
   const cab = getCab('arcade_seq');
   const panel = toolShell(c, cab);
@@ -8749,6 +8749,10 @@ Views.sequence = function(c){
   let playing=false, mode='idle', seq=[], inputIdx=0, score=0, active=-1, timers=[];
   function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
   const PADS=[ {x:0,y:0}, {x:1,y:0}, {x:0,y:1}, {x:1,y:1} ];
+  // Black Roman numerals per pad, laid out like the Cartesian quadrants:
+  // top-right=I(1), top-left=II(2), bottom-left=III(3), bottom-right=IV(4).
+  const ROMAN=['II','I','III','IV'];
+  const NUM_FONT="'Press Start 2P', monospace";  // the app's embedded arcade face
 
   function renderHud(){
     const best=(Store.get().bests.arcade_seq||{}).value||0;
@@ -8758,9 +8762,18 @@ Views.sequence = function(c){
   }
   function draw(){
     ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    ctx2d.textAlign='center'; ctx2d.textBaseline='middle';
     PADS.forEach((p,i)=>{
+      const px=p.x*W/2+4, py=p.y*H/2+4, pw=W/2-8, ph=H/2-8;
       ctx2d.fillStyle = (i===active) ? PAD_COL[i] : PAD_DIM[i];
-      ctx2d.fillRect(p.x*W/2+4, p.y*H/2+4, W/2-8, H/2-8);
+      ctx2d.fillRect(px, py, pw, ph);
+      // Centred black numeral ~half the pad; shrink to fit so III/IV never crowd.
+      let fs=Math.round(ph*0.5);
+      ctx2d.font=`${fs}px ${NUM_FONT}`;
+      const maxW=pw*0.7, tw=ctx2d.measureText(ROMAN[i]).width;
+      if(tw>maxW){ fs=Math.max(10, Math.floor(fs*maxW/tw)); ctx2d.font=`${fs}px ${NUM_FONT}`; }
+      ctx2d.fillStyle='#000';
+      ctx2d.fillText(ROMAN[i], px+pw/2, py+ph/2);
     });
   }
   function tone(i){ blip(TONES[i],0.22,'square',0.05); }
@@ -8807,17 +8820,17 @@ Views.sequence = function(c){
     overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Recalled ${score} step${score===1?'':'s'}</div>`;
     renderHud();
     const r=el('div',{class:'results'});
-    r.innerHTML = `<div class="result-tile"><div class="k">Sequence</div><div class="v">${score}</div></div>
+    r.innerHTML = `<div class="result-tile"><div class="k">SighMan</div><div class="v">${score}</div></div>
       <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
       <div class="result-tile"><div class="k">Best</div><div class="v">${Store.get().bests.arcade_seq.value}</div></div>`;
     result.append(r);
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
-      lab:'RETRO ARCADE', tool:'Sequence', glyph:'🟦', glyphQuads:SEQ_PADS, grade:g,
-      metric:[{k:'Sequence', v:String(score)}],
+      lab:'RETRO ARCADE', tool:'SighMan', glyph:'🟦', glyphQuads:SEQ_PADS, grade:g,
+      metric:[{k:'SighMan', v:String(score)}],
       designation: g==='S'?'Total Recall': g==='A'?'Pattern Ace': g==='B'?'Sharp Memory':'Short-Term',
-      badge: score>=12?'Sequence Savant':null
+      badge: score>=12?'SighMan Savant':null
     }));
   }
   function onClick(e){
@@ -8831,8 +8844,13 @@ Views.sequence = function(c){
   window.addEventListener('keydown', onStartKey);
   startBtn.onclick=startGame;
   draw(); renderHud();
+  // The embedded pixel face needs an explicit canvas load; redraw once it's ready.
+  if(typeof document!=='undefined' && document.fonts){
+    document.fonts.load(`40px ${NUM_FONT}`).then(()=>draw()).catch(()=>{});
+    if(document.fonts.ready) document.fonts.ready.then(()=>draw());
+  }
   overlay.style.display='flex';
-  overlay.innerHTML = `<div class="big">SEQUENCE</div><div class="small">Press START to begin</div>`;
+  overlay.innerHTML = `<div class="big">SIGHMAN</div><div class="small">Press START to begin</div>`;
   return ()=>{ playing=false; clearTimers(); canvas.removeEventListener('click', onClick); window.removeEventListener('keydown', onStartKey); };
 };
 
