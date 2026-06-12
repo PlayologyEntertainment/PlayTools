@@ -12665,9 +12665,6 @@ Views.ecto = function(c){
       r:0.6+Math.random()*1.1, a:0.25+Math.random()*0.5,
       ph:Math.random()*6.28, sp:0.5+Math.random()*1.5, gold:Math.random()<0.18 });
   }
-  // larger 4-point gold sparkle stars (the bright accents in the reference art)
-  const sparks=[];
-  for(let i=0;i<11;i++) sparks.push({ x:20+Math.random()*(EC_W-40), y:14+Math.random()*EC_H*0.6, s:2.2+Math.random()*2.4, ph:Math.random()*6.28, sp:0.8+Math.random()*1.4 });
   // layered horizon ridges (far→near): distant ones sit higher, lighter & hazier,
   // giving the sky atmospheric depth instead of a flat fog band.
   function ridge(baseY, amp, step, seed){ const pts=[]; let p=seed;
@@ -12679,7 +12676,6 @@ Views.ecto = function(c){
     { pts:ridge(EC_H-42, 16, 34, 7.7), col:'#1a1940' },
     { pts:ridge(EC_H-22, 14, 40, 2.9), col:'#101026' },
   ];
-  const graves=[{x:40,w:14,h:30},{x:120,w:11,h:22},{x:200,w:16,h:36},{x:280,w:12,h:26},{x:344,w:13,h:30}];
 
   // ---- state ----
   let diff=EC_DIFF[diffIdx];
@@ -12906,17 +12902,6 @@ Views.ecto = function(c){
       ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill();
     }
     ctx.globalAlpha=1;
-    // gold 4-point sparkle stars
-    for(const sp of sparks){
-      const tw=0.4+0.6*Math.abs(Math.sin(now*0.001*sp.sp+sp.ph)), s=sp.s*(0.7+0.5*tw);
-      ctx.save(); ctx.globalAlpha=tw; ctx.translate(sp.x,sp.y);
-      ctx.fillStyle='#ffd873'; ctx.shadowColor='#ffcf5a'; ctx.shadowBlur=6;
-      ctx.beginPath(); ctx.moveTo(0,-s*2); ctx.lineTo(s*0.5,0); ctx.lineTo(0,s*2); ctx.lineTo(-s*0.5,0); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(-s*2,0); ctx.lineTo(0,s*0.5); ctx.lineTo(s*2,0); ctx.lineTo(0,-s*0.5); ctx.closePath(); ctx.fill();
-      ctx.shadowBlur=0; ctx.fillStyle='#fff7e0'; ctx.beginPath(); ctx.arc(0,0,s*0.5,0,7); ctx.fill();
-      ctx.restore();
-    }
-    ctx.globalAlpha=1;
     // moon — soft layered halo + warm cratered body
     const mg=ctx.createRadialGradient(moon.x,moon.y,moon.r*0.6, moon.x,moon.y,moon.r*3.2);
     mg.addColorStop(0,'rgba(255,236,200,0.42)'); mg.addColorStop(0.5,'rgba(220,210,255,0.10)'); mg.addColorStop(1,'rgba(220,210,255,0)');
@@ -12937,9 +12922,7 @@ Views.ecto = function(c){
       for(const pt of h.pts) ctx.lineTo(pt.x,pt.y);
       ctx.lineTo(EC_W+10,EC_H); ctx.closePath(); ctx.fill();
     }
-    // headstones + ground (foreground silhouettes)
-    ctx.fillStyle='#0c0a1e';
-    graves.forEach(g=>{ const base=EC_H-8; ctx.beginPath(); ctx.moveTo(g.x-g.w,base); ctx.lineTo(g.x-g.w,base-g.h); ctx.arc(g.x,base-g.h,g.w,Math.PI,0); ctx.lineTo(g.x+g.w,base); ctx.closePath(); ctx.fill(); });
+    // ground line (foreground)
     ctx.fillStyle='#0a0818'; ctx.fillRect(0,EC_H-10,EC_W,10);
   }
   function drawWisp(sp){
