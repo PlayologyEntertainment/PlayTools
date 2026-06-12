@@ -2094,6 +2094,17 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='defrag' && c.score>=4000 },
     { id:'defrag_marathon', name:'Drive Surgeon', icon:'🩺', desc:'Purge 1,000 total shards in Defrag.',
       test:(d,c)=> !!(d.counters && d.counters.defragRecovered>=1000) },
+    // ---- Ecto (fixed-shooter cabinet) — Ecto_DD.md §4.3 ----
+    { id:'ecto_ace', name:'Ecto Ace', icon:'👻', desc:'Earn an A grade or better in Ecto.',
+      test:(d,c)=> c && c.tool==='ecto' && (c.grade==='A'||c.grade==='S') },
+    { id:'ecto_perfect', name:'Clean Séance', icon:'🕯️', desc:'Score a PERFECT on a bonus Séance stage.',
+      test:(d,c)=> (c && c.tool==='ecto' && c.perfect) || !!(d.counters && d.counters.ectoPerfects>=1) },
+    { id:'ecto_nightowl', name:'Night Owl', icon:'🦉', desc:'Reach Stage 5 in Ecto.',
+      test:(d,c)=> (c && c.tool==='ecto' && c.stage>=5) || !!(d.counters && d.counters.ectoBestStage>=5) },
+    { id:'ecto_cleanshift', name:'Clean Shift', icon:'✨', desc:'Clear Stage 3 in Ecto without losing a wrangler.',
+      test:(d,c)=> (c && c.tool==='ecto' && c.cleanShift) || !!(d.counters && d.counters.ectoCleanShift>=1) },
+    { id:'ecto_marathon', name:'Spirit Warden', icon:'⚰️', desc:'Bust 1,000 spirits (lifetime) in Ecto.',
+      test:(d,c)=> !!(d.counters && d.counters.ectoBusted>=1000) },
     // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded
     //      test (complements Reaction's stricter S-grade 'Reaction Master') ----
     { id:'reaction_ace', name:'Reaction Ace', icon:'⚡', desc:'Earn an A grade or better on Reaction Time.',
@@ -2697,7 +2708,9 @@ const CABINETS = [
   { id:'arcade_overdrive', lab:'Arcade', name:'Overdrive', railName:'Overdrive', icon:OVERDRIVE_ICON, tag:'mvp', route:'#/arcade/overdrive',
     desc:'Floor it down the sunset highway — weave the traffic, hammer the checkpoint gates to beat the clock, and bank every second to the finish.', dna:'Reflex +12 · Control +8' },
   { id:'arcade_defrag', lab:'Arcade', name:'Defrag', railName:'Defrag', icon:'💎', tag:'mvp', route:'#/arcade/defrag',
-    desc:'Swap adjacent data shards to purge runs of three, trigger chain CASCADES and forge Lance & Hypercore specials — defrag the drive before the clock flatlines.', dna:'Focus +12 · Speed +8' }
+    desc:'Swap adjacent data shards to purge runs of three, trigger chain CASCADES and forge Lance & Hypercore specials — defrag the drive before the clock flatlines.', dna:'Focus +12 · Speed +8' },
+  { id:'arcade_ecto', lab:'Arcade', name:'Ecto', railName:'Ecto', icon:'👻', tag:'mvp', route:'#/arcade/ecto',
+    desc:'Work the graveyard shift — stream plasma at the swooping spirits, bait their dives for double points, and survive the rising haunt.', dna:'Precision +12 · Reflex +8' }
 ];
 
 /* ============================================================================
@@ -12582,6 +12595,553 @@ Views.defrag = function(c){
 };
 
 /* ============================================================================
+   ARCADE — Ecto (Galaga-faithful fixed shooter) — Ecto_DD.md v1.0
+   Graveyard-shift reskin of Galaga: swooping formation entry, swaying grid,
+   dive-bomb arcs, three spirit tiers, bonus Séance stages, lives-based chase.
+   ============================================================================ */
+const EC_W=384, EC_H=512;
+const EC_COLS=8, EC_ROWS=5;
+const EC_FX0=44, EC_FDX=42;     // formation: first column x + column spacing
+const EC_FY0=72, EC_FDY=34;     //            first row y + row spacing
+const EC_PLAYER_Y = EC_H-34;
+const EC_PTS = { wisp:[50,100], phantom:[80,160], wraith:[150,400] };   // [in-formation, diving] — DD §3
+const EC_DIFF = [
+  // par tuned per DD §3.1 (lower par on harder tiers — spirits are faster/deadlier)
+  { key:'rookie',   name:'Rookie',   par:8000, sway:0.9,  dive:1.0,  ecto:0.85, bsp:1.0  },
+  { key:'night',    name:'Night',    par:6000, sway:1.15, dive:1.35, ecto:1.1,  bsp:1.2  },
+  { key:'witching', name:'Witching', par:4500, sway:1.45, dive:1.8,  ecto:1.4,  bsp:1.45 },
+];
+
+Views.ecto = function(c){
+  const cab = getCab('arcade_ecto');
+  const panel = toolShell(c, cab);
+  const reduce = prefersReducedMotion();
+
+  // ---- sound (mute-aware WebAudio blips, shared helper) ----
+  const blip = makeBlip('ectoMute');
+  const sndFire   =()=> blip(880,0.04,'square',0.022);
+  const sndBust   =()=> blip(540,0.07,'triangle',0.05);
+  const sndWraith =()=> blip(300,0.10,'sawtooth',0.05);
+  const sndDive   =()=> blip(440,0.14,'sine',0.03);
+  const sndHit    =()=> [220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.18,'sawtooth',0.06), i*70));
+  const sndStage  =()=> [523,659,784,1047].forEach((f,i)=> setTimeout(()=>blip(f,0.10,'square',0.045), i*70));
+  const sndPerfect=()=> [784,988,1175,1568].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'triangle',0.05), i*80));
+  const sndExtra  =()=> [659,988,1319].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'square',0.05), i*90));
+  const sndOver   =()=> [392,330,262,196].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.05), i*130));
+
+  // ---- DOM ----
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('ectoMute'));
+
+  let diffIdx=0;
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  EC_DIFF.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===diffIdx) b.className='on';
+    b.onclick=()=>{ if(running) return; diffIdx=i; diff=EC_DIFF[i]; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+
+  const hud = el('div',{class:'mem-hud'});
+  const stageEl = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=EC_W; canvas.height=EC_H; canvas.style.touchAction='none';
+  const overlay = el('div',{class:'pd-overlay'});
+  stageEl.append(canvas, overlay);
+  const stageTV = crtWrapTV(stageEl, { accent: labColor('Arcade'), jitter:false });
+  const hint = el('div',{class:'pd-hint', html:'◀ ▶ / A · D move &nbsp;·&nbsp; hold SPACE to fire &nbsp;·&nbsp; drag &amp; hold on touch'});
+  const result = el('div',{});
+  panel.append(startRow, diffField, hud, stageTV, hint, result);
+  const ctx = canvas.getContext('2d');
+
+  // ---- night-sky scenery (precomputed; cheap to redraw every frame) ----
+  const moon={ x:EC_W-74, y:70, r:30 };
+  // small background stars — biased toward the top of the sky, mostly cool-white
+  // with a scatter of warm gold ones; each twinkles on its own phase.
+  const stars=[];
+  for(let i=0;i<110;i++){
+    stars.push({ x:Math.random()*EC_W, y:Math.pow(Math.random(),1.3)*EC_H*0.78,
+      r:0.6+Math.random()*1.1, a:0.25+Math.random()*0.5,
+      ph:Math.random()*6.28, sp:0.5+Math.random()*1.5, gold:Math.random()<0.18 });
+  }
+  // layered horizon ridges (far→near): distant ones sit higher, lighter & hazier,
+  // giving the sky atmospheric depth instead of a flat fog band.
+  function ridge(baseY, amp, step, seed){ const pts=[]; let p=seed;
+    for(let x=-10;x<=EC_W+10;x+=step){ p+=0.7; pts.push({ x, y:baseY + Math.sin(p)*amp + Math.sin(p*0.37)*amp*0.5 }); }
+    return pts; }
+  const hills=[
+    { pts:ridge(EC_H-86, 14, 26, 1.3), col:'#34336a' },
+    { pts:ridge(EC_H-62, 16, 30, 4.1), col:'#282752' },
+    { pts:ridge(EC_H-42, 16, 34, 7.7), col:'#1a1940' },
+    { pts:ridge(EC_H-22, 14, 40, 2.9), col:'#101026' },
+  ];
+
+  // ---- state ----
+  let diff=EC_DIFF[diffIdx];
+  let running=false, over=false, raf=null, lastT=performance.now();
+  let score=0, best=0, stage=1, lives=3, reachedStage=1, extraAwarded=false;
+  let runDeaths=0, runCleanShift=false, perfectsThisRun=0, bustedThisRun=0;
+  let stageState='entry', clearTimer=0, diveTimer=0;
+  let swayPhase=0, swayX=0;
+  let bannerTxt='', bannerT=0, shake=0;
+  let seanceTotal=0, seanceBagged=0;
+  let spirits=[], pbullets=[], ebullets=[], particles=[], pops=[];
+  let player={x:EC_W/2, invuln:0}, fireCd=0;
+  let prevX=EC_W/2, faceLeft=false, walkPhase=0, moving=false;   // walk-cycle state
+  let keyLeft=false, keyRight=false, keyFire=false, pointerActive=false, pointerX=EC_W/2;
+
+  const PLAYER_SPD=235, BULLET_SPD=560, FIRE_INT=0.16, ENTRY_DUR=0.85, SEANCE_DUR=4.6;
+  const rand=(a,b)=> a+Math.random()*(b-a);
+  const hit=(ax,ay,ar,bx,by,br)=>{ const dx=ax-bx, dy=ay-by, r=ar+br; return dx*dx+dy*dy<r*r; };
+  const slotX=(col)=> EC_FX0+col*EC_FDX;
+  const slotY=(row)=> EC_FY0+row*EC_FDY;
+  const stageMul=()=> 1+(stage-1)*0.07;
+  const spRad=(sp)=> sp.type==='wisp'?8: sp.type==='phantom'?11:14;
+  const bestScore=()=>{ const b=Store.get().bests.arcade_ecto; return (b&&b.value)||0; };
+  const banner=(txt,t)=>{ bannerTxt=txt; bannerT=t; };
+
+  // ---- stage construction ----
+  function buildFormation(){
+    const spec=[];
+    [2,3,4,5].forEach(col=> spec.push({row:0,col,type:'wraith'}));
+    [1,2,3,4,5,6].forEach(col=> spec.push({row:1,col,type:'phantom'}));
+    [1,2,3,4,5,6].forEach(col=> spec.push({row:2,col,type:'phantom'}));
+    for(let col=0;col<EC_COLS;col++) spec.push({row:3,col,type:'wisp'});
+    for(let col=0;col<EC_COLS;col++) spec.push({row:4,col,type:'wisp'});
+    spec.forEach((s,i)=>{
+      const fromLeft = s.col < EC_COLS/2;
+      const st = fromLeft ? {x:-30, y:EC_H*0.34} : {x:EC_W+30, y:EC_H*0.34};
+      const cp = fromLeft ? {x:EC_W*0.26, y:-46}  : {x:EC_W*0.74, y:-46};
+      spirits.push({ type:s.type, row:s.row, col:s.col, state:'enter', seance:false,
+        hp:s.type==='wraith'?2:1, x:st.x, y:st.y, st, cp, entryT:0, delay:i*0.045,
+        dvy:0, wig:0, dropT:0, diveT:0, hitFlash:0, dead:false });
+    });
+  }
+  function buildSeance(){
+    const order=['wisp','phantom','wisp','phantom','wraith','wisp'];
+    const n=16; seanceTotal=n; seanceBagged=0;
+    for(let i=0;i<n;i++){
+      spirits.push({ type:order[i%order.length], state:'seance', seance:true, hp:1,
+        x:EC_W/2, y:-40, t:-(i*0.16)/SEANCE_DUR, row:0, col:0, hitFlash:0, dead:false });
+    }
+  }
+  const seanceX=(t)=> EC_W/2 + Math.sin(t*Math.PI*3)*(EC_W*0.34);
+  const seanceY=(t)=> -24 + t*(EC_H+60);
+
+  function beginStage(n){
+    stage=n; reachedStage=Math.max(reachedStage,stage);
+    spirits=[]; pbullets.length=0; ebullets.length=0; pops.length=0;
+    diveTimer=0; swayPhase=0;
+    if(n%4===0){ buildSeance(); stageState='seance'; banner('SÉANCE — BONUS', 2.0); }
+    else { buildFormation(); stageState='entry'; banner('STAGE '+n, 1.6); }
+    renderHud();
+  }
+  function stageClear(){
+    score += 100*stage; sndStage();
+    if(stage===3 && runDeaths===0) runCleanShift=true;   // DD §4.3 Clean Shift
+    banner('STAGE '+stage+' CLEAR  +'+(100*stage), 1.6);
+    stageState='clearing'; clearTimer=1.8;
+  }
+  function seanceEnd(){
+    if(seanceTotal>0 && seanceBagged===seanceTotal){ score+=1500; perfectsThisRun++; sndPerfect(); banner('PERFECT!  +1500', 2.0); }
+    else { sndStage(); banner('SÉANCE CLEAR', 1.6); }
+    stageState='clearing'; clearTimer=1.8;
+  }
+
+  // ---- dives ----
+  function startDive(sp){
+    sp.state='dive'; sp.diveT=0;
+    const base = sp.type==='wisp'?150 : sp.type==='phantom'?135 : 165;
+    sp.dvy = base*diff.bsp*stageMul();
+    sp.wig = sp.type==='wisp'?90 : sp.type==='phantom'?55 : 30;
+    sp.dropT = rand(0.25,0.6)/diff.ecto;
+  }
+  function launchDive(){
+    const forms=spirits.filter(s=>s.state==='form'); if(!forms.length) return;
+    const sp=forms[Math.floor(Math.random()*forms.length)];
+    startDive(sp); sndDive();
+    if(sp.type==='phantom'){   // Phantoms dive in pairs (DD §1.1)
+      const mate = forms.find(s=>s!==sp && s.type==='phantom' && s.state==='form' && s.row===sp.row && Math.abs(s.col-sp.col)===1)
+                || forms.find(s=>s!==sp && s.type==='phantom' && s.state==='form');
+      if(mate) startDive(mate);
+    }
+  }
+
+  // ---- per-spirit update ----
+  function updateSpirit(sp,dt){
+    if(sp.hitFlash>0) sp.hitFlash-=dt;
+    if(sp.state==='seance'){
+      sp.t += dt/SEANCE_DUR;
+      if(sp.t<0){ sp.y=-40; return; }
+      if(sp.t>=1){ sp.dead=true; return; }
+      sp.x=seanceX(sp.t); sp.y=seanceY(sp.t); return;
+    }
+    if(sp.state==='enter'){
+      if(sp.delay>0){ sp.delay-=dt; sp.x=sp.st.x; sp.y=sp.st.y; return; }
+      sp.entryT=Math.min(1, sp.entryT + dt/ENTRY_DUR);
+      const t=sp.entryT, mt=1-t, ex=slotX(sp.col)+swayX, ey=slotY(sp.row);
+      sp.x = mt*mt*sp.st.x + 2*mt*t*sp.cp.x + t*t*ex;
+      sp.y = mt*mt*sp.st.y + 2*mt*t*sp.cp.y + t*t*ey;
+      if(t>=1) sp.state='form';
+      return;
+    }
+    if(sp.state==='form'){ sp.x=slotX(sp.col)+swayX; sp.y=slotY(sp.row); return; }
+    if(sp.state==='dive'){
+      sp.diveT+=dt;
+      const bias=Math.max(-1,Math.min(1,(player.x-sp.x)/40));
+      const wiggle=Math.sin(sp.diveT*(sp.type==='wisp'?6:3.6))*sp.wig;
+      sp.x += (bias*60 + wiggle)*dt;
+      sp.y += sp.dvy*dt;
+      if(sp.x<10) sp.x=10; else if(sp.x>EC_W-10) sp.x=EC_W-10;
+      sp.dropT-=dt;
+      if(sp.dropT<=0 && sp.y>40 && sp.y<EC_H-60){
+        ebullets.push({ x:sp.x, y:sp.y+8, vx:(player.x>sp.x?1:-1)*Math.random()*40, vy:(120+Math.random()*40)*diff.bsp });
+        sp.dropT=rand(0.4,0.85)/diff.ecto;
+      }
+      if(sp.y>EC_H+26){ sp.state='return'; sp.y=-26; sp.x=slotX(sp.col)+swayX; }
+      return;
+    }
+    if(sp.state==='return'){
+      const tx=slotX(sp.col)+swayX, ty=slotY(sp.row), k=Math.min(1,dt*4);
+      sp.x += (tx-sp.x)*k; sp.y += (ty-sp.y)*k;
+      if(Math.abs(tx-sp.x)<2 && Math.abs(ty-sp.y)<2) sp.state='form';
+    }
+  }
+
+  function burst(x,y,col){ const n=reduce?6:14; for(let i=0;i<n;i++) particles.push({ x, y, vx:rand(-1,1)*120, vy:rand(-1,1)*120-30, life:rand(0.4,0.8), col }); }
+  function bustSpirit(sp,idx){
+    const pts = EC_PTS[sp.type][sp.state==='dive'?1:0];
+    score+=pts; bustedThisRun++;
+    pops.push({ x:sp.x, y:sp.y, txt:'+'+pts, t:0.8 });
+    burst(sp.x, sp.y, sp.type==='wraith'?'#d9b3ff': sp.type==='phantom'?'#cfe0ff':'#8ef0ff');
+    if(sp.seance) seanceBagged++;
+    (sp.type==='wraith'?sndWraith:sndBust)();
+    spirits.splice(idx,1);
+  }
+  function playerHit(){
+    lives--; runDeaths++; player.invuln=2.0; shake=reduce?0:9;
+    burst(player.x, EC_PLAYER_Y, '#aef6ff'); sndHit();
+    ebullets.length=0;
+    if(lives<=0) endGame();
+  }
+
+  function collisions(){
+    for(let i=pbullets.length-1;i>=0;i--){ const b=pbullets[i]; let struck=false;
+      for(let j=spirits.length-1;j>=0;j--){ const sp=spirits[j];
+        if(hit(b.x,b.y,3, sp.x,sp.y, spRad(sp))){
+          struck=true;
+          if(sp.type==='wraith' && !sp.seance && sp.hp>1){ sp.hp--; sp.hitFlash=0.12; sndWraith(); }
+          else bustSpirit(sp,j);
+          break;
+        }
+      }
+      if(struck) pbullets.splice(i,1);
+    }
+    if(over) return;
+    if(player.invuln<=0){
+      for(let i=ebullets.length-1;i>=0;i--){ if(hit(ebullets[i].x,ebullets[i].y,6, player.x,EC_PLAYER_Y,12)){ ebullets.splice(i,1); playerHit(); return; } }
+      for(const sp of spirits){ if(sp.state==='dive' && hit(sp.x,sp.y,spRad(sp), player.x,EC_PLAYER_Y,12)){ playerHit(); return; } }
+    }
+  }
+
+  // ---- main loop ----
+  function update(dt){
+    if(bannerT>0) bannerT-=dt;
+    if(shake>0) shake=Math.max(0,shake-dt*24);
+    if(player.invuln>0) player.invuln=Math.max(0,player.invuln-dt);
+    swayPhase += dt*1.7*diff.sway; swayX=Math.sin(swayPhase)*20;
+
+    // movement — held keys take priority; otherwise ease toward a held touch/pointer
+    let vx=0; if(keyLeft) vx-=1; if(keyRight) vx+=1;
+    if(vx!==0) player.x += vx*PLAYER_SPD*dt;
+    else if(pointerActive) player.x += (pointerX-player.x)*Math.min(1,dt*14);
+    player.x = Math.max(16, Math.min(EC_W-16, player.x));
+    // walk-cycle bookkeeping: face the way we move, advance the step phase by distance
+    const moved=player.x-prevX; prevX=player.x;
+    if(Math.abs(moved)>0.25){ moving=true; faceLeft=moved<0; walkPhase+=Math.abs(moved)*0.35+dt*3; }
+    else moving=false;
+
+    // hold-to-autofire at a capped rate (DD §2.2) — plasma leaves the wand muzzle, straight up
+    fireCd-=dt;
+    if((keyFire||pointerActive) && fireCd<=0){ pbullets.push({ x:player.x+(faceLeft?-6:6), y:EC_H-66 }); fireCd=FIRE_INT; sndFire(); }
+
+    for(let i=pbullets.length-1;i>=0;i--){ pbullets[i].y-=BULLET_SPD*dt; if(pbullets[i].y<-12) pbullets.splice(i,1); }
+    for(let i=ebullets.length-1;i>=0;i--){ const e=ebullets[i]; e.x+=e.vx*dt; e.y+=e.vy*dt; if(e.y>EC_H+12) ebullets.splice(i,1); }
+
+    for(const sp of spirits) updateSpirit(sp,dt);
+    spirits=spirits.filter(s=>!s.dead);
+
+    if(stageState==='fight'){ diveTimer-=dt; if(diveTimer<=0){ launchDive(); diveTimer=rand(1.3,2.4)/(diff.dive*stageMul()); } }
+
+    collisions();
+    if(over) return;
+
+    for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.life-=dt; if(p.life<=0){ particles.splice(i,1); continue; } p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=200*dt; }
+    for(let i=pops.length-1;i>=0;i--){ const p=pops[i]; p.t-=dt; p.y-=20*dt; if(p.t<=0) pops.splice(i,1); }
+
+    if(!extraAwarded && score>=10000){ lives++; extraAwarded=true; sndExtra(); banner('EXTRA WRANGLER!',1.4); }
+
+    if(stageState==='entry' && spirits.length && spirits.every(s=>s.state==='form')){ stageState='fight'; diveTimer=rand(0.8,1.6); }
+    else if(stageState==='fight' && spirits.length===0) stageClear();
+    else if(stageState==='seance' && spirits.length===0) seanceEnd();
+    else if(stageState==='clearing'){ clearTimer-=dt; if(clearTimer<=0) beginStage(stage+1); }
+  }
+
+  // ---- rendering ----
+  function drawBg(){
+    const now=performance.now();
+    // sky: deep indigo overhead easing to a warmer blue-violet glow at the horizon
+    const sky=ctx.createLinearGradient(0,0,0,EC_H);
+    sky.addColorStop(0.0,'#0a0920'); sky.addColorStop(0.32,'#12103c'); sky.addColorStop(0.58,'#1b1850');
+    sky.addColorStop(0.78,'#272358'); sky.addColorStop(1.0,'#322c63');
+    ctx.fillStyle=sky; ctx.fillRect(0,0,EC_W,EC_H);
+    // faint diagonal "milky way" haze — soft texture across the upper sky
+    const mw=ctx.createLinearGradient(0,EC_H*0.08,EC_W,EC_H*0.55);
+    mw.addColorStop(0,'rgba(96,96,168,0)'); mw.addColorStop(0.5,'rgba(126,126,196,0.07)'); mw.addColorStop(1,'rgba(96,96,168,0)');
+    ctx.fillStyle=mw; ctx.fillRect(0,0,EC_W,EC_H*0.62);
+    // small twinkling stars
+    for(const s of stars){
+      ctx.globalAlpha=Math.max(0, s.a*(0.55+0.45*Math.sin(now*0.001*s.sp+s.ph)));
+      ctx.fillStyle=s.gold?'#ffe6a8':'#dfe6ff';
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // moon — soft layered halo + warm cratered body
+    const mg=ctx.createRadialGradient(moon.x,moon.y,moon.r*0.6, moon.x,moon.y,moon.r*3.2);
+    mg.addColorStop(0,'rgba(255,236,200,0.42)'); mg.addColorStop(0.5,'rgba(220,210,255,0.10)'); mg.addColorStop(1,'rgba(220,210,255,0)');
+    ctx.fillStyle=mg; ctx.beginPath(); ctx.arc(moon.x,moon.y,moon.r*3.2,0,7); ctx.fill();
+    const mb=ctx.createRadialGradient(moon.x-moon.r*0.3,moon.y-moon.r*0.3,moon.r*0.2, moon.x,moon.y,moon.r);
+    mb.addColorStop(0,'#fff4dc'); mb.addColorStop(0.6,'#fbe3b0'); mb.addColorStop(1,'#e9c88f');
+    ctx.fillStyle=mb; ctx.beginPath(); ctx.arc(moon.x,moon.y,moon.r,0,7); ctx.fill();
+    ctx.fillStyle='rgba(180,150,110,0.30)';
+    [[-8,-6,5],[10,-2,4],[2,8,6],[-6,10,3],[12,9,3],[-2,-12,3]].forEach(c=>{ ctx.beginPath(); ctx.arc(moon.x+c[0],moon.y+c[1],c[2],0,7); ctx.fill(); });
+    ctx.fillStyle='rgba(255,250,235,0.22)'; ctx.beginPath(); ctx.arc(moon.x-moon.r*0.34,moon.y-moon.r*0.34,moon.r*0.5,0,7); ctx.fill();
+    // atmospheric horizon haze, sitting behind the ridgelines
+    const hz=ctx.createLinearGradient(0,EC_H-124,0,EC_H-34);
+    hz.addColorStop(0,'rgba(120,122,200,0)'); hz.addColorStop(1,'rgba(150,142,214,0.22)');
+    ctx.fillStyle=hz; ctx.fillRect(0,EC_H-124,EC_W,90);
+    // layered hills (far→near)
+    for(const h of hills){
+      ctx.fillStyle=h.col; ctx.beginPath(); ctx.moveTo(-10,EC_H);
+      for(const pt of h.pts) ctx.lineTo(pt.x,pt.y);
+      ctx.lineTo(EC_W+10,EC_H); ctx.closePath(); ctx.fill();
+    }
+    // ground line (foreground)
+    ctx.fillStyle='#0a0818'; ctx.fillRect(0,EC_H-10,EC_W,10);
+  }
+  function drawWisp(sp){
+    ctx.save(); ctx.shadowColor='#7ce8ff'; ctx.shadowBlur=10;
+    ctx.fillStyle= sp.hitFlash>0?'#fff':'#bff4ff';
+    ctx.beginPath(); ctx.arc(sp.x,sp.y,6,0,7); ctx.fill();
+    ctx.shadowBlur=0; ctx.fillStyle='rgba(140,240,255,0.35)';
+    for(let i=1;i<=3;i++){ ctx.beginPath(); ctx.arc(sp.x, sp.y-i*5, 4-i, 0,7); ctx.fill(); }
+    ctx.restore();
+  }
+  function drawPhantom(sp){
+    const w=11,h=13; ctx.save(); ctx.shadowColor='#9fc0ff'; ctx.shadowBlur=8;
+    ctx.fillStyle= sp.hitFlash>0?'#fff':'#d7e4ff';
+    ctx.beginPath(); ctx.moveTo(sp.x-w,sp.y+h-3); ctx.lineTo(sp.x-w,sp.y-2);
+    ctx.arc(sp.x,sp.y-2,w,Math.PI,0,false); ctx.lineTo(sp.x+w,sp.y+h-3);
+    ctx.quadraticCurveTo(sp.x+w*0.66,sp.y+h+2, sp.x+w*0.33,sp.y+h-3);
+    ctx.quadraticCurveTo(sp.x,sp.y+h+2, sp.x-w*0.33,sp.y+h-3);
+    ctx.quadraticCurveTo(sp.x-w*0.66,sp.y+h+2, sp.x-w,sp.y+h-3);
+    ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+    ctx.fillStyle='#1a1030'; ctx.beginPath(); ctx.arc(sp.x-4,sp.y-2,2.1,0,7); ctx.arc(sp.x+4,sp.y-2,2.1,0,7); ctx.fill();
+    ctx.restore();
+  }
+  function drawWraith(sp){
+    const w=13,h=14, hurt=(sp.hp<2&&!sp.seance);
+    ctx.save(); ctx.shadowColor='#c79bff'; ctx.shadowBlur=10;
+    ctx.fillStyle= sp.hitFlash>0?'#fff': hurt?'#e7c9c9':'#e9e0ff';
+    ctx.beginPath(); ctx.arc(sp.x,sp.y-1,w,Math.PI*0.95,Math.PI*0.05,false);
+    ctx.lineTo(sp.x+w*0.7,sp.y+h*0.5); ctx.lineTo(sp.x+w*0.4,sp.y+h*0.5);
+    ctx.lineTo(sp.x+w*0.4,sp.y+h); ctx.lineTo(sp.x-w*0.4,sp.y+h);
+    ctx.lineTo(sp.x-w*0.4,sp.y+h*0.5); ctx.lineTo(sp.x-w*0.7,sp.y+h*0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sp.x-w*0.8,sp.y-w*0.4); ctx.lineTo(sp.x-w*1.2,sp.y-w*1.1); ctx.lineTo(sp.x-w*0.4,sp.y-w*0.7); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sp.x+w*0.8,sp.y-w*0.4); ctx.lineTo(sp.x+w*1.2,sp.y-w*1.1); ctx.lineTo(sp.x+w*0.4,sp.y-w*0.7); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur=0;
+    const eg = hurt?'#ff5a6e':'#b06bff';
+    ctx.fillStyle=eg; ctx.shadowColor=eg; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(sp.x-5,sp.y-2,2.6,0,7); ctx.arc(sp.x+5,sp.y-2,2.6,0,7); ctx.fill();
+    ctx.shadowBlur=0; ctx.strokeStyle='#1a1030'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(sp.x-3,sp.y+h*0.55); ctx.lineTo(sp.x-3,sp.y+h); ctx.moveTo(sp.x,sp.y+h*0.55); ctx.lineTo(sp.x,sp.y+h); ctx.moveTo(sp.x+3,sp.y+h*0.55); ctx.lineTo(sp.x+3,sp.y+h); ctx.stroke();
+    ctx.restore();
+  }
+  // The wrangler — a Ghostbuster-style proton-pack character, procedurally drawn
+  // (no image files, DD §1.3). Authored facing right; mirrored for facing left.
+  // A two-frame walk cycle (contact ↔ passing) plays while moving; a neutral
+  // standing pose holds when still. The proton wand points straight up so plasma
+  // fires upward exactly as the game implements it.
+  function drawBuster(cx, footY, pose){
+    const P=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(Math.round(cx+x), Math.round(footY+y), w, h); };
+    const skin='#e8b890', skinSh='#c98f63', hair='#6f4423', hairHi='#8a5a2c',
+          suit='#cdb68a', suitSh='#9f8a5c', suitDk='#6f5d3a',
+          pack='#2b2f38', packLt='#444b58', packDk='#15171c',
+          boot='#15171c', bootTop='#27402f', glove='#1a1c22',
+          hose='#f2b81f', wand='#3a3f48', wandDk='#15171c', wandHi='#5b6270';
+    // proton pack (worn on the back — left side when facing right)
+    P(-11,-32,7,16,pack); P(-11,-32,7,3,packLt); P(-10,-27,5,2,packDk); P(-10,-23,5,2,packDk); P(-9,-20,3,2,'#c0322f');
+    P(-4,-32,2,15,suitSh);   // shoulder strap / back edge
+    // yellow proton hose, looping from the pack round to the gun
+    ctx.strokeStyle=hose; ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(cx-6,footY-30); ctx.quadraticCurveTo(cx-10,footY-18, cx-3,footY-16); ctx.quadraticCurveTo(cx+4,footY-14, cx+5,footY-24); ctx.stroke();
+    // legs + boots — back leg first so the front leg overlaps it
+    function drawLeg(dx,lift,back){ const c=back?suitSh:suit;
+      P(dx-2,-16,4,9-lift,c); const by=-7-lift; P(dx-3,by-1,6,2,bootTop); P(dx-3,by+1,7,6,boot); }
+    const L = pose==='contact'? [5,0,-5,0] : pose==='pass'? [2,0,-1,3] : [3,0,-3,0];
+    drawLeg(L[2],L[3],true); drawLeg(L[0],L[1],false);
+    // torso / jumpsuit
+    P(-5,-34,11,18,suit); P(-5,-34,3,18,suitSh); P(0,-34,1,17,suitDk);
+    P(2,-30,5,5,'#e9e9e9'); P(3,-29,3,3,'#c0322f');   // chest insignia (white box + red emblem)
+    P(-5,-18,11,2,suitDk); P(-1,-19,3,2,'#c0322f');    // belt + waist connector
+    // raised arm gripping the wand
+    P(3,-44,4,12,suit); P(3,-44,2,12,suitSh); P(3,-46,4,4,glove);
+    // head (profile, facing right)
+    P(-2,-44,7,9,skin); P(-2,-37,7,1,skinSh);
+    P(5,-41,1,2,skin); P(5,-40,1,1,skinSh);            // nose
+    P(3,-42,1,1,'#241a30');                            // eye
+    P(-3,-46,8,3,hair); P(-3,-44,2,7,hair); P(4,-46,1,2,hairHi); P(-1,-40,1,2,hair);
+    // proton wand — vertical, muzzle up
+    P(5,-52,3,23,wand); P(7,-52,1,23,wandDk); P(4,-34,4,4,wandDk);
+    P(5,-47,3,1,wandHi); P(5,-41,3,1,wandHi); P(4,-54,5,2,wandDk);
+    // glowing plasma tip
+    ctx.save(); ctx.shadowColor='#9fe8ff'; ctx.shadowBlur=8;
+    ctx.fillStyle='#bfeeff'; ctx.fillRect(Math.round(cx+5),Math.round(footY-58),3,4);
+    ctx.fillStyle='#ffffff'; ctx.fillRect(Math.round(cx+5),Math.round(footY-59),3,2);
+    ctx.restore();
+  }
+  function drawPlayer(){
+    if(player.invuln>0 && Math.floor(performance.now()/100)%2) return;   // blink while invulnerable
+    const cx=player.x, footY=EC_H-12;
+    const pose = moving ? (Math.floor(walkPhase)%2===0?'contact':'pass') : 'stand';
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(cx,footY+1,12,3,0,0,7); ctx.fill();
+    if(faceLeft){ ctx.translate(cx,0); ctx.scale(-1,1); ctx.translate(-cx,0); }
+    drawBuster(cx, footY, pose);
+    ctx.restore();
+  }
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0);
+    drawBg();
+    ctx.save();
+    if(shake>0) ctx.translate((Math.random()*2-1)*shake, (Math.random()*2-1)*shake);
+    for(const sp of spirits){ if(sp.type==='wisp') drawWisp(sp); else if(sp.type==='phantom') drawPhantom(sp); else drawWraith(sp); }
+    ctx.save(); ctx.strokeStyle='#aef6ff'; ctx.shadowColor='#aef6ff'; ctx.shadowBlur=8; ctx.lineWidth=3;
+    for(const b of pbullets){ ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(b.x,b.y+10); ctx.stroke(); }
+    ctx.restore();
+    ctx.fillStyle='#fff'; for(const b of pbullets) ctx.fillRect(b.x-1,b.y,2,6);
+    ctx.save(); ctx.shadowColor='#7CFF8A'; ctx.shadowBlur=8; ctx.fillStyle='rgba(124,255,138,0.85)';
+    for(const e of ebullets){ ctx.beginPath(); ctx.arc(e.x,e.y,5,0,7); ctx.fill(); }
+    ctx.restore();
+    drawPlayer();
+    for(const p of particles){ ctx.globalAlpha=Math.max(0,Math.min(1,p.life*1.6)); ctx.fillStyle=p.col; ctx.fillRect(p.x-1.5,p.y-1.5,3,3); }
+    ctx.globalAlpha=1;
+    ctx.font='700 12px "Share Tech Mono", monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(const p of pops){ ctx.globalAlpha=Math.max(0,Math.min(1,p.t*1.4)); ctx.fillStyle='#ffe16b'; ctx.fillText(p.txt,p.x,p.y); }
+    ctx.globalAlpha=1;
+    ctx.restore();
+    if(bannerT>0){ ctx.save(); ctx.globalAlpha=Math.min(1,bannerT); ctx.fillStyle='#ffe16b'; ctx.font='700 20px "Share Tech Mono", monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.shadowColor='#000'; ctx.shadowBlur=6; ctx.fillText(bannerTxt, EC_W/2, EC_H*0.40); ctx.restore(); }
+  }
+  function renderHud(){
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Stage <b>${stage||1}</b></span>
+      <span class="pill">Lives <b>${Math.max(0,lives)}</b></span>
+      <span class="pill">Best <b>${Math.max(best,bestScore())}</b></span>`;
+  }
+  function frame(now){
+    raf=requestAnimationFrame(frame);
+    let dt=(now-lastT)/1000; lastT=now; if(!(dt>0)) dt=0; if(dt>0.05) dt=0.05;
+    if(running && !over) update(dt);
+    draw();
+    if((now|0)%4===0) renderHud();
+  }
+
+  // ---- lifecycle ----
+  function startGame(){
+    diff=EC_DIFF[diffIdx];
+    score=0; lives=3; stage=1; reachedStage=1; extraAwarded=false;
+    runDeaths=0; runCleanShift=false; perfectsThisRun=0; bustedThisRun=0;
+    spirits=[]; pbullets=[]; ebullets=[]; particles=[]; pops=[];
+    player={x:EC_W/2, invuln:0}; fireCd=0; shake=0;
+    prevX=EC_W/2; faceLeft=false; walkPhase=0; moving=false;
+    keyLeft=keyRight=keyFire=false; pointerActive=false;
+    over=false; running=true; best=bestScore();
+    result.innerHTML=''; overlay.style.display='none'; startBtn.innerHTML='⟳ Restart';
+    lastT=performance.now(); beginStage(1); renderHud();
+  }
+  function endGame(){
+    if(over) return;
+    over=true; running=false; startBtn.innerHTML='▶ START'; sndOver();
+    reachedStage=Math.max(reachedStage,stage);
+    const lv=EC_DIFF[diffIdx], comp=clamp01(score/lv.par), g=arcadeGrade(comp);
+    Attr.applyVector({precision:12, reflex:8}, comp);   // DNA: Precision + Reflex (DD §4.1 / §8.1)
+    recordEctoRun(score, { diff:lv.key, stage:reachedStage, busted:bustedThisRun, perfects:perfectsThisRun, cleanShift:runCleanShift });
+    Ach.evaluate({ tool:'ecto', grade:g, score, stage:reachedStage, perfect:perfectsThisRun>0, cleanShift:runCleanShift });
+    best=Math.max(best,bestScore()); renderHud();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">SHIFT OVER</div><div class="small">${score} pts · stage ${reachedStage} · ${bustedThisRun} spirits busted</div>`;
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Stage</div><div class="v">${reachedStage}</div></div>
+      <div class="result-tile"><div class="k">Best</div><div class="v">${Math.max(best,bestScore())}</div></div>`;
+    result.innerHTML=''; result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Ecto', glyph:'👻', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Stage', v:String(reachedStage)}, {k:'Busted', v:String(bustedThisRun)}],
+      designation: g==='S'?'Ghost Whisperer': g==='A'?'Spirit Warden': g==='B'?'Night Watch': g==='C'?'Greenhorn':'Spooked',
+      badge: perfectsThisRun>0 ? 'Clean Séance' : (reachedStage>=5 ? 'Night Owl' : null)
+    }));
+  }
+
+  // ---- input ----
+  function onKeyDown(e){ const k=e.key;
+    if(k==='ArrowLeft'||k==='a'||k==='A'){ keyLeft=true; if(running) e.preventDefault(); }
+    else if(k==='ArrowRight'||k==='d'||k==='D'){ keyRight=true; if(running) e.preventDefault(); }
+    else if(k===' '||k==='Spacebar'){ e.preventDefault(); if(!running && !over) startGame(); else keyFire=true; }
+    else if(k==='Enter'){ if(!running){ e.preventDefault(); startGame(); } }
+  }
+  function onKeyUp(e){ const k=e.key;
+    if(k==='ArrowLeft'||k==='a'||k==='A') keyLeft=false;
+    else if(k==='ArrowRight'||k==='d'||k==='D') keyRight=false;
+    else if(k===' '||k==='Spacebar') keyFire=false;
+  }
+  function mapX(clientX){ const rc=canvas.getBoundingClientRect(); return (clientX-rc.left)/(rc.width/EC_W); }
+  function onDown(e){ if(!running||over){ if(!running && !over) startGame(); return; } e.preventDefault(); pointerActive=true; pointerX=mapX(e.clientX); }
+  function onMove(e){ if(pointerActive){ pointerX=mapX(e.clientX); } }
+  function onUp(){ pointerActive=false; }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointercancel', onUp);
+  startBtn.onclick=startGame;
+
+  // ---- attract ----
+  best=bestScore(); renderHud(); draw();
+  overlay.style.display='flex';
+  overlay.innerHTML = '<div class="big">ECTO</div><div class="small">Work the graveyard shift · press START</div>';
+  raf=requestAnimationFrame(frame);
+
+  return ()=>{
+    running=false; over=true;
+    if(raf) cancelAnimationFrame(raf);
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('pointerup', onUp);
+    canvas.removeEventListener('pointerdown', onDown);
+    canvas.removeEventListener('pointermove', onMove);
+    canvas.removeEventListener('pointercancel', onUp);
+  };
+};
+
+/* ============================================================================
    shared helpers for tool views
    ============================================================================ */
 // Defer to the OS "reduce motion" accessibility setting (no in-app toggle).
@@ -12791,6 +13351,25 @@ function recordDefragRun(score, ctx){
     if(ctx && ctx.bestChain>(d.counters.defragBestChain||0)) d.counters.defragBestChain=ctx.bestChain;
     if(ctx && ctx.hyper) d.counters.defragHypercores=(d.counters.defragHypercores||0)+1;
     if(ctx && ctx.recovered) d.counters.defragRecovered=(d.counters.defragRecovered||0)+ctx.recovered;
+  });
+}
+// record an Ecto run — honest-Gamer-Score contract (Ecto_DD.md §4.2): toolsCompleted
+// credited once, best score (overall + per-difficulty), modest arcade metagame points,
+// counters for the cabinet achievements.
+function recordEctoRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_ecto){ d.toolsCompleted++; d.bests.arcade_ecto={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_ecto.value){ d.bests.arcade_ecto.value=score; }
+    const diff=(ctx&&ctx.diff)||'rookie';
+    const bd=d.bests.arcade_ecto.diff||(d.bests.arcade_ecto.diff={});
+    if(!(diff in bd) || score>bd[diff]) bd[diff]=score;
+    d.arcadePoints += Math.round(score/40);   // modest metagame contribution — avoids grind-farming the Gamer Score
+    d.counters.ectoRuns=(d.counters.ectoRuns||0)+1;
+    if(ctx && ctx.busted) d.counters.ectoBusted=(d.counters.ectoBusted||0)+ctx.busted;
+    if(ctx && ctx.perfects) d.counters.ectoPerfects=(d.counters.ectoPerfects||0)+ctx.perfects;
+    if(ctx && ctx.stage>(d.counters.ectoBestStage||0)) d.counters.ectoBestStage=ctx.stage;
+    if(ctx && ctx.cleanShift) d.counters.ectoCleanShift=(d.counters.ectoCleanShift||0)+1;
   });
 }
 // a row with a "Share Result" button that opens the share card
@@ -15391,6 +15970,7 @@ Router.add('#/arcade/b0ggle', Views.b0ggle);
 Router.add('#/arcade/jackin', Views.jackIn);
 Router.add('#/arcade/overdrive', Views.overdrive);
 Router.add('#/arcade/defrag', Views.defrag);
+Router.add('#/arcade/ecto', Views.ecto);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/gamefinder', Views.gameFinder);
 Router.add('#/fun/report', Views.dnaReport);
