@@ -12296,7 +12296,7 @@ Views.defrag = function(c){
   const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
   const hint = el('div',{class:'pd-hint', html:'Tap or drag a shard onto an adjacent one · line up 3+ to purge · chain CASCADES for big scores'});
   const result = el('div',{});
-  panel.append(startRow, modeField, diffField, hud, stageTV, hint, result);
+  panel.append(diffField, modeField, startRow, hud, stageTV, hint, result);
   const ctx = canvas.getContext('2d');
 
   // ---- rendering ----
@@ -12762,7 +12762,7 @@ Views.ecto = function(c){
   const stageTV = crtWrapTV(stageEl, { accent: labColor('Arcade'), jitter:false });
   const hint = el('div',{class:'pd-hint', html:'◀ ▶ / A · D move &nbsp;·&nbsp; hold SPACE to fire &nbsp;·&nbsp; drag &amp; hold on touch'});
   const result = el('div',{});
-  panel.append(startRow, diffField, hud, stageTV, hint, result);
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
   const ctx = canvas.getContext('2d');
 
   // ---- night-sky scenery (precomputed; cheap to redraw every frame) ----
