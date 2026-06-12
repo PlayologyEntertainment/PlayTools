@@ -326,10 +326,11 @@
     color:var(--rail-accent); background:rgba(255,255,255,0.06);
     border-color:var(--rail-accent);
   }
-  /* Small tally badge (e.g. Favorites count) pinned to the right of a rail link. */
+  /* Small tally badge (e.g. Favorites count) pinned to the right of a rail link.
+     Defaults to Favorites gold; categories & Friends override via --rail-count-color. */
   nav.rail a .rail-count{
     flex:none; font-family:var(--pixel); font-size:13px; line-height:1;
-    color:#ffd23d;
+    color:var(--rail-count-color, #ffd23d);
   }
   .mini-tag{font-size:9px; letter-spacing:1px; padding:1px 5px; border-radius:3px; text-transform:uppercase;}
   .mini-tag.soon{background:#2a3160; color:var(--ink-dim);}
@@ -2758,6 +2759,7 @@ const Router = (function(){
     try{ teardown = mount(screen); }catch(e){ console.error('view error', e); screen.innerHTML='<div class="panel"><h1 class="title">Glitch in the Matrix</h1><p class="muted">This cabinet failed to load.</p></div>'; }
     current = { teardown: typeof teardown==='function' ? teardown : null };
     UI.highlightRail(hash);
+    if(window.UI && UI.syncRail) UI.syncRail();   // refresh live tallies (Friends roster, etc.)
     mountFavToggle(hash);
   }
 
@@ -14290,6 +14292,11 @@ Views.genRoast = function(c){
 const UI = (function(){
   const rail = document.getElementById('rail');
 
+  // Friends rail badge colour — a standard purple echoing the 👥 Friends icon.
+  const FRIENDS_RAIL_COLOR = '#a855f7';
+  // Count of shipped (available) applets in a category; coming-soon (p2) excluded.
+  function railLabCount(lab){ return CABINETS.filter(c=> c.lab===lab && c.tag==='mvp').length; }
+
   // The rail is now a sort/filter surface rather than a flat list of every
   // applet. Top: the standing destinations (Lobby, Friends, Platforms) plus the
   // Favorites filter. Below: one interactive entry per category — clicking it
@@ -14297,6 +14304,7 @@ const UI = (function(){
   function railLink(opts){
     const a = el('a',{ href:opts.href, 'data-route':opts.route||opts.href });
     if(opts.color) a.style.setProperty('--rail-accent', opts.color);
+    if(opts.countColor) a.style.setProperty('--rail-count-color', opts.countColor);
     a.innerHTML = `<span>${opts.icon} ${opts.label}</span>`+
       (opts.count!=null ? `<span class="rail-count">${opts.count}</span>` : '');
     if(opts.color) a.classList.add('rail-cat');
@@ -14308,17 +14316,20 @@ const UI = (function(){
     // live under a "Gamer DNA" heading — that heading is gone now. The Gamer DNA
     // Hub itself stays reachable from the header button.
     rail.append(railLink({ href:'#/',               icon:'🏠', label:'Lobby' }));
-    rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends' }));
+    rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends',
+      count: Store.getFriends().length || null, countColor: FRIENDS_RAIL_COLOR }));
     rail.append(railLink({ href:'#/dna/platforms',  icon:'🔗', label:'Platforms' }));
     rail.append(railLink({ href:'#/favorites',      icon:'⭐', label:'Favorites',
       count: Store.favoriteCount() || null }));
 
     // Categories — every lab except Gamer DNA (its items are surfaced above).
+    // Each carries a tally of its available (shipped) applets, tinted to the lab's accent.
     rail.append(el('h3',{text:'Categories'}));
     const labs=[];
     CABINETS.forEach(cab=>{ if(cab.lab!=='Gamer DNA' && !labs.includes(cab.lab)) labs.push(cab.lab); });
     labs.forEach(lab=> rail.append(railLink({
-      href:'#/lobby/'+encodeURIComponent(lab), icon:labIcon(lab), label:lab, color:labColor(lab)
+      href:'#/lobby/'+encodeURIComponent(lab), icon:labIcon(lab), label:lab, color:labColor(lab),
+      count: railLabCount(lab) || null, countColor: labColor(lab)
     })));
   }
   function highlightRail(hash){
@@ -14331,16 +14342,21 @@ const UI = (function(){
       a.classList.toggle('active', r===hash || (catHash!=null && r===catHash));
     });
   }
-  // Keep the Favorites count badge in the rail in sync after a star toggle.
-  function syncRail(){
-    const fav = rail.querySelector('a[data-route="#/favorites"]');
-    if(!fav) return;
-    let badge = fav.querySelector('.rail-count');
-    const n = Store.favoriteCount();
+  // Keep the live rail tally badges (Favorites, Friends) in sync after a star
+  // toggle or a roster change. Category counts are static, so they aren't touched.
+  function syncCount(route, n){
+    const link = rail.querySelector('a[data-route="'+route+'"]');
+    if(!link) return;
+    let badge = link.querySelector('.rail-count');
     if(n>0){
-      if(!badge){ badge = el('span',{class:'rail-count'}); fav.append(badge); }
+      // A fresh badge inherits the link's --rail-count-color (e.g. Friends purple).
+      if(!badge){ badge = el('span',{class:'rail-count'}); link.append(badge); }
       badge.textContent = n;
     } else if(badge){ badge.remove(); }
+  }
+  function syncRail(){
+    syncCount('#/favorites', Store.favoriteCount());
+    syncCount('#/friends',   Store.getFriends().length);
   }
 
   function refreshStrip(){
