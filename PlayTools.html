@@ -788,6 +788,25 @@
   .pd-overlay .small{color:var(--ink-dim); font-size:12px; margin-top:8px; letter-spacing:1px;}
   .pd-hint{color:var(--ink-dim); font-size:11px; letter-spacing:1px; text-align:center; margin:2px 0 4px;}
 
+  /* ---- Touch Pad — an off-screen control surface that mirrors the playfield.
+     Sits just BELOW the CRT housing so a mobile player can steer without their
+     finger covering the screen. Toggled per game via the "TOUCH PAD" switch in
+     the controls row. Dragging on the pad maps 1:1 (positionally) onto the game
+     canvas; a puck echoes the mapped finger position. ---- */
+  .touchpad-wrap{ max-width:432px; margin:2px auto 8px; text-align:center; }
+  .touchpad-label{ font-family:var(--pixel); font-size:9px; letter-spacing:2px; color:var(--ink-dim); margin:0 0 4px; }
+  .touchpad{ position:relative; height:110px; width:100%; margin:0 auto; max-width:100%;
+    background:repeating-linear-gradient(45deg,#0b0a18,#0b0a18 7px,#0e0d1e 7px,#0e0d1e 14px);
+    border:1px solid var(--neon-4); border-radius:10px; touch-action:none; cursor:crosshair;
+    box-shadow:inset 0 0 26px rgba(124,92,255,0.16), 0 4px 14px rgba(0,0,0,0.4); overflow:hidden; }
+  .touchpad::after{ content:'DRAG HERE'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:var(--pixel); font-size:10px; letter-spacing:3px; color:rgba(154,163,212,0.30); pointer-events:none; }
+  .touchpad-puck{ position:absolute; width:18px; height:18px; margin:-9px 0 0 -9px; border-radius:50%;
+    background:radial-gradient(circle at 50% 40%, var(--neon-3), #ff7a1a 70%); display:none; z-index:2; pointer-events:none;
+    box-shadow:0 0 12px rgba(255,210,61,0.8); }
+  .touchpad.active-touch{ border-color:var(--neon-3);
+    box-shadow:inset 0 0 30px rgba(255,210,61,0.18), 0 0 18px rgba(255,210,61,0.25); }
+
   /* ---- Packer (block-packing puzzle) — neon tray + floating drag ghost ---- */
   .pk-tray{display:flex; gap:12px; justify-content:center; align-items:stretch; flex-wrap:wrap; margin:10px auto 2px; max-width:432px;}
   .pk-slot{flex:1 1 0; min-width:92px; max-width:132px; min-height:88px; display:flex; align-items:center; justify-content:center;
@@ -7077,14 +7096,17 @@ Views.pixelDodge = function(c){
     if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){ if(keyDir<0) keyDir=0; }
     else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){ if(keyDir>0) keyDir=0; }
   }
+  let padActive=false;
   function pointerX(clientX){ const rc=canvas.getBoundingClientRect(); return clamp01((clientX-rc.left)/rc.width)*PD_W; }
-  function onMouse(e){ if(playing){ targetX=pointerX(e.clientX); keyDir=0; } }
-  function onTouch(e){ if(!playing) return; e.preventDefault(); const tch=e.touches[0]; if(tch){ targetX=pointerX(tch.clientX); keyDir=0; } }
+  function onMouse(e){ if(padActive && !e._pad) return; if(playing){ targetX=pointerX(e.clientX); keyDir=0; } }
+  function onTouch(e){ if(padActive && !e._pad) return; if(!playing) return; e.preventDefault(); const tch=e.touches[0]; if(tch){ targetX=pointerX(tch.clientX); keyDir=0; } }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   canvas.addEventListener('mousemove', onMouse);
   canvas.addEventListener('touchstart', onTouch, {passive:false});
   canvas.addEventListener('touchmove', onTouch, {passive:false});
+  mountTouchPad({ canvas, controlsRow:startRow, anchorAfter:stageTV, prefKey:'dodgePad',
+    onDown:onTouch, onMove:onTouch, onActiveChange:(a)=>{ padActive=a; } });
 
   // ---- idle attract frame ----
   startBtn.onclick=startGame;
@@ -7514,13 +7536,16 @@ Views.overdrive = function(c){
     else if(k==='ArrowRight'||k==='d'||k==='D') keyRight=false;
     else if(k==='ArrowUp'||k==='w'||k==='W') keyUp=false;
     else if(k==='ArrowDown'||k==='s'||k==='S') keyDown=false; }
-  function onTouch(e){ if(!playing||paused) return; e.preventDefault(); const tch=e.touches[0]; if(!tch) return; const rc=canvas.getBoundingClientRect(), frac=(tch.clientX-rc.left)/rc.width; keyLeft=frac<0.4; keyRight=frac>0.6; keyUp=true; }
+  let padActive=false;
+  function onTouch(e){ if(padActive && !e._pad) return; if(!playing||paused) return; e.preventDefault(); const tch=e.touches[0]; if(!tch) return; const rc=canvas.getBoundingClientRect(), frac=(tch.clientX-rc.left)/rc.width; keyLeft=frac<0.4; keyRight=frac>0.6; keyUp=true; }
   function onTouchEnd(){ keyLeft=keyRight=keyUp=false; }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   canvas.addEventListener('touchstart', onTouch, {passive:false});
   canvas.addEventListener('touchmove', onTouch, {passive:false});
   canvas.addEventListener('touchend', onTouchEnd);
+  mountTouchPad({ canvas, controlsRow:startRow, anchorAfter:stageTV, prefKey:'overdrivePad',
+    onDown:onTouch, onMove:onTouch, onUp:onTouchEnd, onActiveChange:(a)=>{ padActive=a; } });
 
   // ---- attract frame ----
   startBtn.onclick=startGame;
@@ -7571,6 +7596,61 @@ function soundToggle(muteKey){
   return b;
 }
 function arcadeGrade(comp){ return comp>=0.92?'S':comp>=0.8?'A':comp>=0.65?'B':comp>=0.45?'C':'F'; }
+
+/* Touch Pad — a mirror-control surface for games where the player's finger would
+   otherwise cover the screen. When enabled (per-game pref `prefKey`), a small pad
+   appears just below the CRT housing; dragging on it maps 1:1 onto the game canvas
+   and is forwarded to the game's own pointer/touch handlers via a synthetic event
+   flagged `_pad` (so the game can ignore real on-screen touches while the pad
+   drives it). The switch is always visible, defaults OFF, and the choice is
+   remembered. Caller wires its handlers + an onActiveChange(active) callback that
+   should set the game's `padActive` flag.
+     o = { canvas, controlsRow, anchorAfter, prefKey,
+           onDown, onMove, onUp, onActiveChange } */
+function mountTouchPad(o){
+  const sw   = el('button',{class:'btn ghost'});
+  const wrap = el('div',{class:'touchpad-wrap'});
+  const pad  = el('div',{class:'touchpad'});
+  const puck = el('div',{class:'touchpad-puck'});
+  pad.append(puck);
+  wrap.append(el('div',{class:'touchpad-label', html:'🎮 TOUCH PAD'}), pad);
+
+  let active = !!Store.getPrefs()[o.prefKey];
+  function sync(){ sw.innerHTML = active ? '🕹️ Touch Pad On' : '🎮 Touch Pad Off'; sw.classList.toggle('on', active); }
+  function setActive(a){
+    active=a; Store.setPref(o.prefKey, a); sync();
+    wrap.style.display = a ? '' : 'none';
+    if(!a){ puck.style.display='none'; pad.classList.remove('active-touch'); o.onUp && o.onUp(); }
+    o.onActiveChange && o.onActiveChange(a);
+  }
+  sw.onclick = ()=> setActive(!active);
+
+  // map a pad pointer event to a synthetic event over the game canvas
+  function synth(ev){
+    const cr=o.canvas.getBoundingClientRect(), pr=pad.getBoundingClientRect();
+    const fx=clamp01((ev.clientX-pr.left)/pr.width), fy=clamp01((ev.clientY-pr.top)/pr.height);
+    puck.style.left=(fx*100)+'%'; puck.style.top=(fy*100)+'%';
+    const clientX=cr.left+fx*cr.width, clientY=cr.top+fy*cr.height;
+    return { clientX, clientY, touches:[{clientX,clientY}], changedTouches:[{clientX,clientY}],
+             preventDefault(){}, stopPropagation(){}, _pad:true };
+  }
+  let pid=null;
+  pad.addEventListener('pointerdown', e=>{ if(!active) return; e.preventDefault();
+    pid=e.pointerId; try{ pad.setPointerCapture(pid); }catch(_){}
+    puck.style.display='block'; pad.classList.add('active-touch'); o.onDown && o.onDown(synth(e)); });
+  pad.addEventListener('pointermove', e=>{ if(pid!==e.pointerId) return; o.onMove && o.onMove(synth(e)); });
+  function release(e){ if(pid!==e.pointerId) return; pid=null;
+    puck.style.display='none'; pad.classList.remove('active-touch'); o.onUp && o.onUp(); }
+  pad.addEventListener('pointerup', release);
+  pad.addEventListener('pointercancel', release);
+
+  o.controlsRow.append(sw);
+  o.anchorAfter.after(wrap);
+  sync();
+  wrap.style.display = active ? '' : 'none';
+  if(o.onActiveChange) o.onActiveChange(active);
+  return { isActive:()=>active };
+}
 
 /* ---- ARCADE.3 My Anaconda ---- */
 /* ---- My Anaconda difficulty tiers ---- */
@@ -8294,14 +8374,16 @@ Views.macPan = function(c){
     else return;
     if(playing) e.preventDefault();
   }
-  let touchStart=null;
-  function onTouchStart(e){ const t=e.touches[0]; if(t) touchStart={x:t.clientX,y:t.clientY}; }
-  function onTouchMove(e){ if(!touchStart) return; const t=e.touches[0]; if(!t) return;
+  let touchStart=null, padActive=false;
+  function onTouchStart(e){ if(padActive && !e._pad) return; const t=e.touches[0]; if(t) touchStart={x:t.clientX,y:t.clientY}; }
+  function onTouchMove(e){ if(padActive && !e._pad) return; if(!touchStart) return; const t=e.touches[0]; if(!t) return;
     const dx=t.clientX-touchStart.x, dy=t.clientY-touchStart.y;
     if(Math.hypot(dx,dy)>18){ if(Math.abs(dx)>Math.abs(dy)) setWant(dx>0?1:-1,0); else setWant(0,dy>0?1:-1); touchStart={x:t.clientX,y:t.clientY}; e.preventDefault(); } }
   window.addEventListener('keydown', onKey);
   canvas.addEventListener('touchstart', onTouchStart, {passive:false});
   canvas.addEventListener('touchmove', onTouchMove, {passive:false});
+  mountTouchPad({ canvas, controlsRow:startRow, anchorAfter:stageTV, prefKey:'macpanPad',
+    onDown:onTouchStart, onMove:onTouchMove, onUp:()=>{ touchStart=null; }, onActiveChange:(a)=>{ padActive=a; } });
 
   let aliveView=true;
   startBtn.onclick=startGame;
@@ -8477,10 +8559,13 @@ Views.brickBreaker = function(c){
     if((e.key==='ArrowLeft'||e.key==='a'||e.key==='A') && keyDir<0) keyDir=0;
     else if((e.key==='ArrowRight'||e.key==='d'||e.key==='D') && keyDir>0) keyDir=0;
   }
-  function onMouse(e){ if(!playing) return; const rc=canvas.getBoundingClientRect(); padX=clamp01((e.clientX-rc.left)/rc.width)*W; keyDir=0; }
+  let padActive=false;
+  function onMouse(e){ if(padActive && !e._pad) return; if(!playing) return; const rc=canvas.getBoundingClientRect(); padX=clamp01((e.clientX-rc.left)/rc.width)*W; keyDir=0; }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   canvas.addEventListener('mousemove', onMouse);
+  mountTouchPad({ canvas, controlsRow:startRow, anchorAfter:stageTV, prefKey:'brickPad',
+    onDown:onMouse, onMove:onMouse, onActiveChange:(a)=>{ padActive=a; } });
   startBtn.onclick=startGame;
   reset(); draw(); renderHud();
   overlay.style.display='flex';
@@ -13137,8 +13222,9 @@ Views.ecto = function(c){
     else if(k===' '||k==='Spacebar') keyFire=false;
   }
   function mapX(clientX){ const rc=canvas.getBoundingClientRect(); return (clientX-rc.left)/(rc.width/EC_W); }
-  function onDown(e){ if(!running||over){ if(!running && !over) startGame(); return; } e.preventDefault(); pointerActive=true; pointerX=mapX(e.clientX); }
-  function onMove(e){ if(pointerActive){ pointerX=mapX(e.clientX); } }
+  let padActive=false;
+  function onDown(e){ if(padActive && !e._pad) return; if(!running||over){ if(!running && !over) startGame(); return; } e.preventDefault(); pointerActive=true; pointerX=mapX(e.clientX); }
+  function onMove(e){ if(padActive && !e._pad) return; if(pointerActive){ pointerX=mapX(e.clientX); } }
   function onUp(){ pointerActive=false; }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
@@ -13146,6 +13232,8 @@ Views.ecto = function(c){
   canvas.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
+  mountTouchPad({ canvas, controlsRow:startRow, anchorAfter:stageTV, prefKey:'ectoPad',
+    onDown:onDown, onMove:onMove, onUp:onUp, onActiveChange:(a)=>{ padActive=a; } });
   startBtn.onclick=startGame;
 
   // ---- attract ----
