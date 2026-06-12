@@ -12655,8 +12655,30 @@ Views.ecto = function(c){
   panel.append(startRow, diffField, hud, stageTV, hint, result);
   const ctx = canvas.getContext('2d');
 
-  // ---- static scenery (cheap, drawn behind the action) ----
-  const stars=[]; for(let i=0;i<46;i++) stars.push({x:Math.random()*EC_W, y:Math.random()*EC_H*0.62, r:Math.random()<0.3?1.4:0.8, ph:Math.random()*6});
+  // ---- night-sky scenery (precomputed; cheap to redraw every frame) ----
+  const moon={ x:EC_W-74, y:70, r:30 };
+  // small background stars — biased toward the top of the sky, mostly cool-white
+  // with a scatter of warm gold ones; each twinkles on its own phase.
+  const stars=[];
+  for(let i=0;i<110;i++){
+    stars.push({ x:Math.random()*EC_W, y:Math.pow(Math.random(),1.3)*EC_H*0.78,
+      r:0.6+Math.random()*1.1, a:0.25+Math.random()*0.5,
+      ph:Math.random()*6.28, sp:0.5+Math.random()*1.5, gold:Math.random()<0.18 });
+  }
+  // larger 4-point gold sparkle stars (the bright accents in the reference art)
+  const sparks=[];
+  for(let i=0;i<11;i++) sparks.push({ x:20+Math.random()*(EC_W-40), y:14+Math.random()*EC_H*0.6, s:2.2+Math.random()*2.4, ph:Math.random()*6.28, sp:0.8+Math.random()*1.4 });
+  // layered horizon ridges (far→near): distant ones sit higher, lighter & hazier,
+  // giving the sky atmospheric depth instead of a flat fog band.
+  function ridge(baseY, amp, step, seed){ const pts=[]; let p=seed;
+    for(let x=-10;x<=EC_W+10;x+=step){ p+=0.7; pts.push({ x, y:baseY + Math.sin(p)*amp + Math.sin(p*0.37)*amp*0.5 }); }
+    return pts; }
+  const hills=[
+    { pts:ridge(EC_H-86, 14, 26, 1.3), col:'#34336a' },
+    { pts:ridge(EC_H-62, 16, 30, 4.1), col:'#282752' },
+    { pts:ridge(EC_H-42, 16, 34, 7.7), col:'#1a1940' },
+    { pts:ridge(EC_H-22, 14, 40, 2.9), col:'#101026' },
+  ];
   const graves=[{x:40,w:14,h:30},{x:120,w:11,h:22},{x:200,w:16,h:36},{x:280,w:12,h:26},{x:344,w:13,h:30}];
 
   // ---- state ----
@@ -12867,17 +12889,55 @@ Views.ecto = function(c){
 
   // ---- rendering ----
   function drawBg(){
-    const sky=ctx.createLinearGradient(0,0,0,EC_H); sky.addColorStop(0,'#0a0a22'); sky.addColorStop(0.6,'#15123a'); sky.addColorStop(1,'#1d1240');
-    ctx.fillStyle=sky; ctx.fillRect(0,0,EC_W,EC_H);
     const now=performance.now();
-    ctx.fillStyle='#fff';
-    stars.forEach(s=>{ ctx.globalAlpha=0.35+0.5*Math.abs(Math.sin(now/700+s.ph)); ctx.fillRect(s.x,s.y,s.r,s.r); });
+    // sky: deep indigo overhead easing to a warmer blue-violet glow at the horizon
+    const sky=ctx.createLinearGradient(0,0,0,EC_H);
+    sky.addColorStop(0.0,'#0a0920'); sky.addColorStop(0.32,'#12103c'); sky.addColorStop(0.58,'#1b1850');
+    sky.addColorStop(0.78,'#272358'); sky.addColorStop(1.0,'#322c63');
+    ctx.fillStyle=sky; ctx.fillRect(0,0,EC_W,EC_H);
+    // faint diagonal "milky way" haze — soft texture across the upper sky
+    const mw=ctx.createLinearGradient(0,EC_H*0.08,EC_W,EC_H*0.55);
+    mw.addColorStop(0,'rgba(96,96,168,0)'); mw.addColorStop(0.5,'rgba(126,126,196,0.07)'); mw.addColorStop(1,'rgba(96,96,168,0)');
+    ctx.fillStyle=mw; ctx.fillRect(0,0,EC_W,EC_H*0.62);
+    // small twinkling stars
+    for(const s of stars){
+      ctx.globalAlpha=Math.max(0, s.a*(0.55+0.45*Math.sin(now*0.001*s.sp+s.ph)));
+      ctx.fillStyle=s.gold?'#ffe6a8':'#dfe6ff';
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill();
+    }
     ctx.globalAlpha=1;
-    ctx.save(); ctx.shadowColor='rgba(220,225,255,0.8)'; ctx.shadowBlur=24; ctx.fillStyle='#e9ecff';
-    ctx.beginPath(); ctx.arc(EC_W-54,58,26,0,7); ctx.fill(); ctx.restore();
-    ctx.fillStyle='rgba(150,155,200,0.30)'; ctx.beginPath(); ctx.arc(EC_W-46,52,7,0,7); ctx.arc(EC_W-62,64,5,0,7); ctx.fill();
-    const fog=ctx.createLinearGradient(0,EC_H-96,0,EC_H); fog.addColorStop(0,'rgba(120,140,200,0)'); fog.addColorStop(1,'rgba(120,140,200,0.18)');
-    ctx.fillStyle=fog; ctx.fillRect(0,EC_H-96,EC_W,96);
+    // gold 4-point sparkle stars
+    for(const sp of sparks){
+      const tw=0.4+0.6*Math.abs(Math.sin(now*0.001*sp.sp+sp.ph)), s=sp.s*(0.7+0.5*tw);
+      ctx.save(); ctx.globalAlpha=tw; ctx.translate(sp.x,sp.y);
+      ctx.fillStyle='#ffd873'; ctx.shadowColor='#ffcf5a'; ctx.shadowBlur=6;
+      ctx.beginPath(); ctx.moveTo(0,-s*2); ctx.lineTo(s*0.5,0); ctx.lineTo(0,s*2); ctx.lineTo(-s*0.5,0); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-s*2,0); ctx.lineTo(0,s*0.5); ctx.lineTo(s*2,0); ctx.lineTo(0,-s*0.5); ctx.closePath(); ctx.fill();
+      ctx.shadowBlur=0; ctx.fillStyle='#fff7e0'; ctx.beginPath(); ctx.arc(0,0,s*0.5,0,7); ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha=1;
+    // moon — soft layered halo + warm cratered body
+    const mg=ctx.createRadialGradient(moon.x,moon.y,moon.r*0.6, moon.x,moon.y,moon.r*3.2);
+    mg.addColorStop(0,'rgba(255,236,200,0.42)'); mg.addColorStop(0.5,'rgba(220,210,255,0.10)'); mg.addColorStop(1,'rgba(220,210,255,0)');
+    ctx.fillStyle=mg; ctx.beginPath(); ctx.arc(moon.x,moon.y,moon.r*3.2,0,7); ctx.fill();
+    const mb=ctx.createRadialGradient(moon.x-moon.r*0.3,moon.y-moon.r*0.3,moon.r*0.2, moon.x,moon.y,moon.r);
+    mb.addColorStop(0,'#fff4dc'); mb.addColorStop(0.6,'#fbe3b0'); mb.addColorStop(1,'#e9c88f');
+    ctx.fillStyle=mb; ctx.beginPath(); ctx.arc(moon.x,moon.y,moon.r,0,7); ctx.fill();
+    ctx.fillStyle='rgba(180,150,110,0.30)';
+    [[-8,-6,5],[10,-2,4],[2,8,6],[-6,10,3],[12,9,3],[-2,-12,3]].forEach(c=>{ ctx.beginPath(); ctx.arc(moon.x+c[0],moon.y+c[1],c[2],0,7); ctx.fill(); });
+    ctx.fillStyle='rgba(255,250,235,0.22)'; ctx.beginPath(); ctx.arc(moon.x-moon.r*0.34,moon.y-moon.r*0.34,moon.r*0.5,0,7); ctx.fill();
+    // atmospheric horizon haze, sitting behind the ridgelines
+    const hz=ctx.createLinearGradient(0,EC_H-124,0,EC_H-34);
+    hz.addColorStop(0,'rgba(120,122,200,0)'); hz.addColorStop(1,'rgba(150,142,214,0.22)');
+    ctx.fillStyle=hz; ctx.fillRect(0,EC_H-124,EC_W,90);
+    // layered hills (far→near)
+    for(const h of hills){
+      ctx.fillStyle=h.col; ctx.beginPath(); ctx.moveTo(-10,EC_H);
+      for(const pt of h.pts) ctx.lineTo(pt.x,pt.y);
+      ctx.lineTo(EC_W+10,EC_H); ctx.closePath(); ctx.fill();
+    }
+    // headstones + ground (foreground silhouettes)
     ctx.fillStyle='#0c0a1e';
     graves.forEach(g=>{ const base=EC_H-8; ctx.beginPath(); ctx.moveTo(g.x-g.w,base); ctx.lineTo(g.x-g.w,base-g.h); ctx.arc(g.x,base-g.h,g.w,Math.PI,0); ctx.lineTo(g.x+g.w,base); ctx.closePath(); ctx.fill(); });
     ctx.fillStyle='#0a0818'; ctx.fillRect(0,EC_H-10,EC_W,10);
