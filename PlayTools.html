@@ -12688,6 +12688,7 @@ Views.ecto = function(c){
   let seanceTotal=0, seanceBagged=0;
   let spirits=[], pbullets=[], ebullets=[], particles=[], pops=[];
   let player={x:EC_W/2, invuln:0}, fireCd=0;
+  let prevX=EC_W/2, faceLeft=false, walkPhase=0, moving=false;   // walk-cycle state
   let keyLeft=false, keyRight=false, keyFire=false, pointerActive=false, pointerX=EC_W/2;
 
   const PLAYER_SPD=235, BULLET_SPD=560, FIRE_INT=0.16, ENTRY_DUR=0.85, SEANCE_DUR=4.6;
@@ -12856,10 +12857,14 @@ Views.ecto = function(c){
     if(vx!==0) player.x += vx*PLAYER_SPD*dt;
     else if(pointerActive) player.x += (pointerX-player.x)*Math.min(1,dt*14);
     player.x = Math.max(16, Math.min(EC_W-16, player.x));
+    // walk-cycle bookkeeping: face the way we move, advance the step phase by distance
+    const moved=player.x-prevX; prevX=player.x;
+    if(Math.abs(moved)>0.25){ moving=true; faceLeft=moved<0; walkPhase+=Math.abs(moved)*0.35+dt*3; }
+    else moving=false;
 
-    // hold-to-autofire at a capped rate (DD §2.2)
+    // hold-to-autofire at a capped rate (DD §2.2) — plasma leaves the wand muzzle, straight up
     fireCd-=dt;
-    if((keyFire||pointerActive) && fireCd<=0){ pbullets.push({ x:player.x, y:EC_PLAYER_Y-14 }); fireCd=FIRE_INT; sndFire(); }
+    if((keyFire||pointerActive) && fireCd<=0){ pbullets.push({ x:player.x+(faceLeft?-6:6), y:EC_H-66 }); fireCd=FIRE_INT; sndFire(); }
 
     for(let i=pbullets.length-1;i>=0;i--){ pbullets[i].y-=BULLET_SPD*dt; if(pbullets[i].y<-12) pbullets.splice(i,1); }
     for(let i=ebullets.length-1;i>=0;i--){ const e=ebullets[i]; e.x+=e.vx*dt; e.y+=e.vy*dt; if(e.y>EC_H+12) ebullets.splice(i,1); }
@@ -12964,13 +12969,57 @@ Views.ecto = function(c){
     ctx.beginPath(); ctx.moveTo(sp.x-3,sp.y+h*0.55); ctx.lineTo(sp.x-3,sp.y+h); ctx.moveTo(sp.x,sp.y+h*0.55); ctx.lineTo(sp.x,sp.y+h); ctx.moveTo(sp.x+3,sp.y+h*0.55); ctx.lineTo(sp.x+3,sp.y+h); ctx.stroke();
     ctx.restore();
   }
+  // The wrangler — a Ghostbuster-style proton-pack character, procedurally drawn
+  // (no image files, DD §1.3). Authored facing right; mirrored for facing left.
+  // A two-frame walk cycle (contact ↔ passing) plays while moving; a neutral
+  // standing pose holds when still. The proton wand points straight up so plasma
+  // fires upward exactly as the game implements it.
+  function drawBuster(cx, footY, pose){
+    const P=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(Math.round(cx+x), Math.round(footY+y), w, h); };
+    const skin='#e8b890', skinSh='#c98f63', hair='#6f4423', hairHi='#8a5a2c',
+          suit='#cdb68a', suitSh='#9f8a5c', suitDk='#6f5d3a',
+          pack='#2b2f38', packLt='#444b58', packDk='#15171c',
+          boot='#15171c', bootTop='#27402f', glove='#1a1c22',
+          hose='#f2b81f', wand='#3a3f48', wandDk='#15171c', wandHi='#5b6270';
+    // proton pack (worn on the back — left side when facing right)
+    P(-11,-32,7,16,pack); P(-11,-32,7,3,packLt); P(-10,-27,5,2,packDk); P(-10,-23,5,2,packDk); P(-9,-20,3,2,'#c0322f');
+    P(-4,-32,2,15,suitSh);   // shoulder strap / back edge
+    // yellow proton hose, looping from the pack round to the gun
+    ctx.strokeStyle=hose; ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(cx-6,footY-30); ctx.quadraticCurveTo(cx-10,footY-18, cx-3,footY-16); ctx.quadraticCurveTo(cx+4,footY-14, cx+5,footY-24); ctx.stroke();
+    // legs + boots — back leg first so the front leg overlaps it
+    function drawLeg(dx,lift,back){ const c=back?suitSh:suit;
+      P(dx-2,-16,4,9-lift,c); const by=-7-lift; P(dx-3,by-1,6,2,bootTop); P(dx-3,by+1,7,6,boot); }
+    const L = pose==='contact'? [5,0,-5,0] : pose==='pass'? [2,0,-1,3] : [3,0,-3,0];
+    drawLeg(L[2],L[3],true); drawLeg(L[0],L[1],false);
+    // torso / jumpsuit
+    P(-5,-34,11,18,suit); P(-5,-34,3,18,suitSh); P(0,-34,1,17,suitDk);
+    P(2,-30,5,5,'#e9e9e9'); P(3,-29,3,3,'#c0322f');   // chest insignia (white box + red emblem)
+    P(-5,-18,11,2,suitDk); P(-1,-19,3,2,'#c0322f');    // belt + waist connector
+    // raised arm gripping the wand
+    P(3,-44,4,12,suit); P(3,-44,2,12,suitSh); P(3,-46,4,4,glove);
+    // head (profile, facing right)
+    P(-2,-44,7,9,skin); P(-2,-37,7,1,skinSh);
+    P(5,-41,1,2,skin); P(5,-40,1,1,skinSh);            // nose
+    P(3,-42,1,1,'#241a30');                            // eye
+    P(-3,-46,8,3,hair); P(-3,-44,2,7,hair); P(4,-46,1,2,hairHi); P(-1,-40,1,2,hair);
+    // proton wand — vertical, muzzle up
+    P(5,-52,3,23,wand); P(7,-52,1,23,wandDk); P(4,-34,4,4,wandDk);
+    P(5,-47,3,1,wandHi); P(5,-41,3,1,wandHi); P(4,-54,5,2,wandDk);
+    // glowing plasma tip
+    ctx.save(); ctx.shadowColor='#9fe8ff'; ctx.shadowBlur=8;
+    ctx.fillStyle='#bfeeff'; ctx.fillRect(Math.round(cx+5),Math.round(footY-58),3,4);
+    ctx.fillStyle='#ffffff'; ctx.fillRect(Math.round(cx+5),Math.round(footY-59),3,2);
+    ctx.restore();
+  }
   function drawPlayer(){
     if(player.invuln>0 && Math.floor(performance.now()/100)%2) return;   // blink while invulnerable
-    const px=player.x, py=EC_PLAYER_Y; ctx.save();
-    ctx.fillStyle='#2a2f4a'; ctx.beginPath(); ctx.moveTo(px-14,py+12); ctx.lineTo(px+14,py+12); ctx.lineTo(px+9,py+2); ctx.lineTo(px-9,py+2); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#3a4570'; ctx.fillRect(px-7,py-4,14,7);
-    ctx.fillStyle='#9ff3ff'; ctx.shadowColor='#9ff3ff'; ctx.shadowBlur=12; ctx.beginPath(); ctx.arc(px,py-6,4,0,7); ctx.fill(); ctx.shadowBlur=0;
-    ctx.fillStyle='#cffaff'; ctx.fillRect(px-1.5,py-12,3,5);
+    const cx=player.x, footY=EC_H-12;
+    const pose = moving ? (Math.floor(walkPhase)%2===0?'contact':'pass') : 'stand';
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(cx,footY+1,12,3,0,0,7); ctx.fill();
+    if(faceLeft){ ctx.translate(cx,0); ctx.scale(-1,1); ctx.translate(-cx,0); }
+    drawBuster(cx, footY, pose);
     ctx.restore();
   }
   function draw(){
@@ -13017,6 +13066,7 @@ Views.ecto = function(c){
     runDeaths=0; runCleanShift=false; perfectsThisRun=0; bustedThisRun=0;
     spirits=[]; pbullets=[]; ebullets=[]; particles=[]; pops=[];
     player={x:EC_W/2, invuln:0}; fireCd=0; shake=0;
+    prevX=EC_W/2; faceLeft=false; walkPhase=0; moving=false;
     keyLeft=keyRight=keyFire=false; pointerActive=false;
     over=false; running=true; best=bestScore();
     result.innerHTML=''; overlay.style.display='none'; startBtn.innerHTML='⟳ Restart';
