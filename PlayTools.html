@@ -14294,8 +14294,8 @@ const UI = (function(){
 
   // Friends rail badge colour — a standard purple echoing the 👥 Friends icon.
   const FRIENDS_RAIL_COLOR = '#a855f7';
-  // Count of shipped (available) applets in a category; coming-soon (p2) excluded.
-  function railLabCount(lab){ return CABINETS.filter(c=> c.lab===lab && c.tag==='mvp').length; }
+  // Total applets in a category, including coming-soon (p2) ones.
+  function railLabCount(lab){ return CABINETS.filter(c=> c.lab===lab).length; }
 
   // The rail is now a sort/filter surface rather than a flat list of every
   // applet. Top: the standing destinations (Lobby, Friends, Platforms) plus the
