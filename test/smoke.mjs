@@ -14,6 +14,7 @@ mkdirSync(outDir, { recursive: true });
 const cases = [
   { name: 'playtools-dna', file: 'PlayTools.html', enter: true, hash: '#/dna' },
   { name: 'playtools-crossload', file: 'PlayTools.html', enter: true, hash: '#/arcade/crossload', drive: 'crossload' },
+  { name: 'playtools-rig', file: 'PlayTools.html', enter: true, hash: '#/rig', drive: 'rig' },
   { name: 'sharecard-studio', file: 'sharecard-studio.html' },
 ];
 
@@ -36,6 +37,29 @@ for (const c of cases) {
       await page.keyboard.press(i % 6 === 5 ? 'ArrowLeft' : 'ArrowUp');
       await page.waitForTimeout(110);
     }
+    await page.waitForTimeout(400);
+  }
+
+  // The Rig: collect the daily payout (a fresh load grants +100 NetCoin),
+  // buy the 80-cost entry part from the NetStore, then open the battlestation
+  // Share Card — so the idle/daily/store/share paths all execute, not just the
+  // route mount.
+  if (c.drive === 'rig') {
+    await page.evaluate(() => {
+      const claim = [...document.querySelectorAll('button.btn.primary')]
+        .find((b) => /Collect Daily/i.test(b.textContent));
+      if (claim) claim.click();
+    });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { if (window.Rig) window.Rig.buy('gpu1'); window.location.hash = '#/rig/store'; });
+    await page.waitForTimeout(300);
+    await page.evaluate(() => { window.location.hash = '#/rig'; });
+    await page.waitForTimeout(300);
+    await page.evaluate(() => {
+      const share = [...document.querySelectorAll('button.btn')]
+        .find((b) => /Share Battlestation/i.test(b.textContent));
+      if (share) share.click();
+    });
     await page.waitForTimeout(400);
   }
 

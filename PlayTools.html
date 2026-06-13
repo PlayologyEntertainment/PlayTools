@@ -708,6 +708,40 @@
   .grade-F{background:rgba(255,77,109,0.15); color:var(--danger); border:2px solid var(--danger);}
 
   .controls-row{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0;}
+
+  /* ---- The Rig — NetCoin meta-progression (Rig_DD.md) ---- */
+  .score-strip .coin-ic{display:inline-block; vertical-align:-3px; margin:0 2px 0 0;}
+  .score-strip b#ssCoin{color:var(--neon-3);}
+  .rig-block{background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:16px; margin:14px 0;}
+  .rig-block h2.sub{margin-top:0;}
+  .rig-wallet{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .rig-wallet .bal{display:flex; align-items:center; gap:10px;}
+  .rig-wallet .bal .n{font-family:var(--pixel); font-size:34px; font-weight:800; color:var(--neon-3); text-shadow:0 0 16px rgba(255,210,61,0.35); line-height:1;}
+  .rig-wallet .sub-stat{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim);}
+  .rig-gauge{height:18px; border:1px solid var(--line); border-radius:10px; background:var(--bg-2); overflow:hidden; margin:8px 0;}
+  .rig-gauge .fill{height:100%; width:0; background:linear-gradient(90deg,var(--neon),var(--neon-3)); transition:width .4s ease;}
+  .rig-gauge.full .fill{background:linear-gradient(90deg,var(--neon-3),var(--neon-2)); animation:rigPulse 1.4s ease-in-out infinite;}
+  @keyframes rigPulse{50%{filter:brightness(1.35);}}
+  .rig-line{display:flex; justify-content:space-between; gap:10px; font-size:12px; color:var(--ink-dim); flex-wrap:wrap;}
+  .rig-line b{color:var(--ink); font-family:var(--pixel);}
+  .rig-oc{font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim);}
+  .rig-oc.on{color:var(--neon-3);}
+  .rig-streak{display:flex; align-items:baseline; gap:8px;}
+  .rig-streak .d{font-family:var(--pixel); font-size:30px; font-weight:800; color:var(--neon);}
+  .rig-scene{border:1px solid var(--line); border-radius:8px; background:linear-gradient(180deg,#0a0e22,#070912); padding:10px; margin:14px 0; text-align:center;}
+  .rig-scene svg{width:100%; max-width:440px; height:auto;}
+  .rig-store-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 13px; border:1px solid var(--line); border-radius:8px; margin-bottom:9px; background:var(--panel-2);}
+  .rig-store-row .info{min-width:0;}
+  .rig-store-row .nm{font-family:var(--pixel); color:var(--ink);}
+  .rig-store-row .cat{font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--neon-2); margin-right:6px;}
+  .rig-store-row .meta{font-size:12px; color:var(--ink-dim);}
+  .rig-store-row .buy{display:flex; align-items:center; gap:10px; flex-shrink:0;}
+  .rig-cost{display:flex; align-items:center; gap:5px; font-family:var(--pixel); color:var(--neon-3); white-space:nowrap;}
+  .rig-store-row.owned{border-color:rgba(255,210,61,0.4);}
+  .rig-store-row.owned .own-tag{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--neon-3);}
+  .rig-store-row.locked{opacity:0.55;}
+  nav.rail a .rail-dot{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--neon-3); box-shadow:0 0 8px var(--neon-3); animation:rigPulse 1.3s ease-in-out infinite;}
+
   .seg{display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
   .seg button{
     font-family:var(--mono); font-size:12px; background:var(--panel-2); color:var(--ink-dim);
@@ -1610,6 +1644,7 @@
       RANK <b id="ssRank">NEWBIE</b>
       <span class="sep">·</span> CLASS <b id="ssClass">UNRANKED</b>
       <span class="sep">·</span> SCORE <b id="ssScore">0</b>
+      <span class="sep">·</span><span id="ssCoinIc" class="coin-ic" aria-hidden="true"></span><b id="ssCoin" title="NetCoin — your spendable economy (separate from Gamer Score)">0</b>
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
@@ -1687,7 +1722,22 @@ const Store = (function(){
       sensitivity: null,       // Setup Lab sensitivity profile {dpi,inGame,edpi,cohort}
       friends: [],             // imported peer Gamer DNA snapshots (DD §3.2) — local only
       platforms: {},           // Platform Link cards keyed by id (DD §3.1.2.1) — local only
-      favorites: []            // cabinet ids the user has starred — drives the Favorites sidebar filter
+      favorites: [],           // cabinet ids the user has starred — drives the Favorites sidebar filter
+      // The Rig (Rig_DD.md) — idle NetCoin economy & battlestation. A pure
+      // ECONOMY: never affects attributes / Gamer Score (Rig_DD §1.2 / §3.3).
+      rig: {
+        netcoin: 0,            // spendable balance
+        totalEarned: 0,        // lifetime NetCoin earned (Share Card brag)
+        parts: {},             // owned functional part ids -> true
+        rigScore: 0,           // weighted sum of owned part tiers (the flex number)
+        lastMineTs: Date.now(),// idle-tank clock: when idle was last collected
+        streak: 0,             // current consecutive-day claim streak
+        bestStreak: 0,         // all-time best streak
+        lastClaimDay: null,    // local day key of the last daily-payout claim
+        overclock: { day:null, tools:[] }, // distinct applets used today (§5.3)
+        achInit: false,        // one-time founder back-pay of past achievements done
+        achPaidIds: []         // achievement ids already paid NetCoin (no double-pay)
+      }
     };
   }
 
@@ -1737,7 +1787,17 @@ const Store = (function(){
         bests: parsed.bests||{}, counters: parsed.counters||{}, achievements: parsed.achievements||[],
         friends: Array.isArray(parsed.friends) ? parsed.friends : [],
         platforms: (parsed.platforms && typeof parsed.platforms==='object') ? parsed.platforms : {},
-        favorites: Array.isArray(parsed.favorites) ? parsed.favorites : []
+        favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
+        // Deep-merge the Rig block so saves that predate it (or any field added
+        // later) pick up the current defaults instead of being clobbered.
+        rig: (function(pr){
+          const base = defaultDNA().rig;
+          const m = Object.assign(base, pr||{});
+          m.parts = (pr && typeof pr.parts==='object' && pr.parts) || {};
+          m.overclock = Object.assign({day:null,tools:[]}, (pr && pr.overclock)||{});
+          m.achPaidIds = Array.isArray(pr && pr.achPaidIds) ? pr.achPaidIds : [];
+          return m;
+        })(parsed.rig)
       });
       return seedAndDecay(merged);
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
@@ -2040,6 +2100,33 @@ const DEFRAG_ICON = '<svg class="defrag-icon" viewBox="0 0 100 100" aria-hidden=
   '<rect x="28" y="66" width="44" height="4" rx="2" fill="#16c8b4"/>'+
   '<rect x="28" y="74" width="30" height="4" rx="2" fill="#ff3df0"/></svg>';
 
+/* ----------------------------------------------------------------------------
+   NETCOIN ICON (Rig_DD §9) — a colourful, ornate gold coin drawn from the
+   Playology logo palette: an arcade-gold body (--neon-3) with engraved teal
+   ("PLAY", --neon) and magenta ("TOOLS", --neon-2) chevrons and a violet
+   (--neon-4) rim/glow. Inline SVG so it scales crisply in the header, wallet,
+   NetStore and Share Card. Each call gets a unique gradient id so multiple
+   coins on one page don't share a fill.
+   ---------------------------------------------------------------------------- */
+let _coinSeq = 0;
+function netcoinSVG(size){
+  size = size || 16; const u = 'nc'+(++_coinSeq);
+  return '<svg class="netcoin" width="'+size+'" height="'+size+'" viewBox="0 0 48 48" '+
+    'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NetCoin">'+
+    '<defs><radialGradient id="'+u+'" cx="38%" cy="32%" r="78%">'+
+      '<stop offset="0%" stop-color="#fff6c8"/><stop offset="46%" stop-color="#ffd23d"/>'+
+      '<stop offset="100%" stop-color="#c98a00"/></radialGradient></defs>'+
+    '<circle cx="24" cy="24" r="22.5" fill="#7c5cff"/>'+
+    '<circle cx="24" cy="24" r="22.5" fill="none" stroke="#b9a4ff" stroke-width="1.2" opacity="0.7"/>'+
+    '<circle cx="24" cy="24" r="18.5" fill="url(#'+u+')" stroke="#8a5e00" stroke-width="1"/>'+
+    '<circle cx="24" cy="24" r="14.5" fill="none" stroke="#e0a000" stroke-width="1.1" opacity="0.85"/>'+
+    '<path d="M24 10.5 L16.5 24 L24 24 Z" fill="#16f2c8" opacity="0.92"/>'+
+    '<path d="M24 10.5 L31.5 24 L24 24 Z" fill="#10b39a" opacity="0.6"/>'+
+    '<path d="M24 37.5 L31.5 24 L24 24 Z" fill="#ff3df0" opacity="0.92"/>'+
+    '<path d="M24 37.5 L16.5 24 L24 24 Z" fill="#c92fbf" opacity="0.6"/>'+
+    '<circle cx="24" cy="24" r="2.5" fill="#fff6c8" stroke="#8a5e00" stroke-width="0.8"/></svg>';
+}
+
 /* ============================================================================
    ACH — achievement engine (DD §5.2)
    ============================================================================ */
@@ -2236,6 +2323,18 @@ const Ach = (function(){
       test:(d)=> !!(d.counters && d.counters.charMaxLevel>=5) },
     { id:'forge_legend', name:'Epic Hero', icon:'🐉', desc:'Take a character all the way to level 20.',
       test:(d)=> !!(d.counters && d.counters.charMaxLevel>=20) },
+    // ---- The Rig (Rig_DD.md §9) — meta-progression milestones. These pay
+    //      NetCoin like every other achievement; they never touch skill. ----
+    { id:'rig_first_build', name:'First Build', icon:'🛠️', desc:'Buy your first part for The Rig.',
+      test:(d)=> !!(d.rig && Object.keys(d.rig.parts||{}).length>=1) },
+    { id:'rig_streak_7', name:'7-Day Streak', icon:'📅', desc:'Reach a 7-day daily NetCoin streak.',
+      test:(d)=> !!(d.rig && d.rig.bestStreak>=7) },
+    { id:'rig_streak_30', name:'30-Day Streak', icon:'🗓️', desc:'Reach a 30-day daily NetCoin streak.',
+      test:(d)=> !!(d.rig && d.rig.bestStreak>=30) },
+    { id:'rig_maxed_gpu', name:'Maxed Out', icon:'🖥️', desc:'Install the flagship GPU — Mk III in The Rig.',
+      test:(d)=> !!(d.rig && d.rig.parts && d.rig.parts.gpu3) },
+    { id:'rig_tycoon', name:'NetCoin Tycoon', icon:'💰', desc:'Reach a Rig Score of 200.',
+      test:(d)=> !!(d.rig && d.rig.rigScore>=200) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -2253,6 +2352,14 @@ const Ach = (function(){
       });
     }
     if(newly.length){ Store.save(); AchSfx.play(); newly.forEach(def=> UI.toast('Achievement Unlocked', def.icon+' '+def.name)); }
+    // The Rig hooks (Rig_DD §9): pay NetCoin for freshly-unlocked achievements,
+    // and — since every scored run/game funnels through this single chokepoint —
+    // mark the applet as used today for the Overclock multiplier (§5.3). Neither
+    // touches attributes or Gamer Score.
+    if(window.Rig){
+      if(newly.length) Rig.payAchievements(newly);
+      if(ctx && ctx.tool) Rig.noteTool(ctx.tool);
+    }
     return newly;
   }
   function byId(id){ return DEFS.find(d=>d.id===id); }
@@ -2637,6 +2744,178 @@ const ShareCard = (function(){
 
   return { draw, open };
 })();
+
+/* ============================================================================
+   RIG — idle meta-progression & NetCoin economy (Rig_DD.md, Phase 1)
+   A persistent NetCoin "mining rig" / battlestation builder. Honest by design:
+   NetCoin is a spendable ECONOMY only — it never moves attributes, grades or
+   Gamer Score (Rig_DD §1.2 / §3.3). Sources: idle mining, an escalating daily
+   streak payout, recurring 7/30-day milestones, and a lump per achievement
+   unlock. Sink (Phase 1): functional Hardware parts that raise the mining rate
+   / offline cap and assemble the battlestation render. All numbers are the
+   signed-off tuner baseline (Rig_Economy_Tuner.html), named so they stay
+   trivial to retune.
+   ============================================================================ */
+const Rig = (function(){
+  const HOUR_MS = 3600000, DAY_MS = 86400000;
+
+  // ---- tuner baseline (Rig_DD §11) ----
+  const BASE_RATE  = 10;    // NetCoin / hour at rig multiplier 1.0
+  const BASE_CAP_H = 12;    // offline accrual cap (hours) before parts add storage
+  const DAILY_BASE = 100;   // day-1 streak payout
+  const STEP_PCT   = 15;    // +% of base per consecutive day
+  const CAP_PCT    = 150;   // streak bonus cap (+150% -> 2.5x, ~day 11)
+  const OC_THRESH  = 3;     // distinct applets/day to overclock
+  const OC_BONUS   = 25;    // +% mining rate while overclocked
+  const MS_WEEKLY  = 750;   // lump at streak day 7 / 14 / 21 ...
+  const MS_MONTHLY = 5000;  // lump at streak day 30 / 60 / 90 ...
+
+  // ---- Hardware catalog (Phase 1 = functional parts only, §6.1). 'rate' adds
+  // to the rig multiplier (base 1.0); 'cap' adds offline-cap hours; 'score'
+  // feeds the Rig Score flex number; 'needs' gates the top tiers behind the PSU
+  // (the "PSU enables top-end parts" fiction). ----
+  const PARTS = [
+    { id:'gpu1',  cat:'GPU',     name:'GPU — Mk I',       cost:80,    rate:0.4,  cap:0, score:10, blurb:'The hashing workhorse — your first real mining lever.' },
+    { id:'ram16', cat:'RAM',     name:'RAM — 16 GB',      cost:300,   rate:0,    cap:4, score:14, blurb:'More storage between visits — raises the offline cap.' },
+    { id:'cpu1',  cat:'CPU',     name:'CPU — Mk I',       cost:800,   rate:0.3,  cap:0, score:20, blurb:'Base compute — a steady bump to the mining rate.' },
+    { id:'coolA', cat:'Cooling', name:'Cooling — Air',    cost:1400,  rate:0.25, cap:0, score:26, blurb:'Keeps the tiers stable and the rate sustained.' },
+    { id:'psu',   cat:'PSU',     name:'PSU — 850W',       cost:3500,  rate:0,    cap:2, score:34, blurb:'Headroom that unlocks the top-end hardware tiers.' },
+    { id:'gpu2',  cat:'GPU',     name:'GPU — Mk II',      cost:7000,  rate:0.8,  cap:0, score:48, needs:'psu', blurb:'A serious hash boost. Requires the 850W PSU.' },
+    { id:'ram32', cat:'RAM',     name:'RAM — 32 GB',      cost:11000, rate:0,    cap:6, score:60, blurb:'Bank far more NetCoin while you are away.' },
+    { id:'coolL', cat:'Cooling', name:'Cooling — Liquid', cost:16000, rate:0.7,  cap:2, score:74, needs:'psu', blurb:'Liquid loop — sustains the highest rates. Requires the 850W PSU.' },
+    { id:'gpu3',  cat:'GPU',     name:'GPU — Mk III',     cost:30000, rate:1.5,  cap:0, score:100, needs:'psu', blurb:'The flagship. The biggest single lever in the rig. Requires the 850W PSU.' }
+  ];
+  const partById = id => PARTS.find(p=>p.id===id);
+
+  function rig(){ return Store.get().rig; }
+  function owns(id){ return !!rig().parts[id]; }
+
+  // ---- derived rig stats ----
+  function rigMultiplier(){ let m=1; PARTS.forEach(p=>{ if(owns(p.id)) m+=p.rate; }); return m; }
+  function capHours(){ let h=BASE_CAP_H; PARTS.forEach(p=>{ if(owns(p.id)) h+=p.cap; }); return h; }
+  function rate(){ return BASE_RATE * rigMultiplier(); }   // NetCoin/hr, pre-overclock
+  function computeRigScore(){ let s=0; PARTS.forEach(p=>{ if(owns(p.id)) s+=p.score; }); return s; }
+
+  // ---- local calendar-day helpers (Rig_DD §5: "local calendar day") ----
+  function dayKey(ts){ const t=ts?new Date(ts):new Date(); return t.getFullYear()+'-'+(t.getMonth()+1)+'-'+t.getDate(); }
+  function today(){ return dayKey(); }
+  function yesterday(){ return dayKey(Date.now()-DAY_MS); }
+
+  // ---- overclock (§5.3): >=N distinct applets used today boosts the rate ----
+  function ocState(){ const r=rig(); const oc=r.overclock||(r.overclock={day:null,tools:[]}); if(oc.day!==today()){ oc.day=today(); oc.tools=[]; } return oc; }
+  function overclocked(){ return ocState().tools.length>=OC_THRESH; }
+  function ocMult(){ return overclocked() ? (1+OC_BONUS/100) : 1; }
+  function ocTools(){ return ocState().tools.length; }
+  // Called from the universal Ach.evaluate({tool}) chokepoint — every scored
+  // run/game funnels through there, so this captures "distinct applets used
+  // today" with no per-tool edits (Rig_DD §9 activity hook). No skill is touched.
+  function noteTool(toolId){
+    if(!toolId) return;
+    const oc = ocState();
+    if(oc.tools.includes(toolId)) return;
+    Store.update(()=>{ oc.tools.push(toolId); });
+  }
+
+  // ---- idle tank (§4). Realises the "return and collect/reset it" hook: idle
+  // accrues into a tank that fills to the cap and then STOPS; collecting banks
+  // it and resets the clock. Banked NetCoin is never lost — once full you just
+  // stop accruing the bonus. ----
+  function elapsedHours(){ return Math.max(0, (Date.now()-(rig().lastMineTs||Date.now()))/HOUR_MS); }
+  function tankFrac(){ return Math.max(0, Math.min(1, elapsedHours()/capHours())); }
+  function pending(){ return Math.floor(Math.min(elapsedHours(), capHours()) * rate() * ocMult()); }
+  function tankFull(){ return elapsedHours() >= capHours(); }
+  function collectIdle(){
+    const amt = pending();
+    Store.update(s=>{ const g=s.rig; g.lastMineTs=Date.now(); if(amt>0){ g.netcoin+=amt; g.totalEarned+=amt; } });
+    return amt;
+  }
+
+  // ---- daily streak payout (§5.1 / §5.2). Strict reset: a missed day drops the
+  // streak to 1 (balance & rig untouched). Milestones re-arm every 7 / 30. ----
+  function dailyAvailable(){ return rig().lastClaimDay !== today(); }
+  function dailyMultiplier(streak){ return 1 + Math.min(CAP_PCT, STEP_PCT*Math.max(0,streak-1))/100; }
+  // Preview the payout for the claim currently available (the streak it would become).
+  function dailyPreview(){
+    const r = rig();
+    const streak = (r.lastClaimDay===yesterday()) ? (r.streak+1) : 1;
+    const base = Math.round(DAILY_BASE*dailyMultiplier(streak));
+    const weekly  = (streak%7===0)  ? MS_WEEKLY  : 0;
+    const monthly = (streak%30===0) ? MS_MONTHLY : 0;
+    return { streak, base, weekly, monthly, total:base+weekly+monthly };
+  }
+  function claimDaily(){
+    if(!dailyAvailable()) return null;
+    const p = dailyPreview();
+    Store.update(s=>{
+      const g = s.rig;
+      g.streak = p.streak; g.bestStreak = Math.max(g.bestStreak||0, p.streak);
+      g.lastClaimDay = today();
+      g.netcoin += p.total; g.totalEarned += p.total;
+    });
+    Ach.evaluate({ rig:true });   // fire 7/30-day streak achievements (pays NetCoin too)
+    return p;
+  }
+
+  // ---- spending (NetStore) ----
+  function canAfford(id){ const p=partById(id); return !!(p && !owns(id) && rig().netcoin>=p.cost && (!p.needs || owns(p.needs))); }
+  function buy(id){
+    const p = partById(id);
+    if(!p || owns(id) || rig().netcoin<p.cost || (p.needs && !owns(p.needs))) return false;
+    Store.update(s=>{ const g=s.rig; g.netcoin-=p.cost; g.parts[id]=true; g.rigScore=computeRigScore(); });
+    Ach.evaluate({ rig:true });   // First Build / Maxed Out / Tycoon
+    return true;
+  }
+
+  // ---- achievement NetCoin rewards (§3.1 / §10.5). Tiered by kind; each id is
+  // paid at most once (tracked in rig.achPaidIds). ----
+  function achReward(def){
+    const id = def.id;
+    if(id==='completionist')   return 5000;
+    if(id==='rig_streak_30')   return 2000;
+    if(id==='arcade_champion') return 1000;
+    if(id==='rig_streak_7')    return 750;
+    if(/^rig_|^forge_legend$/.test(id)) return 500;
+    if(/_ace$/.test(id))       return 150;
+    return 300;
+  }
+  // Paid from the Ach.evaluate hook for freshly-unlocked ids.
+  function payAchievements(newly){
+    if(!newly || !newly.length) return;
+    const r = rig(); let total=0; const paid=[];
+    newly.forEach(def=>{ if(!r.achPaidIds.includes(def.id)){ total += achReward(def); paid.push(def.id); } });
+    if(!total) return;
+    Store.update(s=>{ paid.forEach(id=> s.rig.achPaidIds.push(id)); s.rig.netcoin+=total; s.rig.totalEarned+=total; });
+    if(window.UI) UI.toast('NetCoin Earned', '+'+total.toLocaleString()+' NetCoin from achievements');
+  }
+
+  // ---- boot: one-time founder back-pay of already-earned achievements, then
+  // seed the mine clock. Runs once at startup, before Router.start. ----
+  function init(){
+    const g = Store.get();
+    if(!g.rig.achInit){
+      let total=0; const ids=[];
+      (g.achievements||[]).forEach(id=>{ const def=Ach.byId(id); if(def){ total+=achReward(def); ids.push(id); } });
+      Store.update(s=>{
+        const r=s.rig; r.achPaidIds=ids; r.achInit=true;
+        if(total>0){ r.netcoin+=total; r.totalEarned+=total; }
+        r.lastMineTs = Date.now();   // start the idle clock fresh — don't bank time from the createdAt epoch
+        r.rigScore = computeRigScore();
+      });
+      if(total>0 && window.UI) UI.toast('NetCoin Granted', '+'+total.toLocaleString()+' NetCoin from past achievements');
+    }
+  }
+
+  return {
+    PARTS, partById, owns, init, noteTool, payAchievements,
+    rate, rigMultiplier, capHours, computeRigScore,
+    pending, tankFrac, tankFull, collectIdle,
+    overclocked, ocTools,
+    dailyAvailable, dailyPreview, claimDaily, dailyMultiplier,
+    canAfford, buy,
+    cfg:{ BASE_RATE, BASE_CAP_H, DAILY_BASE, STEP_PCT, CAP_PCT, OC_THRESH, OC_BONUS, MS_WEEKLY, MS_MONTHLY }
+  };
+})();
+window.Rig = Rig;
 
 /* ============================================================================
    small DOM helper
@@ -15248,6 +15527,10 @@ const UI = (function(){
     // live under a "Gamer DNA" heading — that heading is gone now. The Gamer DNA
     // Hub itself stays reachable from the header button.
     rail.append(railLink({ href:'#/',               icon:'🏠', label:'Lobby' }));
+    // The Rig — top-level meta-progression, directly under the Lobby (Rig_DD §9).
+    const rigLink = railLink({ href:'#/rig', icon:'🛠️', label:'The Rig' });
+    if(window.Rig && Rig.dailyAvailable()) rigLink.append(el('span',{class:'rail-dot', title:'Daily payout ready'}));
+    rail.append(rigLink);
     rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends',
       count: Store.getFriends().length || null, countColor: FRIENDS_RAIL_COLOR }));
     rail.append(railLink({ href:'#/dna/platforms',  icon:'🔗', label:'Platforms' }));
@@ -15289,6 +15572,14 @@ const UI = (function(){
   function syncRail(){
     syncCount('#/favorites', Store.favoriteCount());
     syncCount('#/friends',   Store.getFriends().length);
+    // The Rig's "daily payout ready" dot.
+    const rl = rail.querySelector('a[data-route="#/rig"]');
+    if(rl){
+      const has = rl.querySelector('.rail-dot');
+      const want = window.Rig && Rig.dailyAvailable();
+      if(want && !has) rl.append(el('span',{class:'rail-dot', title:'Daily payout ready'}));
+      else if(!want && has) has.remove();
+    }
   }
 
   function refreshStrip(){
@@ -15296,6 +15587,7 @@ const UI = (function(){
     document.getElementById('ssClass').textContent=Attr.classFor(d).toUpperCase();
     document.getElementById('ssScore').textContent=score.toLocaleString();
     const rk=document.getElementById('ssRank'); rk.textContent=rank.name.toUpperCase(); rk.style.color=rank.color;
+    const co=document.getElementById('ssCoin'); if(co && d.rig) co.textContent=d.rig.netcoin.toLocaleString();
   }
 
   function applyAccent(hex){
@@ -15319,6 +15611,7 @@ const UI = (function(){
   }
 
   function init(){
+    const coinIc=document.getElementById('ssCoinIc'); if(coinIc) coinIc.innerHTML=netcoinSVG(15);
     buildRail();
     applyAccent(Store.get().profile.accent);
     applySign();
@@ -16888,6 +17181,244 @@ ${secs}${ch.notes?`<h2>Notes</h2><p>${esc(ch.notes)}</p>`:''}
 };
 
 /* ============================================================================
+   THE RIG — views (dashboard + NetStore) & procedural battlestation render
+   (Rig_DD.md §6–§8). The Rig is a top-level surface, not a CABINET, so it
+   builds its panels directly rather than via toolShell().
+   ============================================================================ */
+
+// A page header that mirrors toolShell()'s look without a CABINETS entry.
+function rigHead(c, title, desc){
+  const panel = el('div',{class:'panel'});
+  panel.append(
+    el('div',{class:'view-head', html:`<span class="lab-tag">The Rig</span>`}),
+    el('h1',{class:'title', html:title}),
+    el('p',{class:'view-desc', html:desc})
+  );
+  c.append(panel);
+  return panel;
+}
+// Flavour designation for the Share Card / dashboard, by Rig Score.
+function rigTitle(score){
+  if(score>=200) return 'Mainframe Overlord';
+  if(score>=120) return 'Hashing Powerhouse';
+  if(score>=60)  return 'Overclocked Rig';
+  if(score>=20)  return 'Booted & Mining';
+  if(score>0)    return 'First Boot';
+  return 'Cardboard Box';
+}
+
+// Procedural inline-SVG battlestation (§6) — a monitor + tower whose bays light
+// up as functional parts are installed; the RGB underglow intensifies with Rig
+// Score. Pure SVG, zero assets, on-palette, and reused on the Share Card.
+function rigSceneSVG(){
+  const r = Store.get().rig, P = r.parts||{};
+  const gpu  = P.gpu3?3:P.gpu2?2:P.gpu1?1:0;
+  const ram  = P.ram32?2:P.ram16?1:0;
+  const cpu  = P.cpu1?1:0;
+  const cool = P.coolL?2:P.coolA?1:0;
+  const psu  = P.psu?1:0;
+  const mult = Rig.rigMultiplier();
+  const glow = Math.min(0.9, 0.12 + (r.rigScore||0)/220);
+  const TEAL='#16f2c8', GOLD='#ffd23d', MAG='#ff3df0', VIO='#7c5cff', DIM='#141c3a', DS='rgba(124,92,255,0.45)';
+  // a labelled bay: lit (filled colour + halo) when active, else dim outline
+  function bay(x,y,w,h,active,color,label){
+    const halo = active ? `<rect x="${x-3}" y="${y-3}" width="${w+6}" height="${h+6}" rx="4" fill="${color}" opacity="0.18"/>` : '';
+    return halo +
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${active?color:DIM}" stroke="${active?color:DS}" stroke-width="1.4" opacity="${active?0.95:0.8}"/>`+
+      `<text x="${x+w/2}" y="${y+h/2+3}" text-anchor="middle" font-size="8" font-family="monospace" fill="${active?'#06121f':'#5a66a0'}" font-weight="bold">${label}</text>`;
+  }
+  // mining-activity bars on the monitor — lit count tracks the rig multiplier
+  const lit = Math.max(1, Math.min(6, Math.round(mult*1.6)));
+  let bars=''; for(let i=0;i<6;i++){ const h=8+i*5, on=i<lit; bars+=`<rect x="${64+i*16}" y="${130-h}" width="11" height="${h}" rx="1.5" fill="${on?TEAL:DIM}" opacity="${on?0.95:0.55}"/>`; }
+
+  return `<svg viewBox="0 0 460 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Your battlestation">
+    <!-- RGB underglow (intensifies with Rig Score) -->
+    <ellipse cx="230" cy="226" rx="200" ry="16" fill="${VIO}" opacity="${glow*0.6}"/>
+    <ellipse cx="150" cy="228" rx="90" ry="10" fill="${TEAL}" opacity="${glow*0.5}"/>
+    <ellipse cx="330" cy="228" rx="90" ry="10" fill="${MAG}" opacity="${glow*0.5}"/>
+    <!-- desk -->
+    <rect x="20" y="214" width="420" height="9" rx="3" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
+    <!-- monitor -->
+    <rect x="48" y="56" width="168" height="104" rx="6" fill="#070c1c" stroke="${DS}" stroke-width="2"/>
+    <rect x="56" y="64" width="152" height="88" rx="3" fill="#0a1230"/>
+    <text x="132" y="80" text-anchor="middle" font-size="10" font-family="monospace" fill="${GOLD}" font-weight="bold" letter-spacing="2">NETCOIN</text>
+    ${bars}
+    <rect x="124" y="160" width="16" height="22" fill="#0c1430"/><rect x="100" y="182" width="64" height="7" rx="3" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
+    <!-- keyboard + mouse (scene props; peripherals arrive in Phase 2) -->
+    <rect x="70" y="200" width="120" height="12" rx="3" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
+    <circle cx="208" cy="206" r="6" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
+    <!-- tower -->
+    <rect x="270" y="58" width="120" height="156" rx="7" fill="#070c1c" stroke="${DS}" stroke-width="2"/>
+    ${bay(282, 70, 96, 22, psu>0, GOLD, psu?'PSU 850W':'PSU')}
+    ${bay(282, 100, 96, 20, gpu>0, gpu>=3?MAG:TEAL, gpu>0?('GPU MK '+['','I','II','III'][gpu]):'GPU')}
+    ${bay(282, 126, 96, 18, gpu>1, gpu>=3?MAG:TEAL, gpu>1?'GPU ×2':'')}
+    ${bay(282, 150, 30, 30, cpu>0, VIO, 'CPU')}
+    ${bay(320, 150, 12, 30, ram>0, TEAL, '')}
+    ${bay(336, 150, 12, 30, ram>1, TEAL, '')}
+    ${(function(){ const a=cool>0; const c=cool>=2?TEAL:VIO; const cx=366,cy=165,rr=13;
+      return `<circle cx="${cx}" cy="${cy}" r="${rr}" fill="${a?c:DIM}" stroke="${a?c:DS}" stroke-width="1.4" opacity="${a?0.9:0.7}"/>`+
+             `<g opacity="${a?0.85:0.4}" fill="#06121f">`+
+             [0,72,144,216,288].map(d=>`<path d="M${cx} ${cy} l${(rr-3)*Math.cos(d*Math.PI/180)} ${(rr-3)*Math.sin(d*Math.PI/180)} a4 4 0 0 1 -4 4 z"/>`).join('')+
+             `</g><circle cx="${cx}" cy="${cy}" r="3" fill="${a?'#06121f':'#5a66a0'}"/>`; })()}
+    <rect x="282" y="186" width="96" height="20" rx="3" fill="${DIM}" stroke="${DS}" stroke-width="1" opacity="0.7"/>
+    <text x="330" y="200" text-anchor="middle" font-size="8" font-family="monospace" fill="#5a66a0">${cool>0?(cool>=2?'LIQUID COOL':'AIR COOL'):'COOLING'}</text>
+  </svg>`;
+}
+
+Views.rig = function(c){
+  let timer = null;
+  function paint(){
+    if(timer){ clearInterval(timer); timer=null; }
+    c.innerHTML='';
+    const r = Store.get().rig;
+    const panel = rigHead(c, '🛠️ The Rig',
+      'Your persistent NetCoin mining battlestation. It mines while you\'re away, pays you for showing up, and grows as you spend. <span class="muted">NetCoin is a spendable economy — it never affects your skill or Gamer Score.</span>');
+
+    // ---- wallet ----
+    const wallet = el('div',{class:'rig-block'});
+    wallet.append(el('h2',{class:'sub', text:'Wallet'}));
+    const w = el('div',{class:'rig-wallet'});
+    w.innerHTML =
+      `<div class="bal">${netcoinSVG(40)}<span class="n">${r.netcoin.toLocaleString()}</span></div>`+
+      `<div><div class="sub-stat">Total Mined</div><b>${r.totalEarned.toLocaleString()}</b></div>`+
+      `<div><div class="sub-stat">Rig Score</div><b>${r.rigScore}</b></div>`+
+      `<div><div class="sub-stat">Mining Rate</div><b>${(Rig.rate()*(Rig.overclocked()?1.25:1)).toFixed(0)}/hr</b></div>`;
+    wallet.append(w);
+    panel.append(wallet);
+
+    // ---- idle tank ----
+    const tankB = el('div',{class:'rig-block'});
+    tankB.append(el('h2',{class:'sub', text:'Idle Mining'}));
+    const gauge = el('div',{class:'rig-gauge'});
+    const fill = el('div',{class:'fill'}); gauge.append(fill);
+    const tline = el('div',{class:'rig-line'});
+    const lRate = el('span',{}); const lTank = el('span',{});
+    tline.append(lRate, lTank);
+    const ocLine = el('div',{class:'rig-oc'+(Rig.overclocked()?' on':'')});
+    const collectRow = el('div',{class:'controls-row'});
+    const collect = el('button',{class:'btn primary', html:'⛏ Collect Mined NetCoin'});
+    collect.onclick = ()=>{ const got=Rig.collectIdle(); if(got>0){ UI.toast('Collected', '+'+got.toLocaleString()+' NetCoin mined'); } paint(); };
+    collectRow.append(collect);
+    tankB.append(gauge, tline, ocLine, collectRow);
+    panel.append(tankB);
+
+    function updateTank(){
+      const frac = Rig.tankFrac(), full = Rig.tankFull(), pend = Rig.pending();
+      fill.style.width = Math.round(frac*100)+'%';
+      gauge.classList.toggle('full', full);
+      lRate.innerHTML = `Rate: <b>${Rig.rate().toFixed(1)}/hr</b>${Rig.overclocked()?` <span style="color:var(--neon-3)">×1.25 overclock</span>`:''}`;
+      lTank.innerHTML = full ? `<b style="color:var(--neon-3)">TANK FULL</b> · <b>${pend.toLocaleString()}</b> ready` : `Tank <b>${Math.round(frac*100)}%</b> · <b>${pend.toLocaleString()}</b> ready · cap ${Rig.capHours()}h`;
+      const n = Rig.ocTools();
+      ocLine.className = 'rig-oc'+(Rig.overclocked()?' on':'');
+      ocLine.innerHTML = Rig.overclocked()
+        ? `⚡ Overclocked — used ${n} tools today (+25% rate). Nice.`
+        : `⚡ Use ${3-n} more tool${(3-n)===1?'':'s'} today to Overclock the rig (+25% mining rate).`;
+      collect.disabled = pend<1;
+    }
+    updateTank();
+    timer = setInterval(updateTank, 1000);
+
+    // ---- daily payout + streak ----
+    const dailyB = el('div',{class:'rig-block'});
+    dailyB.append(el('h2',{class:'sub', text:'Daily Payout'}));
+    const streakWrap = el('div',{class:'rig-streak'});
+    streakWrap.innerHTML = `<span class="d">${r.streak}</span><span class="sub-stat">day streak${r.bestStreak>r.streak?` · best ${r.bestStreak}`:''}</span>`;
+    dailyB.append(streakWrap);
+    if(Rig.dailyAvailable()){
+      const p = Rig.dailyPreview();
+      const note = el('p',{class:'muted', style:'margin:8px 0;'});
+      let txt = `Claim today to ${p.streak===1?'start':'extend'} your streak — <b>+${p.base.toLocaleString()} NetCoin</b> (day ${p.streak}, ${Math.round(Rig.dailyMultiplier(p.streak)*100)}%).`;
+      if(p.weekly)  txt += ` <b style="color:var(--neon-3)">Weekly milestone +${p.weekly.toLocaleString()}!</b>`;
+      if(p.monthly) txt += ` <b style="color:var(--neon-2)">Monthly milestone +${p.monthly.toLocaleString()}!</b>`;
+      note.innerHTML = txt;
+      const row = el('div',{class:'controls-row'});
+      const claim = el('button',{class:'btn primary', html:`🎁 Collect Daily (+${p.total.toLocaleString()})`});
+      claim.onclick = ()=>{ const res=Rig.claimDaily(); if(res){ UI.toast('Daily Payout', `+${res.total.toLocaleString()} NetCoin · ${res.streak}-day streak`); } paint(); UI.syncRail&&UI.syncRail(); };
+      row.append(claim);
+      dailyB.append(note, row);
+    } else {
+      dailyB.append(el('p',{class:'muted', style:'margin:8px 0;',
+        html:`Claimed today. Come back tomorrow to keep the streak alive — <span class="muted">miss a day and the bonus resets to day 1 (your balance & rig are never touched).</span>`}));
+    }
+    panel.append(dailyB);
+
+    // ---- battlestation render ----
+    const sceneB = el('div',{class:'rig-block'});
+    sceneB.append(el('h2',{class:'sub', html:`Battlestation <span class="sub-stat" style="margin-left:8px;">${rigTitle(r.rigScore)} · Rig Score ${r.rigScore}</span>`}));
+    const scene = el('div',{class:'rig-scene'}); scene.innerHTML = rigSceneSVG();
+    sceneB.append(scene);
+    panel.append(sceneB);
+
+    // ---- actions ----
+    const actions = el('div',{class:'controls-row'});
+    const store = el('button',{class:'btn primary', html:'🛒 Open NetStore'});
+    store.onclick = ()=> Router.go('#/rig/store');
+    const share = el('button',{class:'btn', html:'📸 Share Battlestation'});
+    share.onclick = ()=>{
+      const rr = Store.get().rig;
+      ShareCard.open({ lab:'THE RIG', tool:'Battlestation', glyph:'🛠️',
+        metric:[ {k:'Rig Score', v:String(rr.rigScore)}, {k:'NetCoin', v:rr.netcoin.toLocaleString()},
+                 {k:'Total Mined', v:rr.totalEarned.toLocaleString()}, {k:'Best Streak', v:rr.bestStreak+'d'} ],
+        designation: rigTitle(rr.rigScore), badge:'NetCoin Mining Rig' });
+    };
+    actions.append(store, share);
+    panel.append(actions);
+  }
+  paint();
+  return ()=>{ if(timer) clearInterval(timer); };
+};
+
+Views.rigStore = function(c){
+  function paint(){
+    c.innerHTML='';
+    const r = Store.get().rig;
+    const panel = rigHead(c, '🛒 NetStore',
+      'Spend NetCoin on rig hardware. Functional parts raise your <b>mining rate</b> or <b>offline cap</b> and build out the battlestation. <span class="muted">Cosmetics & peripherals arrive in Phase 2.</span>');
+
+    const bal = el('div',{class:'rig-wallet', style:'margin-bottom:14px;'});
+    bal.innerHTML = `<div class="bal">${netcoinSVG(34)}<span class="n">${r.netcoin.toLocaleString()}</span></div><div class="sub-stat">your balance</div>`;
+    panel.append(bal);
+
+    panel.append(el('h2',{class:'sub', text:'Hardware'}));
+    Rig.PARTS.forEach(p=>{
+      const owned = Rig.owns(p.id);
+      const lockedNeed = p.needs && !Rig.owns(p.needs);
+      const row = el('div',{class:'rig-store-row'+(owned?' owned':'')+(lockedNeed&&!owned?' locked':'')});
+      const effBits = [];
+      if(p.rate) effBits.push(`+${p.rate} rate`);
+      if(p.cap)  effBits.push(`+${p.cap}h cap`);
+      effBits.push(`+${p.score} Rig Score`);
+      const info = el('div',{class:'info'});
+      info.innerHTML = `<div class="nm"><span class="cat">${p.cat}</span>${p.name}</div>`+
+        `<div class="meta">${p.blurb} <span style="color:var(--ink)">${effBits.join(' · ')}</span></div>`;
+      const buyWrap = el('div',{class:'buy'});
+      if(owned){
+        buyWrap.innerHTML = `<span class="own-tag">✓ Installed</span>`;
+      } else {
+        const cost = el('span',{class:'rig-cost', html:`${netcoinSVG(16)}${p.cost.toLocaleString()}`});
+        const btn = el('button',{class:'btn primary', html:'Buy'});
+        if(lockedNeed){
+          btn.disabled = true; btn.innerHTML = '🔒 Needs '+Rig.partById(p.needs).name;
+        } else if(!Rig.canAfford(p.id)){
+          btn.disabled = true;
+        }
+        btn.onclick = ()=>{ if(Rig.buy(p.id)){ UI.toast('Installed', p.name+' added to your rig'); paint(); } };
+        buyWrap.append(cost, btn);
+      }
+      row.append(info, buyWrap);
+      panel.append(row);
+    });
+
+    const actions = el('div',{class:'controls-row'});
+    const back = el('button',{class:'btn', html:'← Back to The Rig'});
+    back.onclick = ()=> Router.go('#/rig');
+    actions.append(back);
+    panel.append(actions);
+  }
+  paint();
+};
+
+/* ============================================================================
    BOOT
    ============================================================================ */
 Router.add('#/', Views.home);
@@ -16898,6 +17429,8 @@ Router.add('#/favorites', Views.favorites);
   CABINETS.forEach(cab=>{ if(cab.lab!=='Gamer DNA' && !labs.includes(cab.lab)) labs.push(cab.lab); });
   labs.forEach(lab=> Router.add('#/lobby/'+encodeURIComponent(lab), lobbyView({type:'lab',lab})));
 })();
+Router.add('#/rig', Views.rig);
+Router.add('#/rig/store', Views.rigStore);
 Router.add('#/dna', Views.dna);
 Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);
@@ -16954,6 +17487,7 @@ Router.add('#/fun/loadout', Views.genLoadout);
 Router.add('#/fun/roast', Views.genRoast);
 
 UI.init();
+Rig.init();   // one-time founder back-pay of past achievements + seed the idle clock (Rig_DD §10)
 Router.start();
 
 })();
