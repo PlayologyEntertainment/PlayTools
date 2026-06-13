@@ -111,11 +111,13 @@ the skill profile trustworthy and the economy free to be generous/fun.
 * **Effective rate** = `base × rigMultiplier × overclockMultiplier`, where
   `rigMultiplier` comes from owned functional parts (§6) and `overclockMultiplier`
   from today's activity (§5.3).
-* **Offline cap:** accrual is capped at a **rolling window (illustrative 12h)** so
-  the rig "fills up" between visits. Returning daily collects a full tank;
-  vanishing for a week doesn't multiply your balance. The cap is a **gentle nudge
-  to return, never a penalty** — you never lose banked NetCoin. Parts can raise
-  the cap (bigger "storage").
+* **Offline cap:** accrual **is capped** at a **rolling window (illustrative 12h)**
+  so the rig "fills up" and then stops. This is intentional: a full tank is the
+  hook that **motivates the player to return and collect/reset it**. Returning
+  daily collects a full tank; vanishing for a week doesn't multiply your balance.
+  It is still a **gentle nudge, never a penalty** — you never lose banked NetCoin,
+  you just stop *accruing* once full. Parts can raise the cap (bigger "storage"),
+  letting committed players bank more between visits.
 * **Computation:** on app load, `mined = min(cap, (now − lastMineTs) × rate)`;
   add to balance; set `lastMineTs = now`. Pure timestamp math — no background
   process needed.
@@ -218,8 +220,14 @@ No new external dependencies; reuses existing plumbing.
   `{ netcoin, parts:{}, rigScore, lastMineTs, cap, streak, lastClaimDay,
   milestones:{}, overclock:{ day, toolsUsed:[] } }` — saved via the same
   `localStorage` path GamerDNA/prefs already use.
-* **Header:** show the **NetCoin balance** in the top bar near Gamer Score / Rank
-  (its own icon/symbol — TBD §11).
+* **Header:** show the **NetCoin balance** in the top bar near Gamer Score / Rank,
+  prefixed by the **NetCoin coin icon** (see below).
+* **NetCoin icon:** a **colorful, ornate coin** drawn from the **Playology logo
+  palette** — an **arcade-gold** body (`--neon-3` `#ffd23d`) with engraved
+  detailing in **teal** (`--neon` `#16f2c8`, the "PLAY" side) and **magenta**
+  (`--neon-2` `#ff3df0`, the "TOOLS" side), finished with a **violet** rim/glow
+  (`--neon-4` `#7c5cff`). Rendered as an inline SVG so it scales crisply in the
+  header, the wallet, the NetStore, and the Share Card.
 * **Navigation:** The Rig is a **top-level nav entry**, positioned directly
   **under "The Lobby" and above "Friends."** It is kept **fully separate from
   Gamer DNA** for now (its own surface, its own state).
@@ -258,16 +266,19 @@ friends' rig comparison.
 
 ## 11. Open Questions (for iteration)
 
-1. **NetCoin symbol/icon** — what glyph represents NetCoin in the header (e.g. ⬡, ₦, a coin)?
-2. **Rates & curves** — base mining rate, offline cap hours, daily base, streak
+1. **Rates & curves** — base mining rate, offline cap hours, daily base, streak
    step/cap, overclock size & threshold N, **per-achievement payout**, and which
    peripherals carry a mining bump + how big. All illustrative above; needs a
    tuning pass so "first upgrade in ~1 min" and "30-day goal feels worthy" both hold.
-3. **Offline cap** — confirm we want a cap (recommended, gentle) vs uncapped with
-   diminishing returns.
+   *(This is the only design question left before build.)*
 
 ### 11.1 Decided (this brainstorm)
 - **Name** = **The Rig** — straight from the fiction (your *NetCoin mining rig*).
+- **NetCoin icon** = colorful, ornate **gold coin** with teal + magenta engraving
+  and a violet rim, drawn from the Playology logo palette (`--neon-3 / --neon /
+  --neon-2 / --neon-4`); inline SVG.
+- **Offline earnings are capped** — a full tank stops accruing, motivating the
+  player to return and reset it (never loses banked NetCoin).
 - **Navigation:** top-level nav entry, **under "The Lobby," above "Friends,"**
   kept fully separate from Gamer DNA for now.
 - **Milestones recur:** weekly re-arms every 7 streak-days (7/14/21/…), monthly
