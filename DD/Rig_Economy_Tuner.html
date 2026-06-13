@@ -142,6 +142,15 @@
   </fieldset>
 
   <fieldset>
+    <legend>Jack-In (gambling)</legend>
+    <div class="row"><label>House edge (%)</label><input type="number" id="jiEdge" step="0.5"></div>
+    <div class="row"><label>Avg bet</label><input type="number" id="jiBet" step="10"></div>
+    <div class="row"><label>Hands / day (if playing)</label><input type="number" id="jiHands" step="1"></div>
+    <div class="row"><label>Daily net cash-out cap</label><input type="number" id="jiCap" step="25"></div>
+    <span class="hint">Stake-only cash-out (free house chips never convert). House edge = net drain on average; cap bounds the lucky tail.</span>
+  </fieldset>
+
+  <fieldset>
     <legend>Simulation</legend>
     <div class="row"><label>Days to simulate</label><input type="number" id="simDays" step="5"></div>
     <div class="row"><label>Regular achievement factor</label><input type="number" id="achFacReg" step="0.05"></div>
@@ -163,6 +172,7 @@
       <span><i style="background:var(--neon-3)"></i>Grinder</span>
       <span><i style="background:var(--neon)"></i>Regular</span>
       <span><i style="background:var(--neon-2)"></i>Casual</span>
+      <span><i style="background:var(--neon-2);height:0;border-top:2px dashed var(--neon-2)"></i>Jack-In ceiling</span>
     </div>
   </div>
   <div class="chart">
@@ -241,6 +251,7 @@ const BASE = {
   ocThreshold:3, ocBonus:25,
   msWeekly:750, msMonthly:5000,
   achStart:200, achHalf:8,
+  jiEdge:3, jiBet:200, jiHands:10, jiCap:250,
   simDays:60, achFacReg:0.65, achFacCas:0.35
 };
 const PARAM_IDS = Object.keys(BASE);
@@ -299,7 +310,11 @@ function simulate(p, arch){
     // achievements accrue every day, tapering, scaled by engagement
     const ach = p.achStart * Math.pow(0.5, (day-1)/Math.max(0.5,p.achHalf)) * arch.achFactor;
 
-    const inc = idle + daily + ms + ach;
+    // Jack-In: per-day net NetCoin flow (negative = house edge drain; or a
+    // capped positive ceiling). Bounded by the daily cash-out cap either way.
+    const ji = Math.max(-p.jiBet*p.jiHands, Math.min(p.jiCap, (arch.jackin||0)));
+
+    const inc = idle + daily + ms + ach + ji;
     balance += inc; gross += inc;
     totals.idle+=idle; totals.daily+=daily; totals.ms+=ms; totals.ach+=ach;
 
@@ -373,6 +388,11 @@ function render(){
   const grinder=simulate(p,{visitEvery:1,overclock:true ,achFactor:1});
   const regular=simulate(p,{visitEvery:1,overclock:false,achFactor:p.achFacReg});
   const casual =simulate(p,{visitEvery:2,overclock:false,achFactor:p.achFacCas});
+  // Jack-In: realistic average is a per-day house-edge drain; the ceiling is a
+  // Grinder who somehow nets the daily cash-out cap every single day.
+  const jiEV=p.jiBet*p.jiHands*(-p.jiEdge/100);
+  const ceiling=simulate(p,{visitEvery:1,overclock:true,achFactor:1,jackin:p.jiCap});
+  const ceilPct=grinder.gross>0?((ceiling.gross/grinder.gross-1)*100):0;
 
   /* cards */
   const firstPartDay=(()=>{ const d=grinder.buyDay.filter(x=>x!=null); return d.length?Math.min(...d):'—'; })();
@@ -386,13 +406,17 @@ function render(){
     {k:'First part bought', v:'day '+firstPartDay, cls:'teal', d:'Grinder, cheapest part'},
     {k:'Grinder rig multiplier', v:grinder.rigMult.toFixed(1)+'×', cls:'', d:'end of simulation'},
     {k:'Income mix — idle', v:(tot.idle/sum*100).toFixed(0)+'%', cls:'teal', d:'of Grinder gross'},
-    {k:'Income mix — achievements', v:(tot.ach/sum*100).toFixed(0)+'%', cls:'', d:'daily '+(tot.daily/sum*100).toFixed(0)+'% · milestone '+(tot.ms/sum*100).toFixed(0)+'%'}
+    {k:'Income mix — achievements', v:(tot.ach/sum*100).toFixed(0)+'%', cls:'', d:'daily '+(tot.daily/sum*100).toFixed(0)+'% · milestone '+(tot.ms/sum*100).toFixed(0)+'%'},
+    {k:'Jack-In avg / day', v:fmt(jiEV), cls:'mag', d:'house-edge drain (net sink)'},
+    {k:'Jack-In max cash-out / day', v:'+'+fmt(p.jiCap), cls:'viol', d:'bounded lucky tail'},
+    {k:'Lucky ceiling — day '+Math.round(p.simDays), v:'+'+ceilPct.toFixed(0)+'%', cls:'mag', d:'Grinder netting the cap every day'}
   ];
   document.getElementById('cards').innerHTML=cards.map(c=>
     `<div class="card"><div class="k">${c.k}</div><div class="v ${c.cls}">${c.v}</div><div class="d">${c.d}</div></div>`).join('');
 
   /* charts */
   lineChart('c1',{xLabel:'day',series:[
+    {data:ceiling.series.gross,color:'#ff3df0',dashed:true},
     {data:grinder.series.gross,color:'#ffd23d'},
     {data:regular.series.gross,color:'#16f2c8'},
     {data:casual.series.gross, color:'#ff3df0'}]});
@@ -447,7 +471,11 @@ function render(){
      achievements ${(wa/wsum*100).toFixed(0)}% · milestones ${(wm/wsum*100).toFixed(0)}%.
      <b style="color:var(--muted)">Full-sim cumulative:</b> idle ${(tot.idle/sum*100).toFixed(0)}% ·
      daily ${(tot.daily/sum*100).toFixed(0)}% · ach ${(tot.ach/sum*100).toFixed(0)}% · milestones ${(tot.ms/sum*100).toFixed(0)}%
-     — idle dominating long-term is expected for a mining rig; the early mix is where streak &amp; achievements pull players back.`;
+     — idle dominating long-term is expected for a mining rig; the early mix is where streak &amp; achievements pull players back.
+     <br><b style="color:var(--neon-2)">Jack-In:</b> on average it's a <b>${fmt(jiEV)}/day drain</b> (house edge → net sink),
+     and even the impossible best case — netting the <b>+${fmt(p.jiCap)}</b> daily cap <em>every single day</em> — lifts a
+     Grinder's day-${Math.round(p.simDays)} total by only <b>+${ceilPct.toFixed(0)}%</b>. Cashing out is stake-only, so the free
+     house chips never mint NetCoin. The lucky tail is bounded; the average is a sink.`;
 }
 
 /* ---------- Parts table UI ---------- */

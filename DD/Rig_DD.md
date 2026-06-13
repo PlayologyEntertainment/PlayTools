@@ -83,6 +83,7 @@ not on your talent. Building a monster rig makes you *richer and cooler*, never
 | **Daily payout** | once per local calendar day | Escalates with streak (§5) |
 | **Streak milestones** | at 7 & 30 consecutive days | Lump NetCoin + an exclusive part/cosmetic |
 | **Achievements** | once per unlock | Lump NetCoin per achievement — gives the existing achievement system real purpose (see below) |
+| **Jack-In winnings** | per session, **net-negative** | Two-way: stake NetCoin, win NetCoin — but the house edge makes it a **sink in aggregate** and bounded per day (§3.4) |
 
 > **No per-applet drips.** Using a tool does **not** pay NetCoin directly — that
 > path is reserved for the **Overclock multiplier** (§5.3), which rewards
@@ -95,8 +96,32 @@ not on your talent. Building a monster rig makes you *richer and cooler*, never
 | --- | --- |
 | **Rig parts (functional)** | Raise mining rate / cap (§6) |
 | **Battlestation cosmetics** | Pure identity/flex (§6) |
-| *(Phase 2)* **Game credits** | Convert NetCoin → e.g. Jack-In bankroll |
+| **Jack-In stakes (net)** | NetCoin staked at the table — net-negative over time (§3.4) |
 | *(Future)* New games & unlocks | NetCoin is the shared currency going forward |
+
+### 3.4 Jack-In & gambling guardrails
+Jack-In is allowed to **pay out NetCoin**, which makes it both a source *and* a
+sink. To stop it inflating the tuned economy, it is designed as a **bounded,
+net-negative** interaction:
+
+1. **Stake-only cash-out.** Only NetCoin **you staked** (and its winnings) is
+   cashable back to your wallet. The free **1,000-chip "house loan"** that seeds a
+   session is **practice money** — it can never be converted to NetCoin. (This
+   closes the obvious free-money printer.)
+2. **House edge → net sink.** The cashable table carries a house edge, so over
+   time Jack-In **removes** NetCoin from the economy. Grinding the casino is a
+   *losing* strategy in expectation — it can never reliably out-earn the
+   consistency loop, so it stays a flutter with surplus, not the optimal path.
+3. **Bounded tail.** A **max bet** and a **daily net cash-out cap** (≈ 1–2 days of
+   idle income) keep even a hot streak from skipping the multi-week curve.
+4. **Low blast radius.** PlayTools is single-player and client-side with no shared
+   marketplace — a lucky run only changes *that player's* pacing, it doesn't
+   devalue anyone else's rig. So this is tuned for **feel** (fun, bounded, never
+   dominant), not anti-cheat.
+
+The economy baseline (§11) treats idle/daily/achievements as the *reliable*
+sources; Jack-In's average contribution is a small drain, and its capped ceiling
+is modelled in the tuner so the upside envelope is visible.
 
 ### 3.3 Separation from Gamer Score (critical)
 NetCoin is **never** earned by being skillful and **never** converts to Gamer
@@ -282,6 +307,7 @@ parts so the rig compounds.
 | Overclock | **≥3 distinct tools/day → +25%** mining rate |
 | Milestones | **+750** weekly (7/14/21…), **+5,000** monthly (30/60/90…) |
 | Achievements | front-loaded drip ≈ **200/day** week 1, **8-day** half-life |
+| Jack-In | **~3% house edge**, avg bet **200**, ~10 hands/day → small daily **drain**; **daily cash-out cap ~250** (≈ 1–2 days of idle) bounds the ceiling |
 | Store curve | first part **80** (session 1) → flagship **GPU Mk III 30,000** (~8-week goal) |
 
 **What the baseline produces:** first part bought **day 1**; a **healthy week-1
