@@ -28,12 +28,11 @@
 ## 1. Concept
 
 **Crossload** is a *Frogger*-faithful **crosser** cabinet, reskinned around the
-PlayTools netrunner motif. The player guides a small **courier packet** — a
-pixel/wireframe **frog-shaped autohopper daemon** — across a live **system bus**,
-hopping one tile at a time between lanes of hostile data traffic, then **riding
-carrier-blocks** across a scrolling data **stream** to dock in one of five open
-**sockets** at the far edge. Drop into the stream (or get crushed by traffic) and
-the packet is **flushed**.
+PlayTools netrunner motif. The player guides **a literal "bug in the code"** — a
+neon **ladybug** process — across a live **system bus**, hopping one tile at a
+time between lanes of hostile data traffic, then **riding carrier-blocks** across
+a scrolling data **stream** to dock in one of five open **sockets** at the far
+edge. Drop into the stream (or get crushed by traffic) and the bug is **flushed**.
 
 The design philosophy is **"faithful but simplified"** (the house rule, per Mac
 Pan §1): keep the soul of Frogger — the two-zone board, discrete grid hops,
@@ -44,18 +43,19 @@ escort, the snake on the median) into clean, readable approximations sized for a
 short browser arcade session. Those extras are catalogued as **v1.1 follow-ups**
 (§8).
 
-### 1.1 The Hero — "the packet"
+### 1.1 The Hero — "the bug"
 
-* A small sprite that reads instantly as **a frog** in silhouette (so anyone who
-  has played Frogger recognizes the game on sight) but is rendered as a **neon
-  wireframe / pixel daemon** — a courier process, not a literal animal.
-* It moves in **discrete hops**, one grid cell per input, with a short squash-and-
-  stretch hop animation and a faint trail — never free-sliding. The discrete hop
-  *is* the genre's signature feel and is preserved exactly.
+* A neon **ladybug** — the "bug in the code" you're trying to walk safely through
+  the system. The classic red-domed, black-spotted silhouette reads instantly and
+  is charming, while the *gameplay* silhouette (a small thing hopping discrete
+  tiles across lanes toward slots) is what signals "Frogger" to anyone who's
+  played it. Deliberately **not** a frog, to keep clear daylight from the source.
+* It moves in **discrete hops**, one grid cell per input — never free-sliding. The
+  discrete hop *is* the genre's signature feel and is preserved exactly.
 * Facing rotates to the last hop direction (up / down / left / right) so the
   player always reads which way a queued hop will go.
-* On death it does a brief **"glitch / corrupt"** dissolve (scanline tear + pixel
-  scatter) rather than the original splat — same beat, on-theme.
+* On death it does a brief **"glitch / corrupt"** dissolve (pixel scatter) — the
+  bug gets squashed out of the code — rather than the original splat.
 
 ---
 
@@ -192,7 +192,7 @@ tools) and one router line:
 
 ```js
 { id:'arcade_crossload', lab:'Arcade', name:'Crossload', railName:'Crossload',
-  icon:'🐸', tag:'mvp', route:'#/arcade/crossload',
+  icon:'🐞', tag:'mvp', route:'#/arcade/crossload',
   desc:'Hop a courier packet across the system bus — dodge the data traffic, ride
         the carriers over the stream, and dock all five sockets before you flush.',
   dna:'Reflex +12 · Control +8' }
@@ -278,10 +278,11 @@ A small, self-contained cabinet — the "low-hanging fruit" pick. Suggested orde
 
 1. **Cabinet name** — *Crossload*: keep, or prefer another netrunner pun
    (Leapfrog, Crossfeed, Packet, Datahop)?
-2. **Hero literalness** — keep the packet **frog-shaped** for instant Frogger
-   recognition, or go fully abstract (a pure data-glyph) at the cost of the
-   read?
-3. **Difficulty labels** — *Throttled / Standard / Overclocked*: keep, or rename?
+2. **Hero** — shipped as a neon **ladybug** ("bug in the code"). Keep, or push it
+   further (e.g. a more abstract glitch-sprite)?
+3. **Difficulty labels** — *Throttled / Standard / Overclocked* (under a
+   **"Difficulty"** field label, consistent across all cabinets): keep the tier
+   names, or rename?
 4. **Stream death model** — v1 ships **void-is-death + ride-the-carrier**
    (faithful). Confirm we want the deadly-water rule rather than a softer
    "swim slowly / take damage" variant.

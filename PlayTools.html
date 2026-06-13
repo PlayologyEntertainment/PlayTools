@@ -2199,7 +2199,7 @@ const Ach = (function(){
     { id:'ecto_marathon', name:'Spirit Warden', icon:'⚰️', desc:'Bust 1,000 spirits (lifetime) in Ecto.',
       test:(d,c)=> !!(d.counters && d.counters.ectoBusted>=1000) },
     // ---- Crossload (Frogger-faithful crosser) — Crossload_DD.md §6.3 ----
-    { id:'crossload_ace', name:'Crossload Ace', icon:'🐸', desc:'Earn an A grade or better in Crossload.',
+    { id:'crossload_ace', name:'Crossload Ace', icon:'🐞', desc:'Earn an A grade or better in Crossload.',
       test:(d,c)=> c && c.tool==='crossload' && (c.grade==='A'||c.grade==='S') },
     { id:'crossload_firstdock', name:'First Contact', icon:'🔌', desc:'Dock your first socket in Crossload.',
       test:(d,c)=> (c && c.tool==='crossload' && c.docked>=1) || !!(d.counters && d.counters.crossloadDocks>=1) },
@@ -2817,7 +2817,7 @@ const CABINETS = [
     desc:'Sort a corrupted cold stack of data-chips into four clean root partitions — faithful Klondike solitaire under a neon skin. Decrypt, sequence and COMPILE the whole stack before the clock flatlines.', dna:'Strategy +12 · Speed +8' },
   { id:'arcade_ecto', lab:'Arcade', name:'Ecto', railName:'Ecto', icon:'👻', tag:'mvp', route:'#/arcade/ecto',
     desc:'Work the graveyard shift — stream plasma at the swooping spirits, bait their dives for double points, and survive the rising haunt.', dna:'Precision +12 · Reflex +8' },
-  { id:'arcade_crossload', lab:'Arcade', name:'Crossload', railName:'Crossload', icon:'🐸', tag:'mvp', route:'#/arcade/crossload',
+  { id:'arcade_crossload', lab:'Arcade', name:'Crossload', railName:'Crossload', icon:'🐞', tag:'mvp', route:'#/arcade/crossload',
     desc:'Hop a courier packet across the system bus — dodge the data traffic, ride the carriers over the stream, and dock all five sockets before you flush.', dna:'Reflex +12 · Control +8' }
 ];
 
@@ -7965,7 +7965,7 @@ Views.crossload = function(c){
   startRow.append(startBtn, soundToggle('crossloadMute'));
 
   // difficulty selector (matches the Snake / Brick Breaker segmented control)
-  const diffField = el('div',{class:'field', html:'<label>Bandwidth</label>'});
+  const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
   const diffSeg = el('div',{class:'seg'});
   CROSS_LEVELS.forEach((lv,i)=>{
     const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
@@ -8088,36 +8088,45 @@ Views.crossload = function(c){
   }
 
   function renderHud(){
-    hud.innerHTML = `<span class="pill">Band <b>${lvl.name}</b></span>
+    hud.innerHTML = `<span class="pill">Difficulty <b>${lvl.name}</b></span>
       <span class="pill">Score <b>${score}</b></span>
       <span class="pill">Board <b>${board}</b></span>
-      <span class="pill">Lives <b>${lives>0?'🐸'.repeat(lives):'—'}</b></span>
+      <span class="pill">Lives <b>${lives>0?'🐞'.repeat(lives):'—'}</b></span>
       <span class="pill">Best <b>${crossBest(lvl.key)}</b></span>`;
   }
 
   function rr(x,y,w,h,r){ ctx2d.beginPath(); ctx2d.moveTo(x+r,y); ctx2d.arcTo(x+w,y,x+w,y+h,r); ctx2d.arcTo(x+w,y+h,x,y+h,r); ctx2d.arcTo(x,y+h,x,y,r); ctx2d.arcTo(x,y,x+w,y,r); ctx2d.closePath(); }
-  function drawFrog(px,py,dead0){
+  function drawBug(px,py,dead0){
     const s=CELL;
     ctx2d.save(); ctx2d.translate(px+s/2, py+s/2); ctx2d.rotate(facing*Math.PI/2);
     if(dead0){
-      // glitch / corrupt dissolve
-      ctx2d.fillStyle='#37e35b';
-      for(let i=0;i<10;i++){ const a=Math.random()*Math.PI*2, d=(1-deathT/0.55)*10; ctx2d.globalAlpha=0.5+Math.random()*0.5; ctx2d.fillRect(Math.cos(a)*d-2, Math.sin(a)*d-2, 4, 4); }
+      // glitch / corrupt dissolve — the bug gets squashed out of the code
+      for(let i=0;i<11;i++){ const a=Math.random()*Math.PI*2, d=(1-deathT/0.55)*11; ctx2d.globalAlpha=0.5+Math.random()*0.5; ctx2d.fillStyle = Math.random()<0.5?'#ff4d6d':'#15151c'; ctx2d.fillRect(Math.cos(a)*d-2, Math.sin(a)*d-2, 4, 4); }
       ctx2d.globalAlpha=1; ctx2d.restore(); return;
     }
-    ctx2d.shadowColor='#37e35b'; ctx2d.shadowBlur=8;
-    ctx2d.fillStyle='#37e35b';
-    // feet
-    rr(-s*0.36,-s*0.30,s*0.20,s*0.24,3); ctx2d.fill();
-    rr(s*0.16,-s*0.30,s*0.20,s*0.24,3); ctx2d.fill();
-    rr(-s*0.36,s*0.10,s*0.20,s*0.24,3); ctx2d.fill();
-    rr(s*0.16,s*0.10,s*0.20,s*0.24,3); ctx2d.fill();
-    // body
-    ctx2d.fillStyle='#5af07a'; rr(-s*0.28,-s*0.26,s*0.56,s*0.56,6); ctx2d.fill();
-    ctx2d.shadowBlur=0;
-    // eyes (toward facing = up after rotation)
-    ctx2d.fillStyle='#eafff0'; ctx2d.beginPath(); ctx2d.arc(-s*0.13,-s*0.20,s*0.10,0,Math.PI*2); ctx2d.arc(s*0.13,-s*0.20,s*0.10,0,Math.PI*2); ctx2d.fill();
-    ctx2d.fillStyle='#04120a'; ctx2d.beginPath(); ctx2d.arc(-s*0.13,-s*0.22,s*0.045,0,Math.PI*2); ctx2d.arc(s*0.13,-s*0.22,s*0.045,0,Math.PI*2); ctx2d.fill();
+    // legs (head points toward -y after rotation)
+    ctx2d.strokeStyle='#0c0c10'; ctx2d.lineWidth=1.6; ctx2d.lineCap='round';
+    [[-1,-0.16],[-1,0.06],[-1,0.28],[1,-0.16],[1,0.06],[1,0.28]].forEach(([sx,sy])=>{
+      ctx2d.beginPath(); ctx2d.moveTo(sx*s*0.18, sy*s); ctx2d.lineTo(sx*s*0.40, sy*s+sx*s*0.05); ctx2d.stroke();
+    });
+    // antennae
+    ctx2d.beginPath(); ctx2d.moveTo(-s*0.06,-s*0.28); ctx2d.lineTo(-s*0.15,-s*0.40);
+    ctx2d.moveTo(s*0.06,-s*0.28); ctx2d.lineTo(s*0.15,-s*0.40); ctx2d.stroke();
+    // head
+    ctx2d.fillStyle='#15151c'; ctx2d.beginPath(); ctx2d.arc(0,-s*0.20,s*0.16,0,Math.PI*2); ctx2d.fill();
+    ctx2d.fillStyle='#eafff0'; ctx2d.beginPath(); ctx2d.arc(-s*0.07,-s*0.23,s*0.034,0,Math.PI*2); ctx2d.arc(s*0.07,-s*0.23,s*0.034,0,Math.PI*2); ctx2d.fill();
+    // red elytra body with glow
+    ctx2d.save(); ctx2d.shadowColor='#ff5a6e'; ctx2d.shadowBlur=8;
+    ctx2d.fillStyle='#e02438'; ctx2d.beginPath(); ctx2d.ellipse(0,s*0.05,s*0.30,s*0.34,0,0,Math.PI*2); ctx2d.fill();
+    ctx2d.restore();
+    // top sheen
+    ctx2d.fillStyle='rgba(255,255,255,0.18)'; ctx2d.beginPath(); ctx2d.ellipse(-s*0.10,-s*0.04,s*0.10,s*0.13,0,0,Math.PI*2); ctx2d.fill();
+    // centre wing-seam
+    ctx2d.strokeStyle='#0c0c10'; ctx2d.lineWidth=1.4;
+    ctx2d.beginPath(); ctx2d.moveTo(0,-s*0.12); ctx2d.lineTo(0,s*0.37); ctx2d.stroke();
+    // spots
+    ctx2d.fillStyle='#15151c';
+    [[-0.14,0.00],[0.14,0.00],[-0.16,0.20],[0.16,0.20],[0,0.30]].forEach(([sx,sy])=>{ ctx2d.beginPath(); ctx2d.arc(sx*s,sy*s,s*0.055,0,Math.PI*2); ctx2d.fill(); });
     ctx2d.restore();
   }
   function draw(){
@@ -8158,30 +8167,48 @@ Views.crossload = function(c){
       }
     }
     function y0(){ return CELL/2; }
-    // carriers (stream rides) — neon convoy blocks with segment lines
+    // carriers (stream rides) — data-asset blocks you ride: glowing shell, dark
+    // core, a leading header stripe and a grid of blinking "bit" cells
     streamLanes.forEach(L=>{ const y=L.row*CELL;
-      L.objs.forEach(o=>{ const x=o.x*CELL, w=L.width*CELL;
-        ctx2d.save(); ctx2d.shadowColor=L.color; ctx2d.shadowBlur=8; ctx2d.fillStyle=L.color;
+      L.objs.forEach(o=>{ const x=o.x*CELL, w=L.width*CELL, ob=Math.floor(o.x);
+        ctx2d.save();
+        ctx2d.shadowColor=L.color; ctx2d.shadowBlur=8; ctx2d.fillStyle=L.color;
         rr(x+2,y+3,w-4,CELL-6,5); ctx2d.fill(); ctx2d.shadowBlur=0;
-        ctx2d.strokeStyle='rgba(0,0,0,0.30)'; ctx2d.lineWidth=1;
-        for(let k=1;k<L.width;k++){ ctx2d.beginPath(); ctx2d.moveTo(x+k*CELL,y+4); ctx2d.lineTo(x+k*CELL,y+CELL-4); ctx2d.stroke(); }
-        ctx2d.fillStyle='rgba(255,255,255,0.18)'; ctx2d.fillRect(x+3,y+4,w-6,2);
+        ctx2d.fillStyle='rgba(3,2,12,0.58)'; rr(x+4,y+5,w-8,CELL-10,3); ctx2d.fill();   // dark core
+        ctx2d.fillStyle=L.color; ctx2d.fillRect(x+5,y+5,3,CELL-10);                     // header stripe
+        const cols=Math.max(1,Math.floor((w-16)/6));                                    // payload bit-grid
+        for(let cc=0;cc<cols;cc++) for(let rb=0;rb<2;rb++){
+          if((cc+rb+ob)%3===0) continue;
+          ctx2d.globalAlpha=((cc*7+rb*13+ob+Math.floor(now/220))%4===0)?0.9:0.32;
+          ctx2d.fillRect(x+11+cc*6, y+8+rb*7, 4, 4);
+        }
+        ctx2d.globalAlpha=1;
+        ctx2d.strokeStyle=L.color; ctx2d.lineWidth=1; ctx2d.globalAlpha=0.75; rr(x+2,y+3,w-4,CELL-6,5); ctx2d.stroke(); ctx2d.globalAlpha=1;
+        ctx2d.fillStyle='rgba(255,255,255,0.16)'; ctx2d.fillRect(x+4,y+4,w-8,2);         // top sheen
         ctx2d.restore();
       });
     });
-    // vehicles (bus traffic)
+    // vehicles (bus traffic) — hostile packets: dark core, a payload bit-strip, a
+    // blinking status LED and a bright leading edge that reads travel direction
     busLanes.forEach(L=>{ const y=L.row*CELL;
-      L.objs.forEach(o=>{ const x=o.x*CELL, w=L.width*CELL;
-        ctx2d.save(); ctx2d.shadowColor=L.color; ctx2d.shadowBlur=8; ctx2d.fillStyle=L.color;
+      L.objs.forEach(o=>{ const x=o.x*CELL, w=L.width*CELL, ob=Math.floor(o.x);
+        ctx2d.save();
+        ctx2d.shadowColor=L.color; ctx2d.shadowBlur=8; ctx2d.fillStyle=L.color;
         rr(x+2,y+4,w-4,CELL-8,5); ctx2d.fill(); ctx2d.shadowBlur=0;
-        ctx2d.fillStyle='rgba(255,255,255,0.85)';  // a "headlight" nub on the leading edge
-        const lead = L.dir>0 ? x+w-5 : x+2;
-        ctx2d.fillRect(lead, y+CELL/2-2, 3, 4);
+        ctx2d.fillStyle='rgba(3,2,12,0.5)'; rr(x+4,y+6,w-8,CELL-12,3); ctx2d.fill();     // dark core
+        const cells=Math.max(1,Math.floor((w-12)/5));                                   // payload bits
+        for(let cc=0;cc<cells;cc++){ ctx2d.globalAlpha=((cc+ob+Math.floor(now/150))%3===0)?0.95:0.4; ctx2d.fillRect(x+8+cc*5, y+CELL/2-2, 3, 4); }
+        ctx2d.globalAlpha=1;
+        const lead = L.dir>0 ? x+w-3 : x+1;
+        ctx2d.fillStyle=L.color; ctx2d.fillRect(lead, y+5, 2, CELL-10);                  // bright leading edge
+        ctx2d.fillStyle='#ffffff'; ctx2d.globalAlpha=(Math.floor(now/180)%2)?1:0.45;     // blinking status LED
+        ctx2d.fillRect(L.dir>0?x+w-6:x+4, y+6, 2, 3); ctx2d.globalAlpha=1;
+        ctx2d.strokeStyle=L.color; ctx2d.lineWidth=1; ctx2d.globalAlpha=0.75; rr(x+2,y+4,w-4,CELL-8,5); ctx2d.stroke(); ctx2d.globalAlpha=1;
         ctx2d.restore();
       });
     });
-    // frog
-    drawFrog(gx*CELL, gy*CELL, dead);
+    // the bug (player)
+    drawBug(gx*CELL, gy*CELL, dead);
     // crossing timer bar (bottom edge)
     const frac=clampN(timeLeft/lvl.time,0,1);
     ctx2d.fillStyle='rgba(255,255,255,0.10)'; ctx2d.fillRect(0,H-4,W,4);
@@ -8237,8 +8264,8 @@ Views.crossload = function(c){
     const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
     const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
     result.append(shareRow({
-      lab:'RETRO ARCADE', tool:'Crossload', glyph:'🐸', grade:g,
-      metric:[{k:'Band', v:lvl.name}, {k:'Score', v:String(score)}, {k:'Board', v:String(board)}],
+      lab:'RETRO ARCADE', tool:'Crossload', glyph:'🐞', grade:g,
+      metric:[{k:'Difficulty', v:lvl.name}, {k:'Score', v:String(score)}, {k:'Board', v:String(board)}],
       designation: g==='S'?'Socket Sovereign': g==='A'?'Clean Crosser': g==='B'?'Steady Courier':'Dropped Packet',
       badge: fullBoards>0?'Full Handshake':null
     }));
