@@ -2198,6 +2198,17 @@ const Ach = (function(){
       test:(d,c)=> (c && c.tool==='ecto' && c.cleanShift) || !!(d.counters && d.counters.ectoCleanShift>=1) },
     { id:'ecto_marathon', name:'Spirit Warden', icon:'⚰️', desc:'Bust 1,000 spirits (lifetime) in Ecto.',
       test:(d,c)=> !!(d.counters && d.counters.ectoBusted>=1000) },
+    // ---- Crossload (Frogger-faithful crosser) — Crossload_DD.md §6.3 ----
+    { id:'crossload_ace', name:'Crossload Ace', icon:'🐸', desc:'Earn an A grade or better in Crossload.',
+      test:(d,c)=> c && c.tool==='crossload' && (c.grade==='A'||c.grade==='S') },
+    { id:'crossload_firstdock', name:'First Contact', icon:'🔌', desc:'Dock your first socket in Crossload.',
+      test:(d,c)=> (c && c.tool==='crossload' && c.docked>=1) || !!(d.counters && d.counters.crossloadDocks>=1) },
+    { id:'crossload_fullboard', name:'Full Handshake', icon:'🤝', desc:'Fill all five sockets in a single board in Crossload.',
+      test:(d,c)=> (c && c.tool==='crossload' && c.fullBoard) || !!(d.counters && d.counters.crossloadFullBoards>=1) },
+    { id:'crossload_flawless', name:'Clean Run', icon:'✨', desc:'Clear a board with zero deaths in Crossload.',
+      test:(d,c)=> (c && c.tool==='crossload' && c.flawless) || !!(d.counters && d.counters.crossloadFlawless>=1) },
+    { id:'crossload_overclock', name:'Overclocked', icon:'⚡', desc:'Score 10,000 or more in a single Crossload run.',
+      test:(d,c)=> c && c.tool==='crossload' && c.score>=10000 },
     // ---- Reflex / Hardware "Ace" set: earn an A grade or better in each graded
     //      test (complements Reaction's stricter S-grade 'Reaction Master') ----
     { id:'reaction_ace', name:'Reaction Ace', icon:'⚡', desc:'Earn an A grade or better on Reaction Time.',
@@ -2805,7 +2816,9 @@ const CABINETS = [
   { id:'arcade_coldstack', lab:'Arcade', name:'Cold Stack', railName:'Cold Stack', icon:COLDSTACK_ICON, tag:'mvp', route:'#/arcade/coldstack',
     desc:'Sort a corrupted cold stack of data-chips into four clean root partitions — faithful Klondike solitaire under a neon skin. Decrypt, sequence and COMPILE the whole stack before the clock flatlines.', dna:'Strategy +12 · Speed +8' },
   { id:'arcade_ecto', lab:'Arcade', name:'Ecto', railName:'Ecto', icon:'👻', tag:'mvp', route:'#/arcade/ecto',
-    desc:'Work the graveyard shift — stream plasma at the swooping spirits, bait their dives for double points, and survive the rising haunt.', dna:'Precision +12 · Reflex +8' }
+    desc:'Work the graveyard shift — stream plasma at the swooping spirits, bait their dives for double points, and survive the rising haunt.', dna:'Precision +12 · Reflex +8' },
+  { id:'arcade_crossload', lab:'Arcade', name:'Crossload', railName:'Crossload', icon:'🐸', tag:'mvp', route:'#/arcade/crossload',
+    desc:'Hop a courier packet across the system bus — dodge the data traffic, ride the carriers over the stream, and dock all five sockets before you flush.', dna:'Reflex +12 · Control +8' }
 ];
 
 /* ============================================================================
@@ -7913,6 +7926,360 @@ Views.snake = function(c){
   overlay.style.display='flex';
   overlay.innerHTML = `<div class="big">MY ANACONDA</div><div class="small">Press START to slither</div>`;
   return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null; window.removeEventListener('keydown', onKey); };
+};
+
+/* ============================================================================
+   RETRO ARCADE — Crossload (Frogger-faithful crosser, simplified — see
+   Crossload_DD.md). Hop a courier packet across a live system bus (dodge the
+   data traffic) then ride carrier-blocks over the data stream (void = death)
+   to dock all five sockets before the crossing timer flatlines. Replayable, so
+   toolsCompleted is credited only on first run (see recordCrossloadRun).
+   ============================================================================ */
+const CROSS_LEVELS = [
+  { key:'throttled',   name:'Throttled',   speed:0.85, time:34, gradeMax:1800 },
+  { key:'standard',    name:'Standard',    speed:1.0,  time:28, gradeMax:1400 },
+  { key:'overclocked', name:'Overclocked', speed:1.25, time:22, gradeMax:1000 }
+];
+Views.crossload = function(c){
+  const cab = getCab('arcade_crossload');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('crossloadMute');
+  const sndHop  = ()=> blip(520,0.05,'square',0.035);
+  const sndDock = ()=> [620,820,1040].forEach((f,i)=> setTimeout(()=>blip(f,0.07,'square',0.05), i*55));
+  const sndFlush= ()=> [300,170].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sine',0.06), i*70));
+  const sndDie  = ()=> [220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.06), i*90));
+  const sndBon  = ()=> blip(1180,0.09,'triangle',0.05);
+  const sndClear= ()=> [523,659,784,1047].forEach((f,i)=> setTimeout(()=>blip(f,0.1,'square',0.05), i*70));
+
+  // ---- board geometry ----
+  const COLS=13, ROWS=13, CELL=24, W=COLS*CELL, H=ROWS*CELL;
+  const SOCKET_ROW=0, STREAM0=1, STREAM1=5, MEDIAN=6, BUS0=7, BUS1=11, START_ROW=12;
+  const SOCKET_COLS=[1,4,6,8,11], START_COL=6;
+  const clampN=(v,a,b)=> v<a?a:v>b?b:v;
+  const rnd=n=>Math.floor(Math.random()*n);
+
+  let levelIdx=1, lvl=CROSS_LEVELS[levelIdx];   // default Standard
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn = el('button',{class:'btn primary', html:'▶ START'});
+  startRow.append(startBtn, soundToggle('crossloadMute'));
+
+  // difficulty selector (matches the Snake / Brick Breaker segmented control)
+  const diffField = el('div',{class:'field', html:'<label>Bandwidth</label>'});
+  const diffSeg = el('div',{class:'seg'});
+  CROSS_LEVELS.forEach((lv,i)=>{
+    const b=el('button',{html:lv.name}); if(i===levelIdx) b.className='on';
+    b.onclick=()=>{ if(playing) return; levelIdx=i; lvl=CROSS_LEVELS[i]; [...diffSeg.children].forEach(x=>x.className=''); b.className='on'; reset(); draw(); renderHud(); };
+    diffSeg.append(b);
+  });
+  diffField.append(diffSeg);
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'pd-stage'});
+  const canvas = el('canvas',{class:'pd-canvas'}); canvas.width=W; canvas.height=H;
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(canvas, overlay);
+  const hint = el('div',{class:'pd-hint', html:'◀ ▲ ▼ ▶ / W·A·S·D · swipe to hop · P pauses'});
+  const result = el('div',{});
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  panel.append(diffField, startRow, hud, stageTV, hint, result);
+  const ctx2d = canvas.getContext('2d');
+
+  // ---- state ----
+  let playing=false, paused=false, raf=null, lastT=0;
+  let gx=START_COL, gy=START_ROW, facing=0;            // frog grid pos + facing (0=up,1=right,2=down,3=left)
+  let lives=3, score=0, board=1, furthest=START_ROW, timeLeft=lvl.time;
+  let sockets=[false,false,false,false,false];
+  let dead=false, deathT=0, pendingGameOver=false, flawlessBoard=true;
+  let busLanes=[], streamLanes=[];
+  // bounty (the Frogger "fly")
+  let bountyIdx=-1, bountyTimer=0, bountyCd=5;
+  // run-level tallies for achievements / share
+  let docked=0, fullBoards=0, flawlessRuns=0, bountyGrabs=0;
+
+  function makeLane(row,type,dir,speed,width,gap,color){
+    const period=width+gap;
+    const count=Math.ceil((COLS+2*width)/period)+1;
+    const total=count*period;
+    const objs=[];
+    for(let i=0;i<count;i++) objs.push({x:i*period - width});
+    return {row,type,dir,speed,width,gap,color,period,total,objs};
+  }
+  function buildLanes(){
+    const m = lvl.speed * (1 + (board-1)*0.12);   // faster every board
+    busLanes = [
+      makeLane(7,  'bus',+1, 1.6*m, 2, 3, '#ff4d6d'),   // Daemons
+      makeLane(8,  'bus',-1, 2.6*m, 1, 4, '#ffd23d'),   // Spikes (fast, narrow)
+      makeLane(9,  'bus',+1, 1.2*m, 3, 4, '#16f2c8'),   // Pingers (slow, wide)
+      makeLane(10, 'bus',-1, 2.0*m, 2, 3, '#ff4d6d'),
+      makeLane(11, 'bus',+1, 3.0*m, 1, 5, '#ffd23d')
+    ];
+    streamLanes = [
+      makeLane(1, 'car',-1, 1.4*m, 3, 2, '#7c5cff'),
+      makeLane(2, 'car',+1, 1.0*m, 4, 3, '#16f2c8'),
+      makeLane(3, 'car',-1, 2.0*m, 2, 2, '#7c5cff'),
+      makeLane(4, 'car',+1, 1.6*m, 3, 3, '#16f2c8'),
+      makeLane(5, 'car',-1, 1.2*m, 4, 2, '#7c5cff')
+    ];
+  }
+  const laneAt=(row)=> busLanes.find(L=>L.row===row) || streamLanes.find(L=>L.row===row);
+  function updateLane(L,dt){
+    for(const o of L.objs){
+      o.x += L.dir*L.speed*dt;
+      if(o.x > COLS + L.width) o.x -= L.total;
+      else if(o.x < -L.width)  o.x += L.total;
+    }
+  }
+  function onCarrier(L){ const fc=gx+0.5; return L.objs.some(o=> fc>=o.x+0.12 && fc<=o.x+L.width-0.12); }
+  function busHit(L){ const fc=gx+0.5; return L.objs.some(o=> fc>o.x+0.18 && fc<o.x+L.width-0.18); }
+
+  function reset(){
+    gx=START_COL; gy=START_ROW; facing=0; lives=3; score=0; board=1;
+    furthest=START_ROW; timeLeft=lvl.time; sockets=[false,false,false,false,false];
+    dead=false; deathT=0; pendingGameOver=false; flawlessBoard=true;
+    bountyIdx=-1; bountyTimer=0; bountyCd=5; docked=0; fullBoards=0; flawlessRuns=0; bountyGrabs=0;
+    buildLanes();
+  }
+  function respawn(){ gx=START_COL; gy=START_ROW; facing=0; furthest=START_ROW; timeLeft=lvl.time; }
+
+  function die(kind){
+    if(dead) return;
+    dead=true; deathT=0.55; flawlessBoard=false;
+    if(kind==='flush') sndFlush(); else sndDie();
+    lives--;
+    if(lives<=0) pendingGameOver=true;
+  }
+  function tryDock(){
+    const col=Math.round(gx), idx=SOCKET_COLS.indexOf(col);
+    if(idx<0 || sockets[idx]){ die('crash'); return; }   // hit a wall / an occupied socket
+    sockets[idx]=true; docked++;
+    let bonus = 50 + Math.round(timeLeft)*10;
+    if(bountyIdx===idx && bountyTimer>0){ bonus+=200; bountyGrabs++; sndBon(); bountyIdx=-1; bountyTimer=0; }
+    score+=bonus; sndDock();
+    if(sockets.every(Boolean)){ boardClear(); }
+    else { respawn(); }
+  }
+  function boardClear(){
+    board++; fullBoards++;
+    score += 1000 + board*250;
+    if(flawlessBoard){ score+=500; flawlessRuns++; }
+    sndClear();
+    sockets=[false,false,false,false,false];
+    flawlessBoard=true; bountyIdx=-1; bountyTimer=0; bountyCd=5;
+    buildLanes(); respawn();
+  }
+  function updateBounty(dt){
+    if(bountyIdx>=0){ bountyTimer-=dt; if(bountyTimer<=0){ bountyIdx=-1; } return; }
+    bountyCd-=dt;
+    if(bountyCd<=0){
+      const empties=[]; sockets.forEach((s,i)=>{ if(!s) empties.push(i); });
+      if(empties.length){ bountyIdx=empties[rnd(empties.length)]; bountyTimer=5; }
+      bountyCd = 6 + rnd(5);
+    }
+  }
+  function hop(dx,dy){
+    if(!playing || paused || dead) return;
+    facing = dx<0?3 : dx>0?1 : dy<0?0 : 2;
+    const cx=Math.round(gx);
+    const nx=clampN(cx+dx,0,COLS-1), ny=clampN(gy+dy,0,ROWS-1);
+    if(nx===cx && ny===gy) return;        // pressed into a wall edge — no move
+    gx=nx; gy=ny; sndHop();
+    if(gy<furthest){ furthest=gy; score+=10; }   // forward progress (new furthest row only)
+    if(gy===SOCKET_ROW){ tryDock(); return; }
+  }
+
+  function renderHud(){
+    hud.innerHTML = `<span class="pill">Band <b>${lvl.name}</b></span>
+      <span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Board <b>${board}</b></span>
+      <span class="pill">Lives <b>${lives>0?'🐸'.repeat(lives):'—'}</b></span>
+      <span class="pill">Best <b>${crossBest(lvl.key)}</b></span>`;
+  }
+
+  function rr(x,y,w,h,r){ ctx2d.beginPath(); ctx2d.moveTo(x+r,y); ctx2d.arcTo(x+w,y,x+w,y+h,r); ctx2d.arcTo(x+w,y+h,x,y+h,r); ctx2d.arcTo(x,y+h,x,y,r); ctx2d.arcTo(x,y,x+w,y,r); ctx2d.closePath(); }
+  function drawFrog(px,py,dead0){
+    const s=CELL;
+    ctx2d.save(); ctx2d.translate(px+s/2, py+s/2); ctx2d.rotate(facing*Math.PI/2);
+    if(dead0){
+      // glitch / corrupt dissolve
+      ctx2d.fillStyle='#37e35b';
+      for(let i=0;i<10;i++){ const a=Math.random()*Math.PI*2, d=(1-deathT/0.55)*10; ctx2d.globalAlpha=0.5+Math.random()*0.5; ctx2d.fillRect(Math.cos(a)*d-2, Math.sin(a)*d-2, 4, 4); }
+      ctx2d.globalAlpha=1; ctx2d.restore(); return;
+    }
+    ctx2d.shadowColor='#37e35b'; ctx2d.shadowBlur=8;
+    ctx2d.fillStyle='#37e35b';
+    // feet
+    rr(-s*0.36,-s*0.30,s*0.20,s*0.24,3); ctx2d.fill();
+    rr(s*0.16,-s*0.30,s*0.20,s*0.24,3); ctx2d.fill();
+    rr(-s*0.36,s*0.10,s*0.20,s*0.24,3); ctx2d.fill();
+    rr(s*0.16,s*0.10,s*0.20,s*0.24,3); ctx2d.fill();
+    // body
+    ctx2d.fillStyle='#5af07a'; rr(-s*0.28,-s*0.26,s*0.56,s*0.56,6); ctx2d.fill();
+    ctx2d.shadowBlur=0;
+    // eyes (toward facing = up after rotation)
+    ctx2d.fillStyle='#eafff0'; ctx2d.beginPath(); ctx2d.arc(-s*0.13,-s*0.20,s*0.10,0,Math.PI*2); ctx2d.arc(s*0.13,-s*0.20,s*0.10,0,Math.PI*2); ctx2d.fill();
+    ctx2d.fillStyle='#04120a'; ctx2d.beginPath(); ctx2d.arc(-s*0.13,-s*0.22,s*0.045,0,Math.PI*2); ctx2d.arc(s*0.13,-s*0.22,s*0.045,0,Math.PI*2); ctx2d.fill();
+    ctx2d.restore();
+  }
+  function draw(){
+    const now=performance.now();
+    ctx2d.fillStyle='#05030f'; ctx2d.fillRect(0,0,W,H);
+    // zone backgrounds
+    for(let r=0;r<ROWS;r++){
+      const y=r*CELL;
+      if(r>=BUS0 && r<=BUS1){ ctx2d.fillStyle='#0a0a16'; ctx2d.fillRect(0,y,W,CELL);
+        ctx2d.strokeStyle='rgba(124,92,255,0.10)'; ctx2d.setLineDash([6,6]); ctx2d.beginPath(); ctx2d.moveTo(0,y+CELL/2); ctx2d.lineTo(W,y+CELL/2); ctx2d.stroke(); ctx2d.setLineDash([]); }
+      else if(r>=STREAM0 && r<=STREAM1){ ctx2d.fillStyle='#081226'; ctx2d.fillRect(0,y,W,CELL);
+        // animated data-current scanlines (the deadly void reads as luminous flow)
+        ctx2d.strokeStyle='rgba(22,242,200,0.10)'; ctx2d.lineWidth=1;
+        const off=(now/40)%14;
+        for(let xx=-14+off; xx<W; xx+=14){ ctx2d.beginPath(); ctx2d.moveTo(xx,y+4); ctx2d.lineTo(xx+8,y+CELL-4); ctx2d.stroke(); } }
+      else if(r===MEDIAN || r===START_ROW){ ctx2d.fillStyle='#0c241f'; ctx2d.fillRect(0,y,W,CELL);
+        ctx2d.fillStyle='rgba(22,242,200,0.12)'; ctx2d.fillRect(0,y,W,2); ctx2d.fillRect(0,y+CELL-2,W,2); }
+    }
+    // sockets row (row 0): walls + open ports
+    ctx2d.fillStyle='#08121f'; ctx2d.fillRect(0,0,W,CELL);
+    for(let col=0; col<COLS; col++){
+      const x=col*CELL, idx=SOCKET_COLS.indexOf(col);
+      if(idx<0){ // wall block
+        ctx2d.save(); ctx2d.shadowColor='#7c5cff'; ctx2d.shadowBlur=6; ctx2d.fillStyle='#3a2f6e';
+        rr(x+1,1,CELL-2,CELL-2,4); ctx2d.fill(); ctx2d.restore();
+      } else {
+        const filled=sockets[idx], bounty=(bountyIdx===idx && bountyTimer>0);
+        ctx2d.save();
+        ctx2d.strokeStyle = filled?'#37e35b':'#16f2c8'; ctx2d.lineWidth=2;
+        ctx2d.shadowColor=ctx2d.strokeStyle; ctx2d.shadowBlur=filled?10:8;
+        rr(x+3,3,CELL-6,CELL-6,5); ctx2d.stroke();
+        if(filled){ ctx2d.fillStyle='rgba(55,227,91,0.30)'; ctx2d.fill();
+          // a docked packet token
+          ctx2d.shadowBlur=0; ctx2d.fillStyle='#37e35b'; ctx2d.beginPath(); ctx2d.arc(x+CELL/2,y0(),CELL*0.18,0,Math.PI*2); ctx2d.fill(); }
+        else if(bounty){ const p=0.5+0.5*Math.sin(now/130); ctx2d.fillStyle=`rgba(255,210,61,${0.35+p*0.4})`;
+          ctx2d.shadowColor='#ffd23d'; ctx2d.shadowBlur=8+p*10; ctx2d.beginPath(); ctx2d.arc(x+CELL/2,CELL/2,CELL*0.20,0,Math.PI*2); ctx2d.fill(); }
+        ctx2d.restore();
+      }
+    }
+    function y0(){ return CELL/2; }
+    // carriers (stream rides) — neon convoy blocks with segment lines
+    streamLanes.forEach(L=>{ const y=L.row*CELL;
+      L.objs.forEach(o=>{ const x=o.x*CELL, w=L.width*CELL;
+        ctx2d.save(); ctx2d.shadowColor=L.color; ctx2d.shadowBlur=8; ctx2d.fillStyle=L.color;
+        rr(x+2,y+3,w-4,CELL-6,5); ctx2d.fill(); ctx2d.shadowBlur=0;
+        ctx2d.strokeStyle='rgba(0,0,0,0.30)'; ctx2d.lineWidth=1;
+        for(let k=1;k<L.width;k++){ ctx2d.beginPath(); ctx2d.moveTo(x+k*CELL,y+4); ctx2d.lineTo(x+k*CELL,y+CELL-4); ctx2d.stroke(); }
+        ctx2d.fillStyle='rgba(255,255,255,0.18)'; ctx2d.fillRect(x+3,y+4,w-6,2);
+        ctx2d.restore();
+      });
+    });
+    // vehicles (bus traffic)
+    busLanes.forEach(L=>{ const y=L.row*CELL;
+      L.objs.forEach(o=>{ const x=o.x*CELL, w=L.width*CELL;
+        ctx2d.save(); ctx2d.shadowColor=L.color; ctx2d.shadowBlur=8; ctx2d.fillStyle=L.color;
+        rr(x+2,y+4,w-4,CELL-8,5); ctx2d.fill(); ctx2d.shadowBlur=0;
+        ctx2d.fillStyle='rgba(255,255,255,0.85)';  // a "headlight" nub on the leading edge
+        const lead = L.dir>0 ? x+w-5 : x+2;
+        ctx2d.fillRect(lead, y+CELL/2-2, 3, 4);
+        ctx2d.restore();
+      });
+    });
+    // frog
+    drawFrog(gx*CELL, gy*CELL, dead);
+    // crossing timer bar (bottom edge)
+    const frac=clampN(timeLeft/lvl.time,0,1);
+    ctx2d.fillStyle='rgba(255,255,255,0.10)'; ctx2d.fillRect(0,H-4,W,4);
+    ctx2d.fillStyle = frac<0.25 ? '#ff4d6d' : '#16f2c8'; ctx2d.fillRect(0,H-4,W*frac,4);
+  }
+
+  function frame(t){
+    if(!playing) return;
+    if(!lastT) lastT=t;
+    let dt=(t-lastT)/1000; lastT=t; if(dt>0.05) dt=0.05;
+    if(!paused){
+      busLanes.forEach(L=>updateLane(L,dt));
+      streamLanes.forEach(L=>updateLane(L,dt));
+      if(dead){
+        deathT-=dt;
+        if(deathT<=0){ dead=false; if(pendingGameOver){ gameOver(); return; } respawn(); }
+      } else {
+        if(gy>=STREAM0 && gy<=STREAM1){               // riding the stream
+          const L=laneAt(gy);
+          if(L){ if(onCarrier(L)){ gx += L.dir*L.speed*dt; if(gx<0||gx>COLS-1) die('flush'); } else die('flush'); }
+        }
+        if(!dead && gy>=BUS0 && gy<=BUS1){ const L=laneAt(gy); if(L && busHit(L)) die('crash'); }
+        if(!dead){ timeLeft-=dt; if(timeLeft<=0){ timeLeft=0; die('timeout'); } }
+        if(!dead) updateBounty(dt);
+      }
+    }
+    draw(); renderHud();
+    raf=requestAnimationFrame(frame);
+  }
+  function startGame(){
+    result.innerHTML=''; overlay.style.display='none'; paused=false;
+    reset(); playing=true; startBtn.innerHTML='⟳ Restart';
+    lastT=0; raf=requestAnimationFrame(frame); renderHud();
+  }
+  function gameOver(){
+    playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    startBtn.innerHTML='▶ START';
+    const comp=clamp01(score/lvl.gradeMax), g=arcadeGrade(comp);
+    const ctx={ diff:lvl.key, score, docked, fullBoard:(fullBoards>0), flawless:(flawlessRuns>0), board, bounty:(bountyGrabs>0) };
+    Attr.applyVector({reflex:14, control:6, focus:4}, comp);
+    recordCrossloadRun(score, ctx);
+    Ach.evaluate(Object.assign({tool:'crossload', grade:g}, ctx));
+    draw();
+    overlay.style.display='flex';
+    overlay.innerHTML = `<div class="big">FLUSHED</div><div class="small">${lvl.name} · Board ${board} · Score ${score}</div>`;
+    renderHud();
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Board</div><div class="v">${board}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Best (${lvl.name})</div><div class="v">${crossBest(lvl.key)}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ Play Again'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Crossload', glyph:'🐸', grade:g,
+      metric:[{k:'Band', v:lvl.name}, {k:'Score', v:String(score)}, {k:'Board', v:String(board)}],
+      designation: g==='S'?'Socket Sovereign': g==='A'?'Clean Crosser': g==='B'?'Steady Courier':'Dropped Packet',
+      badge: fullBoards>0?'Full Handshake':null
+    }));
+  }
+  const crossBest = (diff)=>{ const b=Store.get().bests.arcade_crossload; return (b&&b.diff&&b.diff[diff])||0; };
+
+  function onKey(e){
+    const k=e.key;
+    if(k==='p'||k==='P'||k==='Escape'){ if(playing){ paused=!paused; overlay.style.display=paused?'flex':'none'; if(paused) overlay.innerHTML='<div class="big">PAUSED</div><div class="small">Press P to resume</div>'; } return; }
+    if(e.repeat) return;          // one hop per key press (no auto-repeat machine-gun)
+    if(k==='ArrowLeft'||k==='a'||k==='A') hop(-1,0);
+    else if(k==='ArrowRight'||k==='d'||k==='D') hop(1,0);
+    else if(k==='ArrowUp'||k==='w'||k==='W') hop(0,-1);
+    else if(k==='ArrowDown'||k==='s'||k==='S') hop(0,1);
+    else if((k===' '||k==='Enter') && !playing){ startGame(); }
+    else return;
+    if(playing) e.preventDefault();
+  }
+  // touch: a single swipe = a single hop (cardinal), 18px dead-zone like Mac Pan
+  let tStart=null;
+  function onTouchStart(e){ const t=e.touches&&e.touches[0]; if(t) tStart={x:t.clientX,y:t.clientY}; }
+  function onTouchMove(e){
+    if(!tStart) return; const t=e.touches&&e.touches[0]; if(!t) return;
+    const dx=t.clientX-tStart.x, dy=t.clientY-tStart.y;
+    if(Math.hypot(dx,dy)>18){
+      if(Math.abs(dx)>Math.abs(dy)) hop(dx>0?1:-1,0); else hop(0,dy>0?1:-1);
+      tStart=null; e.preventDefault();
+    }
+  }
+  function onTouchEnd(){ tStart=null; }
+  window.addEventListener('keydown', onKey);
+  canvas.addEventListener('touchstart', onTouchStart, {passive:false});
+  canvas.addEventListener('touchmove', onTouchMove, {passive:false});
+  canvas.addEventListener('touchend', onTouchEnd);
+  startBtn.onclick=startGame;
+  reset(); draw(); renderHud();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">CROSSLOAD</div><div class="small">Press START to cross the bus</div>`;
+  return ()=>{ playing=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    window.removeEventListener('keydown', onKey);
+    canvas.removeEventListener('touchstart', onTouchStart); canvas.removeEventListener('touchmove', onTouchMove); canvas.removeEventListener('touchend', onTouchEnd); };
 };
 
 /* ============================================================================
@@ -13766,6 +14133,23 @@ function recordSnakeRun(score, ctx){
     if(ctx && ctx.length>=30) d.counters.snakeLong=(d.counters.snakeLong||0)+1;
   });
 }
+function recordCrossloadRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_crossload){ d.toolsCompleted++; d.bests.arcade_crossload={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_crossload.value){ d.bests.arcade_crossload.value=score; }
+    const diff=(ctx&&ctx.diff)||'standard';
+    const bd=d.bests.arcade_crossload.diff||(d.bests.arcade_crossload.diff={});
+    if(!(diff in bd) || score>bd[diff]) bd[diff]=score;
+    d.arcadePoints += Math.round(score/40);
+    d.counters.crossloadRuns=(d.counters.crossloadRuns||0)+1;
+    if(ctx){
+      if(ctx.docked) d.counters.crossloadDocks=(d.counters.crossloadDocks||0)+ctx.docked;
+      if(ctx.fullBoard) d.counters.crossloadFullBoards=(d.counters.crossloadFullBoards||0)+1;
+      if(ctx.flawless) d.counters.crossloadFlawless=(d.counters.crossloadFlawless||0)+1;
+    }
+  });
+}
 function recordBrickRun(score, ctx){
   Store.update(d=>{
     d.runs++;
@@ -16532,6 +16916,7 @@ Router.add('#/arcade/overdrive', Views.overdrive);
 Router.add('#/arcade/defrag', Views.defrag);
 Router.add('#/arcade/coldstack', Views.coldStack);
 Router.add('#/arcade/ecto', Views.ecto);
+Router.add('#/arcade/crossload', Views.crossload);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/gamefinder', Views.gameFinder);
 Router.add('#/fun/report', Views.dnaReport);

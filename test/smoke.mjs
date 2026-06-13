@@ -13,6 +13,7 @@ mkdirSync(outDir, { recursive: true });
 
 const cases = [
   { name: 'playtools-dna', file: 'PlayTools.html', enter: true, hash: '#/dna' },
+  { name: 'playtools-crossload', file: 'PlayTools.html', enter: true, hash: '#/arcade/crossload', drive: 'crossload' },
   { name: 'sharecard-studio', file: 'sharecard-studio.html' },
 ];
 
@@ -21,6 +22,23 @@ let failed = 0;
 
 for (const c of cases) {
   const { page, errors, warnings } = await loadPage(browser, c.file, c);
+
+  // For real-time cabinets, actually start the game and drive a few inputs so
+  // the RAF loop, collision/death/respawn and dock paths get exercised — a
+  // static route mount alone won't catch runtime errors inside the loop.
+  if (c.drive === 'crossload') {
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('button.btn.primary')]
+        .find((x) => /START|Restart/i.test(x.textContent));
+      if (b) b.click();
+    });
+    for (let i = 0; i < 24; i++) {
+      await page.keyboard.press(i % 6 === 5 ? 'ArrowLeft' : 'ArrowUp');
+      await page.waitForTimeout(110);
+    }
+    await page.waitForTimeout(400);
+  }
+
   const title = await page.title();
   await page.screenshot({ path: outDir + c.name + '.png' });
   const ok = errors.length === 0 && title.length > 0;
