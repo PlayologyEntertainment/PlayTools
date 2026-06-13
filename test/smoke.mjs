@@ -51,8 +51,27 @@ for (const c of cases) {
       if (claim) claim.click();
     });
     await page.waitForTimeout(200);
-    await page.evaluate(() => { if (window.Rig) window.Rig.buy('gpu1'); window.location.hash = '#/rig/store'; });
+    // Buy a hardware part + a cosmetic, then convert NetCoin to Jack-In credits.
+    await page.evaluate(() => {
+      if (window.Rig) {
+        window.Rig.buy('gpu1');
+        window.Rig.buy('desktoy');
+        window.Rig.buyCredits('cr1');
+      }
+      window.location.hash = '#/rig/store';
+    });
     await page.waitForTimeout(300);
+    // Click through all three NetStore tabs.
+    for (const re of [/Battlestation/i, /Credits/i, /Hardware/i]) {
+      await page.evaluate((src) => {
+        const b = [...document.querySelectorAll('.seg button')].find((x) => new RegExp(src).test(x.textContent));
+        if (b) b.click();
+      }, re.source);
+      await page.waitForTimeout(150);
+    }
+    // Open Jack-In so the seeded-session path (purchased credits) executes.
+    await page.evaluate(() => { window.location.hash = '#/arcade/jackin'; });
+    await page.waitForTimeout(400);
     await page.evaluate(() => { window.location.hash = '#/rig'; });
     await page.waitForTimeout(300);
     await page.evaluate(() => {

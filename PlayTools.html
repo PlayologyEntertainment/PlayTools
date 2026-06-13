@@ -1737,6 +1737,7 @@ const Store = (function(){
         bestStreak: 0,         // all-time best streak
         lastClaimDay: null,    // local day key of the last daily-payout claim
         overclock: { day:null, tools:[] }, // distinct applets used today (§5.3)
+        jackInCredits: 0,      // persistent Jack-In bankroll bought with NetCoin (§7 Phase 2)
         achInit: false,        // one-time founder back-pay of past achievements done
         achPaidIds: []         // achievement ids already paid NetCoin (no double-pay)
       }
@@ -2363,6 +2364,8 @@ const Ach = (function(){
       test:(d)=> !!(d.rig && d.rig.parts && d.rig.parts.gpu3) },
     { id:'rig_tycoon', name:'NetCoin Tycoon', icon:'💰', desc:'Reach a Rig Score of 200.',
       test:(d)=> !!(d.rig && d.rig.rigScore>=200) },
+    { id:'rig_decked', name:'Fully Decked', icon:'🪑', desc:'Own every Battlestation item in the NetStore.',
+      test:(d)=> !!(d.rig && d.rig.parts && window.Rig && Rig.COSMETICS.every(p=> d.rig.parts[p.id])) },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -2798,31 +2801,53 @@ const Rig = (function(){
   const MS_WEEKLY  = 750;   // lump at streak day 7 / 14 / 21 ...
   const MS_MONTHLY = 5000;  // lump at streak day 30 / 60 / 90 ...
 
-  // ---- Hardware catalog (Phase 1 = functional parts only, §6.1). 'rate' adds
-  // to the rig multiplier (base 1.0); 'cap' adds offline-cap hours; 'score'
-  // feeds the Rig Score flex number; 'needs' gates the top tiers behind the PSU
-  // (the "PSU enables top-end parts" fiction). ----
+  // ---- Hardware catalog (functional parts, §6.1). 'rate' adds to the rig
+  // multiplier (base 1.0); 'cap' adds offline-cap hours; 'score' feeds the Rig
+  // Score; 'needs' gates a tier behind another part (the "PSU enables top-end
+  // parts" fiction). Listed in ascending cost. ----
   const PARTS = [
-    { id:'gpu1',  cat:'GPU',     name:'GPU — Mk I',       cost:80,    rate:0.4,  cap:0, score:10, blurb:'The hashing workhorse — your first real mining lever.' },
-    { id:'ram16', cat:'RAM',     name:'RAM — 16 GB',      cost:300,   rate:0,    cap:4, score:14, blurb:'More storage between visits — raises the offline cap.' },
-    { id:'cpu1',  cat:'CPU',     name:'CPU — Mk I',       cost:800,   rate:0.3,  cap:0, score:20, blurb:'Base compute — a steady bump to the mining rate.' },
-    { id:'coolA', cat:'Cooling', name:'Cooling — Air',    cost:1400,  rate:0.25, cap:0, score:26, blurb:'Keeps the tiers stable and the rate sustained.' },
-    { id:'psu',   cat:'PSU',     name:'PSU — 850W',       cost:3500,  rate:0,    cap:2, score:34, blurb:'Headroom that unlocks the top-end hardware tiers.' },
-    { id:'gpu2',  cat:'GPU',     name:'GPU — Mk II',      cost:7000,  rate:0.8,  cap:0, score:48, needs:'psu', blurb:'A serious hash boost. Requires the 850W PSU.' },
-    { id:'ram32', cat:'RAM',     name:'RAM — 32 GB',      cost:11000, rate:0,    cap:6, score:60, blurb:'Bank far more NetCoin while you are away.' },
-    { id:'coolL', cat:'Cooling', name:'Cooling — Liquid', cost:16000, rate:0.7,  cap:2, score:74, needs:'psu', blurb:'Liquid loop — sustains the highest rates. Requires the 850W PSU.' },
-    { id:'gpu3',  cat:'GPU',     name:'GPU — Mk III',     cost:30000, rate:1.5,  cap:0, score:100, needs:'psu', blurb:'The flagship. The biggest single lever in the rig. Requires the 850W PSU.' }
+    { id:'gpu1',  cat:'GPU',     name:'GPU — Mk I',        cost:80,    rate:0.4,  cap:0, score:10,  blurb:'The hashing workhorse — your first real mining lever.' },
+    { id:'ram16', cat:'RAM',     name:'RAM — 16 GB',       cost:300,   rate:0,    cap:4, score:14,  blurb:'More storage between visits — raises the offline cap.' },
+    { id:'cpu1',  cat:'CPU',     name:'CPU — Mk I',        cost:800,   rate:0.3,  cap:0, score:20,  blurb:'Base compute — a steady bump to the mining rate.' },
+    { id:'coolA', cat:'Cooling', name:'Cooling — Air',     cost:1400,  rate:0.25, cap:0, score:26,  blurb:'Keeps the tiers stable and the rate sustained.' },
+    { id:'psu',   cat:'PSU',     name:'PSU — 850W',        cost:3500,  rate:0,    cap:2, score:34,  blurb:'Headroom that unlocks the top-end hardware tiers.' },
+    { id:'gpu2',  cat:'GPU',     name:'GPU — Mk II',       cost:7000,  rate:0.8,  cap:0, score:48,  needs:'psu',  blurb:'A serious hash boost. Requires the 850W PSU.' },
+    { id:'ram32', cat:'RAM',     name:'RAM — 32 GB',       cost:11000, rate:0,    cap:6, score:60,  blurb:'Bank far more NetCoin while you are away.' },
+    { id:'coolL', cat:'Cooling', name:'Cooling — Liquid',  cost:16000, rate:0.7,  cap:2, score:74,  needs:'psu',  blurb:'Liquid loop — sustains the highest rates. Requires the 850W PSU.' },
+    { id:'cpu2',  cat:'CPU',     name:'CPU — Mk II',       cost:18000, rate:0.6,  cap:0, score:70,  needs:'psu',  blurb:'Second-gen compute — a big steady rate gain. Requires the 850W PSU.' },
+    { id:'ram64', cat:'RAM',     name:'RAM — 64 GB',       cost:24000, rate:0,    cap:8, score:90,  blurb:'Marathon storage — bank a huge offline haul between visits.' },
+    { id:'gpu3',  cat:'GPU',     name:'GPU — Mk III',      cost:30000, rate:1.5,  cap:0, score:100, needs:'psu',  blurb:'The flagship. The biggest single lever in the rig. Requires the 850W PSU.' },
+    { id:'psu2',  cat:'PSU',     name:'PSU — 1200W',       cost:40000, rate:0,    cap:3, score:110, blurb:'Titanium-grade headroom — unlocks the halo GPU tier.' },
+    { id:'gpu4',  cat:'GPU',     name:'GPU — Mk IV "Titan"', cost:60000, rate:2.2, cap:0, score:150, needs:'psu2', blurb:'The halo card. A monstrous hash rate. Requires the 1200W PSU.' }
   ];
-  const partById = id => PARTS.find(p=>p.id===id);
+
+  // ---- Battlestation catalog (§6.2): peripherals & cosmetics. Identity-first,
+  // but the four peripherals from the tuner carry a small mining bump so the
+  // good gear (not just the prettiest) is worth chasing. All add Rig Score and
+  // grow the procedural render. Listed in ascending cost. ----
+  const COSMETICS = [
+    { id:'desktoy',  cat:'Cosmetic',   name:'Desk Toy',           cost:60,   rate:0,    cap:0, score:3,  blurb:'A little kinetic figurine. Pure desk charm.' },
+    { id:'poster',   cat:'Cosmetic',   name:'Wall Poster',        cost:90,   rate:0,    cap:0, score:4,  blurb:'Retro arcade art for the back wall.' },
+    { id:'rgb',      cat:'Lighting',   name:'RGB Light Kit',      cost:120,  rate:0,    cap:0, score:6,  blurb:'Underglow that paints the whole setup. Mandatory.' },
+    { id:'mouse',    cat:'Peripheral', name:'Gaming Mouse',       cost:150,  rate:0.1,  cap:0, score:8,  blurb:'A featherweight flick machine. +0.1 mining rate.' },
+    { id:'keyboard', cat:'Peripheral', name:'Mechanical Keyboard',cost:450,  rate:0.1,  cap:0, score:12, blurb:'Thocky switches and macro keys. +0.1 mining rate.' },
+    { id:'headset',  cat:'Peripheral', name:'Surround Headset',   cost:700,  rate:0,    cap:0, score:14, blurb:'Positional audio for the deep dives.' },
+    { id:'desk',     cat:'Cosmetic',   name:'Sit/Stand Desk',     cost:1800, rate:0,    cap:0, score:18, blurb:'A proper battlestation deck.' },
+    { id:'chair',    cat:'Peripheral', name:'Gaming Chair',       cost:2200, rate:0.15, cap:0, score:30, blurb:'Ergonomic throne. Comfort is uptime. +0.15 mining rate.' },
+    { id:'monitor',  cat:'Peripheral', name:'Ultrawide Monitor',  cost:5500, rate:0.25, cap:0, score:50, blurb:'A wall of pixels. +0.25 mining rate.' }
+  ];
+
+  const ALL = PARTS.concat(COSMETICS);
+  const partById = id => ALL.find(p=>p.id===id);
 
   function rig(){ return Store.get().rig; }
   function owns(id){ return !!rig().parts[id]; }
 
-  // ---- derived rig stats ----
-  function rigMultiplier(){ let m=1; PARTS.forEach(p=>{ if(owns(p.id)) m+=p.rate; }); return m; }
-  function capHours(){ let h=BASE_CAP_H; PARTS.forEach(p=>{ if(owns(p.id)) h+=p.cap; }); return h; }
+  // ---- derived rig stats (hardware + peripherals both count) ----
+  function rigMultiplier(){ let m=1; ALL.forEach(p=>{ if(owns(p.id)) m+=p.rate; }); return m; }
+  function capHours(){ let h=BASE_CAP_H; ALL.forEach(p=>{ if(owns(p.id)) h+=p.cap; }); return h; }
   function rate(){ return BASE_RATE * rigMultiplier(); }   // NetCoin/hr, pre-overclock
-  function computeRigScore(){ let s=0; PARTS.forEach(p=>{ if(owns(p.id)) s+=p.score; }); return s; }
+  function computeRigScore(){ let s=0; ALL.forEach(p=>{ if(owns(p.id)) s+=p.score; }); return s; }
 
   // ---- local calendar-day helpers (Rig_DD §5: "local calendar day") ----
   function dayKey(ts){ const t=ts?new Date(ts):new Date(); return t.getFullYear()+'-'+(t.getMonth()+1)+'-'+t.getDate(); }
@@ -2890,7 +2915,26 @@ const Rig = (function(){
     const p = partById(id);
     if(!p || owns(id) || rig().netcoin<p.cost || (p.needs && !owns(p.needs))) return false;
     Store.update(s=>{ const g=s.rig; g.netcoin-=p.cost; g.parts[id]=true; g.rigScore=computeRigScore(); });
-    Ach.evaluate({ rig:true });   // First Build / Maxed Out / Tycoon
+    Ach.evaluate({ rig:true });   // First Build / Maxed Out / Tycoon / Decked Out
+    return true;
+  }
+
+  // ---- NetStore "Credits" tab (§7 Phase 2): a one-way NetCoin sink that buys a
+  // persistent Jack-In bankroll. Bulk packs convert at a better rate. The credits
+  // can be won/lost at the table but never reconvert to NetCoin, and they never
+  // touch the Jack-In grade/Gamer Score (kept honest in Views.jackIn). ----
+  const CREDIT_PACKS = [
+    { id:'cr1', credits:1000,  cost:100 },   // 10 cr / NetCoin
+    { id:'cr2', credits:3000,  cost:250 },   // 12 cr / NetCoin
+    { id:'cr3', credits:10000, cost:750 }    // ~13.3 cr / NetCoin
+  ];
+  function jackInCredits(){ return rig().jackInCredits||0; }
+  function addJackInCredits(n){ if(n>0) Store.update(s=>{ s.rig.jackInCredits=(s.rig.jackInCredits||0)+Math.round(n); }); }
+  function consumeJackInCredits(n){ Store.update(s=>{ s.rig.jackInCredits=Math.max(0,(s.rig.jackInCredits||0)-Math.round(n)); }); }
+  function buyCredits(packId){
+    const p = CREDIT_PACKS.find(x=>x.id===packId);
+    if(!p || rig().netcoin<p.cost) return false;
+    Store.update(s=>{ s.rig.netcoin-=p.cost; s.rig.jackInCredits=(s.rig.jackInCredits||0)+p.credits; });
     return true;
   }
 
@@ -2934,12 +2978,13 @@ const Rig = (function(){
   }
 
   return {
-    PARTS, partById, owns, init, noteTool, payAchievements,
+    PARTS, COSMETICS, partById, owns, init, noteTool, payAchievements,
     rate, rigMultiplier, capHours, computeRigScore,
     pending, tankFrac, tankFull, collectIdle,
     overclocked, ocTools,
     dailyAvailable, dailyPreview, claimDaily, dailyMultiplier,
     canAfford, buy,
+    CREDIT_PACKS, jackInCredits, addJackInCredits, consumeJackInCredits, buyCredits,
     cfg:{ BASE_RATE, BASE_CAP_H, DAILY_BASE, STEP_PCT, CAP_PCT, OC_THRESH, OC_BONUS, MS_WEEKLY, MS_MONTHLY }
   };
 })();
@@ -12721,6 +12766,11 @@ Views.jackIn = function(c){
   // ---- session state ----
   let bank=JI_START_BANK, bet=JI_MIN_BET, stake=JI_MIN_BET, peak=JI_START_BANK;
   let streak=0, bestStreak=0, handsPlayed=0;
+  // Rig Phase 2: NetCoin-bought credits seed the bank above the free practice
+  // loan. sessionStartBank anchors the grade so purchased credits never inflate
+  // it (honesty guardrail, Rig_DD §3.3). creditsReconciled guards the one-time
+  // return of surviving credits to the persistent wallet.
+  let seed=0, sessionStartBank=JI_START_BANK, creditsReconciled=true;
   let sawBlackjack=false, sawMaxWin=false, sawCooler=false, wasBroke=false;
   let deck=[], player=[], dealer=[];
   let state='betting';            // 'betting' | 'player' | 'reveal' | 'over'
@@ -12904,23 +12954,42 @@ Views.jackIn = function(c){
     else msg.textContent=text+'  ·  Bet again, or cash out.';
   }
 
+  // Return whatever survives above the free practice loan to the persistent
+  // Jack-In wallet (one-way — credits never reconvert to NetCoin). Idempotent.
+  function reconcileCredits(){
+    if(creditsReconciled) return;
+    creditsReconciled=true;
+    const keep=Math.max(0, Math.round(bank - JI_START_BANK));
+    if(keep>0 && window.Rig) Rig.addJackInCredits(keep);
+  }
+
   // ---- session lifecycle ----
   function startSession(){
     if(revealTO) clearTimeout(revealTO);
-    bank=JI_START_BANK; bet=JI_MIN_BET; stake=JI_MIN_BET; peak=JI_START_BANK;
+    seed = (window.Rig ? Rig.jackInCredits() : 0);
+    if(seed>0) Rig.consumeJackInCredits(seed);   // pull purchased credits onto the table
+    bank=JI_START_BANK+seed; sessionStartBank=bank; creditsReconciled=false;
+    bet=JI_MIN_BET; stake=JI_MIN_BET; peak=bank;
     streak=0; bestStreak=0; handsPlayed=0;
     sawBlackjack=false; sawMaxWin=false; sawCooler=false; wasBroke=false;
     deck=freshDeck(); player=[]; dealer=[];
     state='betting'; revealHole=false; sessionOver=false;
-    result.innerHTML=''; msg.textContent='Place your bet, then DEAL.';
+    result.innerHTML='';
+    msg.textContent = seed>0
+      ? `Playing with ${seed.toLocaleString()} purchased credits (+${JI_START_BANK} practice). Place your bet, then DEAL.`
+      : 'Place your bet, then DEAL.';
     renderHands(); renderHud(); updateControls();
   }
   function endSession(busted){
     if(sessionOver) return;
     sessionOver=true; state='over';
     if(revealTO) clearTimeout(revealTO);
+    const credKeep = Math.max(0, Math.round(bank - JI_START_BANK));   // credits banked back to the wallet
+    reconcileCredits();
     const score=peak;
-    const comp=clamp01((peak-JI_START_BANK)/2000);   // ~2x bank → A, ~3x → S (DD §3.1)
+    // Grade measures growth above the STARTING stake (free loan + purchased
+    // credits), so buying credits can never buy a better grade / Gamer Score.
+    const comp=clamp01((peak-sessionStartBank)/2000);   // ~2x → A, ~3x → S (DD §3.1)
     const g=arcadeGrade(comp);
     Attr.applyVector({strategy:12, focus:8}, comp);
     const ctx={ grade:g, score, peak, bestStreak, blackjack:sawBlackjack, maxBetWin:sawMaxWin, cooler:sawCooler };
@@ -12934,12 +13003,20 @@ Views.jackIn = function(c){
       <div class="result-tile"><div class="k">Best Streak</div><div class="v">${bestStreak}</div></div>
       <div class="result-tile"><div class="k">Hands</div><div class="v">${handsPlayed}</div></div>`;
     result.append(r);
+    if(seed>0 || credKeep>0){
+      result.append(el('p',{class:'muted', style:'margin:10px 0 0;',
+        html:`💼 Banked <b>${credKeep.toLocaleString()}</b> Jack-In credits to your NetStore wallet${seed>0?` (you bought in with ${seed.toLocaleString()})`:''}.`}));
+    }
     result.append(shareRow({
       lab:'RETRO ARCADE', tool:'Jack-In', glyph:'🃏', grade:g,
       metric:[{k:'Peak', v:peak+' cr'}, {k:'Streak', v:String(bestStreak)}],
       designation: g==='S'?'Mainframe Breaker': g==='A'?'High Roller': g==='B'?'Card Shark': g==='C'?'Table Regular':'Walked Away Light',
       badge: sawBlackjack ? 'Natural 21' : null
     }));
+    const more=el('div',{class:'controls-row'});
+    const bc=el('button',{class:'btn', html:'🪙 Buy Jack-In Credits'});
+    bc.onclick=()=>{ rigStoreTab='credits'; Router.go('#/rig/store'); };
+    more.append(bc); result.append(more);
   }
 
   // ---- keyboard ----
@@ -12959,6 +13036,7 @@ Views.jackIn = function(c){
   return ()=>{
     sessionOver=true; state='over';
     if(revealTO) clearTimeout(revealTO);
+    reconcileCredits();   // leaving mid-session banks surviving purchased credits
     window.removeEventListener('keydown', onKey);
   };
 };
@@ -17240,13 +17318,17 @@ function rigTitle(score){
 // Score. Pure SVG, zero assets, on-palette, and reused on the Share Card.
 function rigSceneSVG(){
   const r = Store.get().rig, P = r.parts||{};
-  const gpu  = P.gpu3?3:P.gpu2?2:P.gpu1?1:0;
-  const ram  = P.ram32?2:P.ram16?1:0;
-  const cpu  = P.cpu1?1:0;
+  const gpu  = P.gpu4?4:P.gpu3?3:P.gpu2?2:P.gpu1?1:0;
+  const ram  = P.ram64?3:P.ram32?2:P.ram16?1:0;
+  const cpu  = P.cpu2?2:P.cpu1?1:0;
   const cool = P.coolL?2:P.coolA?1:0;
-  const psu  = P.psu?1:0;
+  const psu  = P.psu2?2:P.psu?1:0;
+  // peripherals & cosmetics (§6.2) — they grow the scene as you buy them
+  const rgbOn=!!P.rgb, kbOn=!!P.keyboard, mouseOn=!!P.mouse, headOn=!!P.headset,
+        deskOn=!!P.desk, chairOn=!!P.chair, ultra=!!P.monitor, posterOn=!!P.poster, toyOn=!!P.desktoy;
   const mult = Rig.rigMultiplier();
-  const glow = Math.min(0.9, 0.12 + (r.rigScore||0)/220);
+  const g0 = Math.min(0.9, 0.12 + (r.rigScore||0)/240);
+  const glow = rgbOn ? Math.min(1, g0+0.3) : g0;   // RGB kit lights the whole setup
   const TEAL='#16f2c8', GOLD='#ffd23d', MAG='#ff3df0', VIO='#7c5cff', DIM='#141c3a', DS='rgba(124,92,255,0.45)';
   // a labelled bay: lit (filled colour + halo) when active, else dim outline
   function bay(x,y,w,h,active,color,label){
@@ -17255,34 +17337,42 @@ function rigSceneSVG(){
       `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${active?color:DIM}" stroke="${active?color:DS}" stroke-width="1.4" opacity="${active?0.95:0.8}"/>`+
       `<text x="${x+w/2}" y="${y+h/2+3}" text-anchor="middle" font-size="8" font-family="monospace" fill="${active?'#06121f':'#5a66a0'}" font-weight="bold">${label}</text>`;
   }
-  // mining-activity bars on the monitor — lit count tracks the rig multiplier
+  // monitor geometry — the Ultrawide widens & brightens the screen
+  const monW = ultra?198:168, cxMon=48+monW/2, scrX=56, scrW=monW-16;
+  const barStart = cxMon-46;
   const lit = Math.max(1, Math.min(6, Math.round(mult*1.6)));
-  let bars=''; for(let i=0;i<6;i++){ const h=8+i*5, on=i<lit; bars+=`<rect x="${64+i*16}" y="${130-h}" width="11" height="${h}" rx="1.5" fill="${on?TEAL:DIM}" opacity="${on?0.95:0.55}"/>`; }
+  let bars=''; for(let i=0;i<6;i++){ const h=8+i*5, on=i<lit; bars+=`<rect x="${barStart+i*16}" y="${130-h}" width="11" height="${h}" rx="1.5" fill="${on?TEAL:DIM}" opacity="${on?0.95:0.55}"/>`; }
+  const gpuLabel = gpu>0 ? ('GPU MK '+['','I','II','III','IV'][gpu]) : 'GPU';
 
   return `<svg viewBox="0 0 460 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Your battlestation">
-    <!-- RGB underglow (intensifies with Rig Score) -->
-    <ellipse cx="230" cy="226" rx="200" ry="16" fill="${VIO}" opacity="${glow*0.6}"/>
-    <ellipse cx="150" cy="228" rx="90" ry="10" fill="${TEAL}" opacity="${glow*0.5}"/>
-    <ellipse cx="330" cy="228" rx="90" ry="10" fill="${MAG}" opacity="${glow*0.5}"/>
-    <!-- desk -->
-    <rect x="20" y="214" width="420" height="9" rx="3" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
+    ${posterOn?`<rect x="38" y="8" width="42" height="31" rx="2" fill="#0c1430" stroke="${MAG}" stroke-width="2"/><rect x="42" y="12" width="34" height="9" rx="1" fill="${TEAL}" opacity="0.7"/><circle cx="59" cy="30" r="5" fill="${GOLD}" opacity="0.85"/>`:''}
+    <!-- RGB underglow (Rig Score + the RGB kit drive its intensity) -->
+    <ellipse cx="230" cy="226" rx="205" ry="16" fill="${VIO}" opacity="${glow*0.6}"/>
+    <ellipse cx="150" cy="228" rx="95" ry="10" fill="${TEAL}" opacity="${glow*0.55}"/>
+    <ellipse cx="330" cy="228" rx="95" ry="10" fill="${MAG}" opacity="${glow*0.55}"/>
+    <!-- desk (Sit/Stand desk adds a gold accent + legs) -->
+    <rect x="20" y="214" width="420" height="9" rx="3" fill="#0c1430" stroke="${deskOn?GOLD:DS}" stroke-width="${deskOn?1.8:1}"/>
+    ${deskOn?`<rect x="34" y="223" width="6" height="19" fill="#0c1430"/><rect x="420" y="223" width="6" height="19" fill="#0c1430"/>`:''}
     <!-- monitor -->
-    <rect x="48" y="56" width="168" height="104" rx="6" fill="#070c1c" stroke="${DS}" stroke-width="2"/>
-    <rect x="56" y="64" width="152" height="88" rx="3" fill="#0a1230"/>
-    <text x="132" y="80" text-anchor="middle" font-size="10" font-family="monospace" fill="${GOLD}" font-weight="bold" letter-spacing="2">NETCOIN</text>
+    <rect x="48" y="56" width="${monW}" height="104" rx="6" fill="#070c1c" stroke="${ultra?TEAL:DS}" stroke-width="${ultra?2.4:2}"/>
+    <rect x="${scrX}" y="64" width="${scrW}" height="88" rx="3" fill="#0a1230"/>
+    <text x="${cxMon}" y="80" text-anchor="middle" font-size="10" font-family="monospace" fill="${GOLD}" font-weight="bold" letter-spacing="2">NETCOIN</text>
     ${bars}
-    <rect x="124" y="160" width="16" height="22" fill="#0c1430"/><rect x="100" y="182" width="64" height="7" rx="3" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
-    <!-- keyboard + mouse (scene props; peripherals arrive in Phase 2) -->
-    <rect x="70" y="200" width="120" height="12" rx="3" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
-    <circle cx="208" cy="206" r="6" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
+    <rect x="${cxMon-8}" y="160" width="16" height="22" fill="#0c1430"/><rect x="${cxMon-32}" y="182" width="64" height="7" rx="3" fill="#0c1430" stroke="${DS}" stroke-width="1"/>
+    <!-- keyboard + mouse (light up teal once the real gear is owned) -->
+    <rect x="70" y="200" width="120" height="12" rx="3" fill="#0c1430" stroke="${kbOn?TEAL:DS}" stroke-width="${kbOn?1.8:1}"/>
+    ${kbOn?[0,1,2,3,4,5,6,7].map(i=>`<rect x="${78+i*13}" y="203" width="8" height="6" rx="1" fill="${TEAL}" opacity="0.7"/>`).join(''):''}
+    <circle cx="208" cy="206" r="6" fill="#0c1430" stroke="${mouseOn?TEAL:DS}" stroke-width="${mouseOn?1.8:1}"/>${mouseOn?`<rect x="207" y="202" width="2" height="4" rx="1" fill="${TEAL}"/>`:''}
+    ${toyOn?`<rect x="36" y="206" width="8" height="8" rx="2" fill="${GOLD}"/><circle cx="40" cy="203" r="3" fill="${MAG}"/>`:''}
     <!-- tower -->
     <rect x="270" y="58" width="120" height="156" rx="7" fill="#070c1c" stroke="${DS}" stroke-width="2"/>
-    ${bay(282, 70, 96, 22, psu>0, GOLD, psu?'PSU 850W':'PSU')}
-    ${bay(282, 100, 96, 20, gpu>0, gpu>=3?MAG:TEAL, gpu>0?('GPU MK '+['','I','II','III'][gpu]):'GPU')}
-    ${bay(282, 126, 96, 18, gpu>1, gpu>=3?MAG:TEAL, gpu>1?'GPU ×2':'')}
-    ${bay(282, 150, 30, 30, cpu>0, VIO, 'CPU')}
+    ${bay(282, 70, 96, 22, psu>0, GOLD, psu>0?('PSU '+(psu>=2?'1200W':'850W')):'PSU')}
+    ${bay(282, 100, 96, 20, gpu>0, gpu>=3?MAG:TEAL, gpuLabel)}
+    ${bay(282, 126, 96, 18, gpu>1, gpu>=3?MAG:TEAL, gpu>1?(gpu>=4?'TITAN':'GPU ×2'):'')}
+    ${bay(282, 150, 30, 30, cpu>0, VIO, cpu>1?'CPU2':'CPU')}
     ${bay(320, 150, 12, 30, ram>0, TEAL, '')}
     ${bay(336, 150, 12, 30, ram>1, TEAL, '')}
+    ${ram>2?`<rect x="306" y="150" width="10" height="30" rx="2" fill="${TEAL}" opacity="0.95"/>`:''}
     ${(function(){ const a=cool>0; const c=cool>=2?TEAL:VIO; const cx=366,cy=165,rr=13;
       return `<circle cx="${cx}" cy="${cy}" r="${rr}" fill="${a?c:DIM}" stroke="${a?c:DS}" stroke-width="1.4" opacity="${a?0.9:0.7}"/>`+
              `<g opacity="${a?0.85:0.4}" fill="#06121f">`+
@@ -17290,6 +17380,8 @@ function rigSceneSVG(){
              `</g><circle cx="${cx}" cy="${cy}" r="3" fill="${a?'#06121f':'#5a66a0'}"/>`; })()}
     <rect x="282" y="186" width="96" height="20" rx="3" fill="${DIM}" stroke="${DS}" stroke-width="1" opacity="0.7"/>
     <text x="330" y="200" text-anchor="middle" font-size="8" font-family="monospace" fill="#5a66a0">${cool>0?(cool>=2?'LIQUID COOL':'AIR COOL'):'COOLING'}</text>
+    ${headOn?`<path d="M312 53 A18 18 0 0 1 348 53" fill="none" stroke="${TEAL}" stroke-width="3"/><rect x="307" y="51" width="9" height="15" rx="3" fill="${TEAL}"/><rect x="344" y="51" width="9" height="15" rx="3" fill="${TEAL}"/>`:''}
+    ${chairOn?`<rect x="203" y="194" width="54" height="48" rx="11" fill="#0c1430" stroke="${VIO}" stroke-width="2.4"/><rect x="226" y="200" width="8" height="40" rx="3" fill="${TEAL}" opacity="0.55"/><rect x="198" y="236" width="64" height="10" rx="4" fill="#0c1430" stroke="${VIO}" stroke-width="1.6"/>`:''}
   </svg>`;
 }
 
@@ -17396,19 +17488,31 @@ Views.rig = function(c){
   return ()=>{ if(timer) clearInterval(timer); };
 };
 
+// Which NetStore tab to open on mount — let the Jack-In cabinet deep-link to Credits.
+let rigStoreTab = 'hardware';
 Views.rigStore = function(c){
   function paint(){
     c.innerHTML='';
     const r = Store.get().rig;
     const panel = rigHead(c, '🛒 NetStore',
-      'Spend NetCoin on rig hardware. Functional parts raise your <b>mining rate</b> or <b>offline cap</b> and build out the battlestation. <span class="muted">Cosmetics & peripherals arrive in Phase 2.</span>');
+      'Spend NetCoin on your rig. <b>Hardware</b> raises your mining rate or offline cap; <b>Battlestation</b> gear is identity-first (a few peripherals also nudge the rate); <b>Credits</b> tops up your Jack-In bankroll.');
 
     const bal = el('div',{class:'rig-wallet', style:'margin-bottom:14px;'});
     bal.innerHTML = `<div class="bal">${netcoinSVG(34)}<span class="n">${r.netcoin.toLocaleString()}</span></div><div class="sub-stat">your balance</div>`;
     panel.append(bal);
 
-    panel.append(el('h2',{class:'sub', text:'Hardware'}));
-    Rig.PARTS.forEach(p=>{
+    // tab bar
+    const seg = el('div',{class:'seg', style:'margin-bottom:14px;'});
+    [['hardware','🖥️ Hardware'],['battlestation','🪑 Battlestation'],['credits','🪙 Credits']].forEach(([id,label])=>{
+      const b = el('button',{html:label});
+      if(rigStoreTab===id) b.classList.add('on');
+      b.onclick = ()=>{ rigStoreTab=id; paint(); };
+      seg.append(b);
+    });
+    panel.append(seg);
+
+    // shared part-row renderer for Hardware & Battlestation
+    function partRow(p){
       const owned = Rig.owns(p.id);
       const lockedNeed = p.needs && !Rig.owns(p.needs);
       const row = el('div',{class:'rig-store-row'+(owned?' owned':'')+(lockedNeed&&!owned?' locked':'')});
@@ -17421,21 +17525,51 @@ Views.rigStore = function(c){
         `<div class="meta">${p.blurb} <span style="color:var(--ink)">${effBits.join(' · ')}</span></div>`;
       const buyWrap = el('div',{class:'buy'});
       if(owned){
-        buyWrap.innerHTML = `<span class="own-tag">✓ Installed</span>`;
+        buyWrap.innerHTML = `<span class="own-tag">✓ Owned</span>`;
       } else {
         const cost = el('span',{class:'rig-cost', html:`${netcoinSVG(16)}${p.cost.toLocaleString()}`});
         const btn = el('button',{class:'btn primary', html:'Buy'});
-        if(lockedNeed){
-          btn.disabled = true; btn.innerHTML = '🔒 Needs '+Rig.partById(p.needs).name;
-        } else if(!Rig.canAfford(p.id)){
-          btn.disabled = true;
-        }
+        if(lockedNeed){ btn.disabled=true; btn.innerHTML='🔒 Needs '+Rig.partById(p.needs).name; }
+        else if(!Rig.canAfford(p.id)){ btn.disabled=true; }
         btn.onclick = ()=>{ if(Rig.buy(p.id)){ UI.toast('Installed', p.name+' added to your rig'); paint(); } };
         buyWrap.append(cost, btn);
       }
       row.append(info, buyWrap);
-      panel.append(row);
-    });
+      return row;
+    }
+
+    if(rigStoreTab==='hardware'){
+      Rig.PARTS.forEach(p=> panel.append(partRow(p)));
+    } else if(rigStoreTab==='battlestation'){
+      panel.append(el('p',{class:'muted', style:'margin:0 0 12px;', html:'Peripherals & cosmetics — pure flex, except the four peripherals tagged with a rate bump.'}));
+      Rig.COSMETICS.forEach(p=> panel.append(partRow(p)));
+    } else {
+      // Credits tab — one-way NetCoin → Jack-In bankroll sink (§7 Phase 2).
+      panel.append(el('p',{class:'muted', style:'margin:0 0 12px;',
+        html:`Convert NetCoin into a persistent <b>Jack-In</b> bankroll. Credits ride the table with you between sessions — but they never convert back to NetCoin, and they never affect your Jack-In grade or Gamer Score.`}));
+      const have = el('div',{class:'rig-wallet', style:'margin-bottom:14px;'});
+      have.innerHTML = `<div class="bal" style="gap:8px;">🎰<span class="n" style="font-size:26px;">${Rig.jackInCredits().toLocaleString()}</span></div><div class="sub-stat">Jack-In credits banked</div>`;
+      panel.append(have);
+      Rig.CREDIT_PACKS.forEach(pk=>{
+        const row = el('div',{class:'rig-store-row'});
+        const info = el('div',{class:'info'});
+        const rate = Math.round(pk.credits/pk.cost);
+        info.innerHTML = `<div class="nm"><span class="cat">Credits</span>${pk.credits.toLocaleString()} credits</div>`+
+          `<div class="meta">Top up your Jack-In bankroll. <span style="color:var(--ink)">${rate} credits / NetCoin</span></div>`;
+        const buyWrap = el('div',{class:'buy'});
+        const cost = el('span',{class:'rig-cost', html:`${netcoinSVG(16)}${pk.cost.toLocaleString()}`});
+        const btn = el('button',{class:'btn primary', html:'Buy'});
+        if(r.netcoin<pk.cost) btn.disabled=true;
+        btn.onclick = ()=>{ if(Rig.buyCredits(pk.id)){ UI.toast('Credits Added', `+${pk.credits.toLocaleString()} Jack-In credits`); paint(); } };
+        buyWrap.append(cost, btn);
+        row.append(info, buyWrap);
+        panel.append(row);
+      });
+      const go = el('div',{class:'controls-row'});
+      const play = el('button',{class:'btn', html:'🃏 Open Jack-In'});
+      play.onclick = ()=> Router.go('#/arcade/jackin');
+      go.append(play); panel.append(go);
+    }
 
     const actions = el('div',{class:'controls-row'});
     const back = el('button',{class:'btn', html:'← Back to The Rig'});
