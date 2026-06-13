@@ -915,6 +915,37 @@
   .ji-actions{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:8px auto;}
   .ji-actions .btn{padding:9px 16px; font-size:13px;}
   .ji-actions .btn:disabled{opacity:0.35; pointer-events:none;}
+  /* ---- Cold Stack (Klondike solitaire) — ColdStack_DD.md ---- */
+  .cs-stage{position:relative; width:100%; max-width:482px; margin:10px auto 4px; padding:14px 11px;
+    background:linear-gradient(180deg,#0c0820,#060410); border-radius:14px;}
+  .cs-top{display:flex; gap:7px; align-items:flex-start; margin-bottom:14px;}
+  .cs-foundations{display:flex; gap:7px; margin-left:auto;}
+  .cs-tableau{display:flex; gap:7px; align-items:flex-start;}
+  .cs-col{position:relative; width:46px; flex:0 0 auto; min-height:64px; border-radius:7px;}
+  .cs-col.empty{border:1px dashed rgba(124,92,255,0.28); background:rgba(124,92,255,0.04);}
+  .cs-stock,.cs-waste{position:relative; height:64px; flex:0 0 auto;}
+  .cs-stock{width:46px;} .cs-waste{width:74px;}
+  .cs-slot{position:relative; width:46px; height:64px; border-radius:7px; flex:0 0 auto;
+    border:1px dashed rgba(124,92,255,0.4); background:rgba(124,92,255,0.05);}
+  .cs-slot .lbl{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:20px; color:rgba(124,92,255,0.45);}
+  .cs-empty{width:46px; height:64px; border-radius:7px; border:1px dashed rgba(124,92,255,0.4);
+    display:flex; align-items:center; justify-content:center; color:rgba(124,92,255,0.5); font-size:18px; cursor:pointer;}
+  .cs-card{position:absolute; left:0; top:0; width:46px; height:64px; border-radius:7px; background:#0d0a1f;
+    border:1px solid var(--neon-4); box-shadow:0 0 7px rgba(124,92,255,0.25), inset 0 0 13px rgba(124,92,255,0.05);
+    display:flex; align-items:center; justify-content:center; font-family:var(--pixel);}
+  .cs-card .pip{position:absolute; top:3px; left:4px; font-size:11px; line-height:1; color:var(--neon-3);}
+  .cs-card .pip.br{top:auto; left:auto; bottom:3px; right:4px; transform:rotate(180deg);}
+  .cs-card .suit{font-size:21px; line-height:1;}
+  .cs-card.red{border-color:var(--danger); box-shadow:0 0 7px rgba(255,77,109,0.25), inset 0 0 13px rgba(255,77,109,0.05);}
+  .cs-card.red .pip{color:var(--danger);} .cs-card.red .suit{color:var(--danger);}
+  .cs-card.black .suit{color:#dfe6ff;}
+  .cs-card.up{cursor:pointer;}
+  .cs-card.down{background:repeating-linear-gradient(45deg,#140f2e,#140f2e 5px,#0d0a1f 5px,#0d0a1f 10px);}
+  .cs-card.down .enc{font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--neon-2); opacity:0.75;}
+  .cs-card.sel{border-color:#fff; box-shadow:0 0 12px rgba(255,255,255,0.55); z-index:5;}
+  .cs-card.bad{animation:cs-shake .3s;}
+  @keyframes cs-shake{0%,100%{transform:translateX(0);} 25%{transform:translateX(-4px);} 75%{transform:translateX(4px);}}
 
   /* ---- Gamer Quiz (Fun Lab) ---- */
   .quiz-progress{height:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:6px 0 18px;}
@@ -2137,6 +2168,17 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='defrag' && c.score>=4000 },
     { id:'defrag_marathon', name:'Drive Surgeon', icon:'🩺', desc:'Purge 1,000 total shards in Defrag.',
       test:(d,c)=> !!(d.counters && d.counters.defragRecovered>=1000) },
+    // ---- Cold Stack (cyberpunk Klondike solitaire) set ----
+    { id:'coldstack_ace', name:'Cold Stack Ace', icon:'🃏', desc:'Earn an A grade or better in Cold Stack.',
+      test:(d,c)=> c && c.tool==='coldstack' && (c.grade==='A'||c.grade==='S') },
+    { id:'coldstack_clean', name:'Stack Clean', icon:'✅', desc:'Compile all 52 chips home (win a deal) in Cold Stack.',
+      test:(d,c)=> (c && c.tool==='coldstack' && c.win) || !!(d.counters && d.counters.coldstackWins>=1) },
+    { id:'coldstack_speedrun', name:'Speed Runner', icon:'⚡', desc:'Win a Cold Stack deal in under 2 minutes.',
+      test:(d,c)=> (c && c.tool==='coldstack' && c.fast) || !!(d.counters && d.counters.coldstackFast>=1) },
+    { id:'coldstack_hardcore', name:'Deep Sort', icon:'🧊', desc:'Win a Draw-3 deal in Cold Stack.',
+      test:(d,c)=> (c && c.tool==='coldstack' && c.win && c.draw3) || !!(d.counters && d.counters.coldstackDraw3Wins>=1) },
+    { id:'coldstack_surgeon', name:'Drive Surgeon', icon:'🩺', desc:'Compile 520 chips to root (lifetime) in Cold Stack.',
+      test:(d,c)=> !!(d.counters && d.counters.coldstackRecovered>=520) },
     // ---- Ecto (fixed-shooter cabinet) — Ecto_DD.md §4.3 ----
     { id:'ecto_ace', name:'Ecto Ace', icon:'👻', desc:'Earn an A grade or better in Ecto.',
       test:(d,c)=> c && c.tool==='ecto' && (c.grade==='A'||c.grade==='S') },
@@ -2752,6 +2794,8 @@ const CABINETS = [
     desc:'Floor it down the sunset highway — weave the traffic, hammer the checkpoint gates to beat the clock, and bank every second to the finish.', dna:'Reflex +12 · Control +8' },
   { id:'arcade_defrag', lab:'Arcade', name:'Defrag', railName:'Defrag', icon:DEFRAG_ICON, tag:'mvp', route:'#/arcade/defrag',
     desc:'Swap adjacent data shards to purge runs of three, trigger chain CASCADES and forge Lance & Hypercore specials — defrag the drive before the clock flatlines.', dna:'Focus +12 · Speed +8' },
+  { id:'arcade_coldstack', lab:'Arcade', name:'Cold Stack', railName:'Cold Stack', icon:'🃏', tag:'mvp', route:'#/arcade/coldstack',
+    desc:'Sort a corrupted cold stack of data-chips into four clean root partitions — faithful Klondike solitaire under a neon skin. Decrypt, sequence and COMPILE the whole stack before the clock flatlines.', dna:'Strategy +12 · Speed +8' },
   { id:'arcade_ecto', lab:'Arcade', name:'Ecto', railName:'Ecto', icon:'👻', tag:'mvp', route:'#/arcade/ecto',
     desc:'Work the graveyard shift — stream plasma at the swooping spirits, bait their dives for double points, and survive the rising haunt.', dna:'Precision +12 · Reflex +8' }
 ];
@@ -12704,6 +12748,370 @@ Views.defrag = function(c){
   };
 };
 
+/* ---- ARCADE.15 Cold Stack (Klondike-faithful solitaire) — see ColdStack_DD.md ----
+   Sort a corrupted "cold stack" of data-chips into four clean root partitions.
+   Faithful Klondike: 7 tableau columns, 4 suit foundations, a stock/waste with a
+   Draw-1/Draw-3 toggle, build-down-alternating-colour tableau, build-up-by-suit
+   roots, empty columns take a King. Arcade-ified with a time+efficiency score
+   chase: Sprint (live clock + speed/efficiency bonuses) and a no-timer Zen
+   on-ramp, plus unlimited undo and a COMPILE auto-finish. Trains Strategy
+   (planning the decrypt order) + Speed (racing the Sprint clock). Reuses the
+   Jack-In data-chip language; colour is never the only suit cue (glyph + red/ink
+   + position), so it stays readable under the Reduce-CRT preference. */
+const CS_PAR = { sprint:1100, zen:950 };   // grade par per mode (DD §3.1) — finish≈A, fast clean=S
+const CS_MOVE_PAR = 180;                    // efficiency baseline (DD §3): moves over this trim the bonus
+const CS_SPEED_CAP = 300;                   // Sprint speed-bonus ceiling (seconds → points)
+
+Views.coldStack = function(c){
+  const cab = getCab('arcade_coldstack');
+  const panel = toolShell(c, cab);
+  const blip = makeBlip('coldstackMute');
+  const sndDeal =()=> blip(320,0.04,'square',0.03);
+  const sndMove =()=> blip(420,0.04,'square',0.03);
+  const sndFlip =()=> blip(560,0.04,'triangle',0.035);
+  const sndRoot =()=> blip(720,0.05,'square',0.04);
+  const sndBad  =()=> blip(150,0.08,'sawtooth',0.03);
+  const sndWin  =()=> [523,659,784,1047].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'square',0.05), i*90));
+
+  const DOWN_OFF=14, UP_OFF=20, CARD_H=64;   // tableau overlap (face-down vs face-up)
+
+  // ---- state ----
+  let tableau=[[],[],[],[],[],[],[]], found=[[],[],[],[]], stock=[], waste=[];
+  let drawN=1, mode='sprint';
+  let score=0, moves=0, decrypts=0, undos=0, elapsed=0;
+  let running=false, won=false, over=false;
+  let sel=null;                              // {src:'t'|'w'|'f', col, idx}
+  let history=[], lastTap={id:'',t:0};
+  let timerId=null, compileId=null;
+
+  // ---- helpers ----
+  const isRed=(s)=> JI_SUITS[s].c==='red';
+  const foundTotal=()=> found.reduce((a,f)=>a+f.length,0);
+  const bestScore=()=>{ const b=Store.get().bests.arcade_coldstack; return (b&&b.value)||0; };
+  const fmt=(s)=>{ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+
+  function freshDeck(){
+    const d=[]; for(let s=0;s<4;s++) for(let r=0;r<13;r++) d.push({r,s,up:false});
+    for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+    return d;
+  }
+  function deal(){
+    const d=freshDeck();
+    tableau=[[],[],[],[],[],[],[]];
+    for(let col=0;col<7;col++) for(let k=0;k<=col;k++){ const card=d.pop(); card.up=(k===col); tableau[col].push(card); }
+    stock=d.map(c=>(c.up=false,c)); waste=[]; found=[[],[],[],[]];
+  }
+  // a valid face-up descending alternating-colour run?
+  function runOK(cards){
+    for(let i=0;i<cards.length;i++){ if(!cards[i].up) return false;
+      if(i>0 && !(cards[i].r===cards[i-1].r-1 && isRed(cards[i].s)!==isRed(cards[i-1].s))) return false; }
+    return true;
+  }
+  function canStackT(card, col){
+    const pile=tableau[col];
+    if(!pile.length) return card.r===12;                    // empty column accepts a King
+    const top=pile[pile.length-1];
+    return top.up && card.r===top.r-1 && isRed(card.s)!==isRed(top.s);
+  }
+  function canFound(card){
+    const f=found[card.s];
+    return f.length ? f[f.length-1].r===card.r-1 : card.r===0;   // Ace first, then up by suit
+  }
+  function selCards(){
+    if(!sel) return [];
+    if(sel.src==='t') return tableau[sel.col].slice(sel.idx);
+    if(sel.src==='w') return [waste[waste.length-1]];
+    return [found[sel.col][found[sel.col].length-1]];
+  }
+  function removeSel(){
+    if(sel.src==='t') tableau[sel.col].splice(sel.idx);
+    else if(sel.src==='w') waste.pop();
+    else found[sel.col].pop();
+  }
+  function flipExposed(){
+    let flipped=false;
+    for(const col of tableau){ const t=col[col.length-1]; if(t && !t.up){ t.up=true; decrypts++; score+=5; flipped=true; } }
+    if(flipped) sndFlip();
+  }
+
+  // ---- undo (unlimited) ----
+  function snapshot(){
+    history.push(JSON.stringify({tableau,found,stock,waste,score,moves,decrypts}));
+    if(history.length>500) history.shift();
+  }
+  function undo(){
+    if(!history.length || over || !running || compileId) return;
+    const s=JSON.parse(history.pop());
+    tableau=s.tableau; found=s.found; stock=s.stock; waste=s.waste;
+    score=s.score; moves=s.moves; decrypts=s.decrypts;
+    undos++; sel=null; render(); renderHud(); updateControls();
+  }
+
+  // ---- moves ----
+  function attemptMove(dest){
+    if(!sel) return false;
+    const cards=selCards();
+    if(!cards.length || cards.some(c=>!c)) return false;
+    if(dest.type==='t'){
+      if(sel.src==='t' && sel.col===dest.col) return false;          // no self-drop
+      if(runOK(cards) && canStackT(cards[0], dest.col)){
+        snapshot(); const fromFound=(sel.src==='f');
+        removeSel(); cards.forEach(c=>{ c.up=true; }); tableau[dest.col].push(...cards);
+        if(fromFound) score-=10;                                     // moving off root refunds its compile
+        sndMove(); afterMove(); return true;
+      }
+    } else {                                                          // foundation
+      if(cards.length===1 && dest.col===cards[0].s && canFound(cards[0])){
+        snapshot(); const srcCol=(sel.src==='t')?sel.col:-1;
+        removeSel(); found[cards[0].s].push(cards[0]); score+=10;
+        if(srcCol>=0 && tableau[srcCol].length===0) score+=20;       // column cleared by a compile
+        sndRoot(); afterMove(); return true;
+      }
+    }
+    sndBad(); return false;
+  }
+  function afterMove(){ flipExposed(); moves++; sel=null; checkWin(); render(); renderHud(); updateControls(); }
+  function autoToFoundation(src,col,idx){
+    let card;
+    if(src==='t'){ if(idx!==tableau[col].length-1) return false; card=tableau[col][idx]; }
+    else if(src==='w'){ if(idx!==waste.length-1) return false; card=waste[idx]; }
+    else return false;
+    if(!card.up || !canFound(card)){ sndBad(); return false; }
+    sel={src,col,idx}; return attemptMove({type:'f', col:card.s});
+  }
+  function onStock(){
+    if(!running||over||compileId) return;
+    if(stock.length){ snapshot(); for(let i=0;i<drawN && stock.length;i++){ const cd=stock.pop(); cd.up=true; waste.push(cd); } sndDeal(); moves++; }
+    else if(waste.length){ snapshot(); while(waste.length){ const cd=waste.pop(); cd.up=false; stock.push(cd); } sndDeal(); moves++; }
+    else return;
+    sel=null; render(); renderHud(); updateControls();
+  }
+  function checkWin(){ if(foundTotal()===52 && !won){ won=true; endGame(true); } }
+
+  function selectCard(src,col,idx){
+    if(src==='t'){ const card=tableau[col][idx]; if(!card||!card.up) return;
+      if(!runOK(tableau[col].slice(idx))){ flashCard(src,col,idx); sndBad(); return; } sel={src:'t',col,idx}; }
+    else if(src==='w'){ if(!waste.length) return; sel={src:'w',col:0,idx:waste.length-1}; }
+    else { if(!found[col].length) return; sel={src:'f',col,idx:found[col].length-1}; }
+    render(); updateControls();
+  }
+  function onCard(src,col,idx,e){
+    if(e) e.stopPropagation();
+    if(!running||over||compileId) return;
+    const id=src+col+'_'+idx, now=Date.now();
+    if(lastTap.id===id && now-lastTap.t<360){ lastTap={id:'',t:0}; if(autoToFoundation(src,col,idx)) return; lastTap={id,t:now}; return; }
+    lastTap={id,t:now};
+    if(sel && sel.src===src && sel.col===col && sel.idx===idx){ sel=null; render(); updateControls(); return; }
+    if(sel){ const dest = src==='t'?{type:'t',col}: src==='f'?{type:'f',col}:null; if(dest && attemptMove(dest)) return; }
+    selectCard(src,col,idx);
+  }
+  function onColumn(col){ if(!running||over||compileId) return; if(sel) attemptMove({type:'t',col}); }
+  function onFoundationSlot(s,e){ if(e) e.stopPropagation(); if(!running||over||compileId) return;
+    if(sel && attemptMove({type:'f',col:s})) return; if(found[s].length) selectCard('f',s,found[s].length-1); }
+
+  // ---- COMPILE (auto-finish once nothing stays encrypted) ----
+  function canCompile(){
+    if(!running||over||compileId) return false;
+    for(const col of tableau) for(const cd of col) if(!cd.up) return false;
+    return foundTotal()<52;
+  }
+  function compile(){
+    if(!canCompile()) return;
+    snapshot(); sel=null; updateControls();
+    let lastCycleTotal=-1;
+    compileId=setInterval(()=>{
+      if(over){ clearInterval(compileId); compileId=null; return; }
+      const sources=[];
+      for(let col=0;col<7;col++){ const p=tableau[col]; if(p.length) sources.push({src:'t',col,card:p[p.length-1]}); }
+      if(waste.length) sources.push({src:'w',col:0,card:waste[waste.length-1]});
+      sources.sort((a,b)=>a.card.r-b.card.r);                       // advance both colours evenly
+      const m=sources.find(s=>canFound(s.card));
+      if(m){
+        if(m.src==='t') tableau[m.col].pop(); else waste.pop();
+        found[m.card.s].push(m.card); score+=10;
+        if(m.src==='t' && tableau[m.col].length===0) score+=20;
+        sndRoot();
+      } else if(stock.length){ const cd=stock.pop(); cd.up=true; waste.push(cd); }
+      else if(waste.length){
+        if(foundTotal()===lastCycleTotal){ clearInterval(compileId); compileId=null; render(); renderHud(); updateControls(); return; }
+        lastCycleTotal=foundTotal();
+        while(waste.length){ const cd=waste.pop(); cd.up=false; stock.push(cd); }
+      } else { clearInterval(compileId); compileId=null; render(); renderHud(); updateControls(); return; }
+      render(); renderHud(); checkWin();
+      if(foundTotal()===52){ clearInterval(compileId); compileId=null; }
+    }, 70);
+  }
+
+  // ---- DOM ----
+  const drawField = el('div',{class:'field', html:'<label>Draw</label>'});
+  const drawSeg = el('div',{class:'seg'});
+  [['1','Draw-1'],['3','Draw-3']].forEach(([k,name])=>{
+    const b=el('button',{html:name}); if(+k===drawN) b.className='on';
+    b.onclick=()=>{ if(running) return; drawN=+k; [...drawSeg.children].forEach(x=>x.className=''); b.className='on'; };
+    drawSeg.append(b);
+  });
+  drawField.append(drawSeg);
+
+  const modeField = el('div',{class:'field', html:'<label>Mode</label>'});
+  const modeSeg = el('div',{class:'seg'});
+  [['sprint','Sprint'],['zen','Zen']].forEach(([k,name])=>{
+    const b=el('button',{html:name}); if(k===mode) b.className='on';
+    b.onclick=()=>{ if(running) return; mode=k; [...modeSeg.children].forEach(x=>x.className=''); b.className='on'; };
+    modeSeg.append(b);
+  });
+  modeField.append(modeSeg);
+
+  const startRow = el('div',{class:'controls-row'});
+  const startBtn   = el('button',{class:'btn primary', html:'▶ START'});
+  const undoBtn    = el('button',{class:'btn', html:'↶ Undo'});
+  const compileBtn = el('button',{class:'btn', html:'⚡ COMPILE'}); compileBtn.style.display='none';
+  const giveBtn    = el('button',{class:'btn ghost', html:'⏏ Give Up'}); giveBtn.style.display='none';
+  startRow.append(startBtn, undoBtn, compileBtn, giveBtn, soundToggle('coldstackMute'));
+
+  const hud = el('div',{class:'mem-hud'});
+  const stage = el('div',{class:'cs-stage'});
+  const topRow = el('div',{class:'cs-top'});
+  const tabRow = el('div',{class:'cs-tableau'});
+  const overlay = el('div',{class:'pd-overlay'});
+  stage.append(topRow, tabRow, overlay);
+  const stageTV = crtWrapTV(stage, { accent: labColor('Arcade'), jitter:false });
+  const hint = el('div',{class:'pd-hint', html:'Tap a chip then its target · double-tap to send to a root · tap the stock to deal · build roots A→K by suit'});
+  const result = el('div',{});
+  panel.append(drawField, modeField, startRow, hud, stageTV, hint, result);
+
+  // ---- rendering ----
+  function cardEl(card){
+    if(!card.up){ const n=el('div',{class:'cs-card down'}); n.append(el('div',{class:'enc', html:'#%'})); return n; }
+    const suit=JI_SUITS[card.s], rank=JI_RANKS[card.r];
+    const n=el('div',{class:'cs-card up '+suit.c});
+    n.append(el('div',{class:'pip', html:rank+suit.s}), el('div',{class:'suit', html:suit.s}), el('div',{class:'pip br', html:rank+suit.s}));
+    return n;
+  }
+  function flashCard(src,col,idx){
+    const sc=stage.querySelector('.cs-col:nth-child('+(col+1)+')');   // tableau columns only
+    if(src==='t' && sc && sc.children[idx]){ const ce=sc.children[idx]; ce.classList.add('bad'); setTimeout(()=>ce.classList.remove('bad'),320); }
+  }
+  function render(){
+    topRow.innerHTML=''; tabRow.innerHTML='';
+    // stock
+    const stockSlot=el('div',{class:'cs-stock'});
+    if(stock.length){ const b=el('div',{class:'cs-card down'}); b.append(el('div',{class:'enc', html:'#%'})); stockSlot.append(b); }
+    else { stockSlot.append(el('div',{class:'cs-empty', html:'↻'})); }
+    stockSlot.onclick=onStock;
+    // waste (fan the last up-to-3 in Draw-3)
+    const wasteSlot=el('div',{class:'cs-waste'});
+    const showN=Math.min(drawN>1?3:1, waste.length), startI=waste.length-showN;
+    for(let i=startI;i<waste.length;i++){ const cd=cardEl(waste[i]); cd.style.left=((i-startI)*14)+'px';
+      if(i===waste.length-1){ if(sel&&sel.src==='w') cd.classList.add('sel'); cd.onclick=(e)=>onCard('w',0,i,e); }
+      wasteSlot.append(cd); }
+    // foundations
+    const foundWrap=el('div',{class:'cs-foundations'});
+    for(let s=0;s<4;s++){ const slot=el('div',{class:'cs-slot'}); slot.append(el('div',{class:'lbl', html:JI_SUITS[s].s}));
+      const f=found[s];
+      if(f.length){ const cd=cardEl(f[f.length-1]); if(sel&&sel.src==='f'&&sel.col===s) cd.classList.add('sel'); cd.onclick=(e)=>onCard('f',s,f.length-1,e); slot.append(cd); }
+      slot.onclick=(e)=>onFoundationSlot(s,e); foundWrap.append(slot); }
+    topRow.append(stockSlot, wasteSlot, foundWrap);
+    // tableau
+    for(let col=0;col<7;col++){
+      const pile=tableau[col]; const cd=el('div',{class:'cs-col'+(pile.length?'':' empty')}); let top=0, lastTop=0;
+      pile.forEach((card,idx)=>{
+        const ce=cardEl(card); ce.style.top=top+'px';
+        if(card.up){ ce.onclick=(e)=>onCard('t',col,idx,e); if(sel&&sel.src==='t'&&sel.col===col&&idx>=sel.idx) ce.classList.add('sel'); }
+        cd.append(ce); lastTop=top; top += card.up?UP_OFF:DOWN_OFF;
+      });
+      cd.style.height=(pile.length? lastTop+CARD_H : CARD_H)+'px';
+      cd.onclick=()=>onColumn(col);
+      tabRow.append(cd);
+    }
+  }
+  function renderHud(){
+    const pct=Math.round(foundTotal()/52*100);
+    hud.innerHTML = `<span class="pill">Score <b>${score}</b></span>
+      <span class="pill">Time <b>${fmt(elapsed)}</b></span>
+      <span class="pill">Recovered <b>${pct}%</b></span>
+      <span class="pill">Best <b>${Math.max(score,bestScore())}</b></span>`;
+  }
+  function updateControls(){
+    undoBtn.disabled = !(running && !over && history.length && !compileId);
+    compileBtn.style.display = canCompile() ? '' : 'none';
+    giveBtn.style.display = (running && !over) ? '' : 'none';
+  }
+
+  // ---- lifecycle ----
+  function tick(){ if(running && !over){ elapsed+=1; renderHud(); } }
+  function clearTimers(){ if(timerId){ clearInterval(timerId); timerId=null; } if(compileId){ clearInterval(compileId); compileId=null; } }
+  function startGame(){
+    clearTimers();
+    score=0; moves=0; decrypts=0; undos=0; elapsed=0;
+    running=true; won=false; over=false; sel=null; history=[]; lastTap={id:'',t:0};
+    deal(); result.innerHTML=''; overlay.style.display='none';
+    startBtn.innerHTML='⟳ New Deal';
+    timerId=setInterval(tick,1000);
+    render(); renderHud(); updateControls();
+  }
+  function endGame(win){
+    if(over) return; over=true; running=false; won=win; sel=null; clearTimers();
+    let speed=0, eff=0;
+    if(win){
+      score+=250;
+      if(mode==='sprint') speed=Math.max(0, CS_SPEED_CAP - Math.floor(elapsed));
+      eff=Math.max(0, 150 - Math.max(0, moves - CS_MOVE_PAR));
+      score+=speed+eff; sndWin();
+    }
+    const cardsHome=foundTotal();
+    const comp=clamp01(score/CS_PAR[mode]);
+    const g=arcadeGrade(comp);
+    Attr.applyVector({strategy:12, speed:8}, comp);
+    const fast = win && elapsed<120;
+    const ctx={ grade:g, score, win, draw3:drawN===3, cardsHome, fast, time:Math.floor(elapsed) };
+    recordColdStackRun(score, ctx);
+    Ach.evaluate(Object.assign({tool:'coldstack'}, ctx));
+    startBtn.innerHTML='▶ START';
+    render(); renderHud(); updateControls();
+    overlay.style.display='flex';
+    overlay.innerHTML = win
+      ? `<div class="big">STACK CLEAN</div><div class="small">All 52 chips compiled · ${fmt(elapsed)} · ${score} pts</div>`
+      : `<div class="big">RUN BANKED</div><div class="small">${cardsHome}/52 recovered · ${score} pts</div>`;
+    const r=el('div',{class:'results'});
+    r.innerHTML = `<div class="result-tile"><div class="k">Score</div><div class="v">${score}</div></div>
+      <div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${g}">${g}</div></div>
+      <div class="result-tile"><div class="k">Recovered</div><div class="v">${cardsHome}/52</div></div>
+      <div class="result-tile"><div class="k">Time</div><div class="v">${fmt(elapsed)}</div></div>`;
+    result.append(r);
+    const again=el('button',{class:'btn', html:'↻ New Deal'}); again.onclick=startGame;
+    const row=el('div',{class:'controls-row'}); row.append(again); result.append(row);
+    result.append(shareRow({
+      lab:'RETRO ARCADE', tool:'Cold Stack', glyph:'🃏', grade:g,
+      metric:[{k:'Score', v:String(score)}, {k:'Recovered', v:cardsHome+'/52'}, {k:'Time', v:fmt(elapsed)}],
+      designation: g==='S'?'Sysadmin': g==='A'?'Stack Surgeon': g==='B'?'Sorter': g==='C'?'Sweeper':'Fragmented',
+      badge: win ? (drawN===3?'Draw-3 Clean':'Stack Clean') : null
+    }));
+  }
+
+  // ---- wiring ----
+  function onKey(e){
+    if(over) return;
+    if(!running){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); startGame(); } return; }
+    const k=e.key.toLowerCase();
+    if(k===' '){ e.preventDefault(); onStock(); }
+    else if(k==='u'){ undo(); }
+    else if(k==='c' || k==='enter'){ if(canCompile()) compile(); }
+    else if(k==='escape'){ sel=null; render(); updateControls(); }
+  }
+  window.addEventListener('keydown', onKey);
+  startBtn.onclick=startGame;
+  undoBtn.onclick=undo;
+  compileBtn.onclick=compile;
+  giveBtn.onclick=()=>{ if(running && !over) endGame(false); };
+
+  // idle state
+  render(); renderHud(); updateControls();
+  overlay.style.display='flex';
+  overlay.innerHTML = `<div class="big">COLD STACK</div><div class="small">Pick Draw &amp; Mode · press START</div>`;
+
+  return ()=>{ over=true; running=false; clearTimers(); window.removeEventListener('keydown', onKey); };
+};
+
 /* ============================================================================
    ARCADE — Ecto (Galaga-faithful fixed shooter) — Ecto_DD.md v1.0
    Graveyard-shift reskin of Galaga: swooping formation entry, swaying grid,
@@ -13464,6 +13872,23 @@ function recordDefragRun(score, ctx){
     if(ctx && ctx.bestChain>(d.counters.defragBestChain||0)) d.counters.defragBestChain=ctx.bestChain;
     if(ctx && ctx.hyper) d.counters.defragHypercores=(d.counters.defragHypercores||0)+1;
     if(ctx && ctx.recovered) d.counters.defragRecovered=(d.counters.defragRecovered||0)+ctx.recovered;
+  });
+}
+// record a Cold Stack run (see ColdStack_DD.md §4.2): replayable solitaire, so
+// toolsCompleted is credited only on the first-ever run; best score, modest arcade
+// points and counters (for the cabinet achievements) update each run.
+function recordColdStackRun(score, ctx){
+  Store.update(d=>{
+    d.runs++;
+    if(!d.bests.arcade_coldstack){ d.toolsCompleted++; d.bests.arcade_coldstack={value:score, mode:'max'}; }
+    else if(score>d.bests.arcade_coldstack.value){ d.bests.arcade_coldstack.value=score; }
+    d.arcadePoints += Math.round(score/40);   // modest metagame contribution — avoids grind-farming the Gamer Score
+    d.counters.coldstackRuns=(d.counters.coldstackRuns||0)+1;
+    if(ctx && ctx.win) d.counters.coldstackWins=(d.counters.coldstackWins||0)+1;
+    if(ctx && ctx.fast) d.counters.coldstackFast=(d.counters.coldstackFast||0)+1;
+    if(ctx && ctx.win && ctx.draw3) d.counters.coldstackDraw3Wins=(d.counters.coldstackDraw3Wins||0)+1;
+    if(ctx && ctx.cardsHome) d.counters.coldstackRecovered=(d.counters.coldstackRecovered||0)+ctx.cardsHome;
+    if(ctx && ctx.win && (!d.counters.coldstackBestTime || ctx.time<d.counters.coldstackBestTime)) d.counters.coldstackBestTime=ctx.time;
   });
 }
 // record an Ecto run — honest-Gamer-Score contract (Ecto_DD.md §4.2): toolsCompleted
@@ -16097,6 +16522,7 @@ Router.add('#/arcade/b0ggle', Views.b0ggle);
 Router.add('#/arcade/jackin', Views.jackIn);
 Router.add('#/arcade/overdrive', Views.overdrive);
 Router.add('#/arcade/defrag', Views.defrag);
+Router.add('#/arcade/coldstack', Views.coldStack);
 Router.add('#/arcade/ecto', Views.ecto);
 Router.add('#/fun/quiz', Views.gamerQuiz);
 Router.add('#/fun/gamefinder', Views.gameFinder);
