@@ -264,13 +264,40 @@ friends' rig comparison.
 
 ---
 
-## 11. Open Questions (for iteration)
+## 11. Economy Baseline & Tuning
 
-1. **Rates & curves** — base mining rate, offline cap hours, daily base, streak
-   step/cap, overclock size & threshold N, **per-achievement payout**, and which
-   peripherals carry a mining bump + how big. All illustrative above; needs a
-   tuning pass so "first upgrade in ~1 min" and "30-day goal feels worthy" both hold.
-   *(This is the only design question left before build.)*
+A live, editable balance tool ships alongside this doc:
+**[`Rig_Economy_Tuner.html`](./Rig_Economy_Tuner.html)** — edit any parameter or
+catalog row and the summary, graphs, and affordability table recompute. It
+simulates three archetypes (Grinder = daily + overclock, Regular = daily only,
+Casual = every other day → streak keeps resetting), each auto-reinvesting into
+parts so the rig compounds.
+
+**Proposed baseline (starting point, all tunable):**
+
+| Lever | Baseline |
+| --- | --- |
+| Idle base rate | **10 NetCoin/hr**; **12h** offline cap |
+| Daily payout | base **100**; **+15%/consecutive day**, capped at **+150%** (2.5×) |
+| Overclock | **≥3 distinct tools/day → +25%** mining rate |
+| Milestones | **+750** weekly (7/14/21…), **+5,000** monthly (30/60/90…) |
+| Achievements | front-loaded drip ≈ **200/day** week 1, **8-day** half-life |
+| Store curve | first part **80** (session 1) → flagship **GPU Mk III 30,000** (~8-week goal) |
+
+**What the baseline produces:** first part bought **day 1**; a **healthy week-1
+income mix** (≈ idle 43% / daily 20% / achievements 22% / milestones 15% — every
+source matters early); idle naturally **compounds to dominate the long run** (by
+design for a *mining* rig); flagship part reached around **day ~60**; and a **~5.7×
+wealth gap** between a daily Grinder and a streak-breaking Casual — strong
+reinforcement of consistency that **never removes anything** the player earned.
+
+### 11.1 Open Question (the only one left before build)
+
+1. **Sign-off on the numbers.** The shape is right; the exact values above need a
+   review pass in the tuner. Open sub-knobs: precise idle rate vs. store curve so
+   the flagship lands where we want (6 vs 8 weeks), how big the per-achievement
+   payouts are and which achievements pay, and which peripherals carry a mining
+   bump + how much.
 
 ### 11.1 Decided (this brainstorm)
 - **Name** = **The Rig** — straight from the fiction (your *NetCoin mining rig*).

@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Rig — NetCoin Economy Tuner</title>
+<style>
+  :root{
+    --neon:#16f2c8;     /* teal — PLAY */
+    --neon-2:#ff3df0;   /* magenta — TOOLS */
+    --neon-3:#ffd23d;   /* arcade gold — NetCoin */
+    --neon-4:#7c5cff;   /* violet */
+    --neon-5:#37e35b;   /* go-green */
+    --bg:#0a0f0e;
+    --panel:#111a18;
+    --panel-2:#0d1413;
+    --line:#21302d;
+    --ink:#dfeeea;
+    --muted:#8aa39d;
+    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:
+      radial-gradient(circle at 85% -5%, rgba(124,92,255,0.16), transparent 45%),
+      radial-gradient(circle at 10% -5%, rgba(22,242,200,0.12), transparent 42%),
+      var(--bg);
+    color:var(--ink); font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    padding:24px; max-width:1180px; margin:0 auto;
+  }
+  h1{font-size:24px; margin:0 0 2px;}
+  h1 .play{color:var(--neon);} h1 .tools{color:var(--neon-2);}
+  .sub{color:var(--muted); margin:0 0 18px; font-size:13px;}
+  a{color:var(--neon);}
+  h2{font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--neon-3);
+     margin:26px 0 10px; border-bottom:1px solid var(--line); padding-bottom:6px;}
+  .coin{display:inline-block; vertical-align:-3px; margin-right:4px;}
+  .toolbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:6px;}
+  button{
+    background:var(--panel); color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:8px 14px; font-weight:600; cursor:pointer; font-size:13px;
+  }
+  button:hover{border-color:var(--neon); color:var(--neon);}
+  button.primary{background:var(--neon-3); color:#1a1400; border-color:var(--neon-3);}
+  button.danger{color:var(--neon-2); border-color:#3a2230;}
+  button.danger:hover{border-color:var(--neon-2);}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px;}
+  fieldset{border:1px solid var(--line); border-radius:12px; background:var(--panel-2); margin:0; padding:12px 14px;}
+  legend{color:var(--neon); font-weight:700; font-size:12px; letter-spacing:.06em; padding:0 6px;}
+  .row{display:flex; justify-content:space-between; align-items:center; gap:8px; margin:7px 0;}
+  .row label{color:var(--muted); font-size:12.5px;}
+  .row .hint{display:block; color:#5e726d; font-size:10.5px; line-height:1.25;}
+  input[type=number]{
+    width:88px; background:#08100e; color:var(--ink); border:1px solid var(--line);
+    border-radius:6px; padding:6px 8px; font-family:var(--mono); font-size:13px; text-align:right;
+  }
+  input[type=number]:focus{outline:none; border-color:var(--neon);}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; margin:4px 0 8px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px;}
+  .card .k{color:var(--muted); font-size:11px; letter-spacing:.05em; text-transform:uppercase;}
+  .card .v{font-family:var(--mono); font-size:22px; font-weight:700; margin-top:4px; color:var(--neon-3);}
+  .card .v.teal{color:var(--neon);} .card .v.viol{color:var(--neon-4);} .card .v.mag{color:var(--neon-2);}
+  .card .d{color:#6d827c; font-size:11px; margin-top:3px;}
+
+  .charts{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media(max-width:820px){.charts{grid-template-columns:1fr;}}
+  .chart{background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:12px 14px 8px;}
+  .chart h3{margin:0 0 2px; font-size:13px;}
+  .chart .cap{color:var(--muted); font-size:11px; margin:0 0 8px;}
+  canvas{width:100%; height:240px; display:block;}
+  .legend{display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:11.5px; color:var(--muted);}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .legend i{width:11px; height:3px; border-radius:2px; display:inline-block;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{text-align:left; padding:7px 8px; border-bottom:1px solid var(--line);}
+  th{color:var(--muted); font-size:11px; letter-spacing:.05em; text-transform:uppercase; font-weight:600;}
+  td input{width:100%;}
+  td.num input{text-align:right;}
+  td.center{text-align:center;}
+  .tag{font-family:var(--mono); font-size:12px;}
+  .tag.g{color:var(--neon-3);} .tag.d{color:var(--neon);} .tag.c{color:var(--neon-2);} .tag.no{color:#566; }
+  .note{color:var(--muted); font-size:12px; background:var(--panel-2); border:1px solid var(--line);
+        border-radius:10px; padding:12px 14px; margin-top:10px;}
+  .pcatbadge{font-size:10px; padding:1px 6px; border-radius:20px; border:1px solid var(--line);}
+</style>
+</head>
+<body>
+
+<h1><span class="play">The Rig</span> — NetCoin Economy <span class="tools">Tuner</span></h1>
+<p class="sub">
+  Editable balance tool for <a href="./Rig_DD.md">Rig_DD.md</a> §4–§7. Tweak any number or part below —
+  the summary, graphs, and affordability table recompute live. All values are a <em>proposed baseline</em>; nothing here is final.
+</p>
+
+<div class="toolbar">
+  <button class="primary" id="resetBtn">↺ Reset to baseline</button>
+  <span style="color:var(--muted);font-size:12px;">Three player archetypes are simulated:
+    <b style="color:var(--neon-3)">Grinder</b> (daily + overclock),
+    <b style="color:var(--neon)">Regular</b> (daily, no overclock),
+    <b style="color:var(--neon-2)">Casual</b> (every other day → streak keeps resetting).</span>
+</div>
+
+<h2>1 · Economy parameters</h2>
+<div class="grid">
+  <fieldset>
+    <legend>Idle mining</legend>
+    <div class="row"><label>Base rate (NetCoin / hr)</label><input type="number" id="baseRate" step="1"></div>
+    <div class="row"><label>Offline cap (hours)</label><input type="number" id="capHours" step="1"></div>
+    <span class="hint">Rig fills to the cap, then stops — the full tank is the hook to return &amp; collect.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Daily payout &amp; streak</legend>
+    <div class="row"><label>Day-1 base payout</label><input type="number" id="dailyBase" step="5"></div>
+    <div class="row"><label>+ % of base / consecutive day</label><input type="number" id="stepPct" step="1"></div>
+    <div class="row"><label>Streak bonus cap (%)</label><input type="number" id="capPct" step="5"></div>
+    <span class="hint">Missing a day resets the streak to day 1 (strict).</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Overclock (using applets)</legend>
+    <div class="row"><label>Distinct tools / day to trigger</label><input type="number" id="ocThreshold" step="1"></div>
+    <div class="row"><label>Mining-rate bonus (%)</label><input type="number" id="ocBonus" step="5"></div>
+    <span class="hint">No direct NetCoin per applet — engagement boosts the <em>rate</em> instead.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Recurring milestones</legend>
+    <div class="row"><label>Weekly bonus (every 7 days)</label><input type="number" id="msWeekly" step="50"></div>
+    <div class="row"><label>Monthly bonus (every 30 days)</label><input type="number" id="msMonthly" step="100"></div>
+    <span class="hint">Re-arm off the same streak: 7/14/21… and 30/60/90…</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Achievements</legend>
+    <div class="row"><label>NetCoin / day, week 1 (Grinder)</label><input type="number" id="achStart" step="10"></div>
+    <div class="row"><label>Half-life (days)</label><input type="number" id="achHalf" step="1"></div>
+    <span class="hint">Front-loaded &amp; tapering — achievements are the only direct NetCoin source besides idle/daily.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Simulation</legend>
+    <div class="row"><label>Days to simulate</label><input type="number" id="simDays" step="5"></div>
+    <div class="row"><label>Regular achievement factor</label><input type="number" id="achFacReg" step="0.05"></div>
+    <div class="row"><label>Casual achievement factor</label><input type="number" id="achFacCas" step="0.05"></div>
+    <span class="hint">Archetypes auto-reinvest earnings into parts (cheapest first) so the rig compounds.</span>
+  </fieldset>
+</div>
+
+<h2>2 · Headline metrics</h2>
+<div class="cards" id="cards"></div>
+
+<h2>3 · Graphs</h2>
+<div class="charts">
+  <div class="chart">
+    <h3>Cumulative NetCoin earned (gross)</h3>
+    <p class="cap">Total mined+claimed over time — the cost of inconsistency.</p>
+    <canvas id="c1"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--neon-3)"></i>Grinder</span>
+      <span><i style="background:var(--neon)"></i>Regular</span>
+      <span><i style="background:var(--neon-2)"></i>Casual</span>
+    </div>
+  </div>
+  <div class="chart">
+    <h3>Daily income by source (Grinder)</h3>
+    <p class="cap">Where a committed player's NetCoin comes from each day.</p>
+    <canvas id="c2"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--neon)"></i>Idle</span>
+      <span><i style="background:var(--neon-3)"></i>Daily payout</span>
+      <span><i style="background:var(--neon-4)"></i>Milestones</span>
+      <span><i style="background:var(--neon-5)"></i>Achievements</span>
+    </div>
+  </div>
+  <div class="chart">
+    <h3>Daily payout vs streak day</h3>
+    <p class="cap">Escalation and the bonus cap.</p>
+    <canvas id="c3"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--neon-3)"></i>Daily payout</span>
+      <span><i style="background:var(--neon-2)"></i>Cap</span>
+    </div>
+  </div>
+  <div class="chart">
+    <h3>Rig multiplier over time</h3>
+    <p class="cap">Compounding from reinvested parts — consistency widens the gap.</p>
+    <canvas id="c4"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--neon-3)"></i>Grinder</span>
+      <span><i style="background:var(--neon)"></i>Regular</span>
+      <span><i style="background:var(--neon-2)"></i>Casual</span>
+    </div>
+  </div>
+</div>
+
+<h2>4 · Parts catalog &amp; NetStore</h2>
+<p class="sub" style="margin-top:-2px">Edit costs/effects, add or remove rows. <b>Rate +</b> is added to the rig multiplier (starts 1.0); <b>Cap +</b> adds offline-cap hours.</p>
+<table id="partsTable">
+  <thead>
+    <tr><th>Part</th><th>Category</th><th class="num">Cost <span class="coin-h"></span></th><th class="num">Rate +</th><th class="num">Cap +h</th><th></th></tr>
+  </thead>
+  <tbody id="partsBody"></tbody>
+</table>
+<div class="toolbar" style="margin-top:10px"><button id="addRow">+ Add part</button></div>
+
+<h2>5 · First-affordable day (with reinvestment)</h2>
+<p class="sub" style="margin-top:-2px">The simulated day each archetype can buy each part, buying cheapest-first as income allows.</p>
+<table id="affordTable">
+  <thead><tr><th>Part</th><th>Category</th><th class="num">Cost</th><th class="center">Grinder</th><th class="center">Regular</th><th class="center">Casual</th></tr></thead>
+  <tbody id="affordBody"></tbody>
+</table>
+
+<div class="note" id="readout"></div>
+
+<script>
+/* ---------- NetCoin coin icon (ornate, logo palette) ---------- */
+function coinSVG(size){
+  size = size||16;
+  return `<svg class="coin" width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true">
+    <defs>
+      <radialGradient id="cg" cx="38%" cy="32%" r="75%">
+        <stop offset="0%" stop-color="#fff6c2"/><stop offset="45%" stop-color="#ffd23d"/>
+        <stop offset="100%" stop-color="#e69a16"/>
+      </radialGradient>
+    </defs>
+    <circle cx="16" cy="16" r="15" fill="url(#cg)" stroke="#7c5cff" stroke-width="2"/>
+    <circle cx="16" cy="16" r="11" fill="none" stroke="#16f2c8" stroke-width="1.4" opacity="0.9"/>
+    <circle cx="16" cy="16" r="11" fill="none" stroke="#ff3df0" stroke-width="1.4" stroke-dasharray="2 4" opacity="0.85"/>
+    <path d="M16 9 l1.9 4.1 4.5.5 -3.4 3 1 4.4 -4-2.3 -4 2.3 1-4.4 -3.4-3 4.5-.5z" fill="#16f2c8" stroke="#0a3d36" stroke-width=".5"/>
+  </svg>`;
+}
+
+/* ---------- Baseline parameters ---------- */
+const BASE = {
+  baseRate:10, capHours:12,
+  dailyBase:100, stepPct:15, capPct:150,
+  ocThreshold:3, ocBonus:25,
+  msWeekly:750, msMonthly:5000,
+  achStart:200, achHalf:8,
+  simDays:60, achFacReg:0.65, achFacCas:0.35
+};
+const PARAM_IDS = Object.keys(BASE);
+
+const BASE_PARTS = [
+  {name:'GPU — Mk I',          cat:'Hardware',   cost:80,    rate:0.4, cap:0},
+  {name:'RGB Light Kit',       cat:'Cosmetic',   cost:120,   rate:0,   cap:0},
+  {name:'Gaming Mouse',        cat:'Peripheral', cost:150,   rate:0.1, cap:0},
+  {name:'RAM — 16 GB',         cat:'Hardware',   cost:300,   rate:0,   cap:4},
+  {name:'Mechanical Keyboard', cat:'Peripheral', cost:450,   rate:0.1, cap:0},
+  {name:'CPU — Mk I',          cat:'Hardware',   cost:800,   rate:0.3, cap:0},
+  {name:'Cooling — Air',       cat:'Hardware',   cost:1400,  rate:0.25,cap:0},
+  {name:'Gaming Chair',        cat:'Peripheral', cost:2200,  rate:0.15,cap:0},
+  {name:'PSU — 850W',          cat:'Hardware',   cost:3500,  rate:0,   cap:2},
+  {name:'Ultrawide Monitor',   cat:'Peripheral', cost:5500,  rate:0.25,cap:0},
+  {name:'GPU — Mk II',         cat:'Hardware',   cost:7000,  rate:0.8, cap:0},
+  {name:'RAM — 32 GB',         cat:'Hardware',   cost:11000, rate:0,   cap:6},
+  {name:'Cooling — Liquid',    cat:'Hardware',   cost:16000, rate:0.7, cap:2},
+  {name:'GPU — Mk III',        cat:'Hardware',   cost:30000, rate:1.5, cap:0}
+];
+
+const CATCOLOR = {Hardware:'var(--neon)', Peripheral:'var(--neon-4)', Cosmetic:'var(--neon-2)'};
+
+/* ---------- State ---------- */
+let parts = [];
+
+/* ---------- Read params ---------- */
+function P(){ const o={}; PARAM_IDS.forEach(id=>o[id]=parseFloat(document.getElementById(id).value)||0); return o; }
+
+/* ---------- Simulate one archetype ----------
+   visitEvery: 1 = daily, 2 = every other day
+   overclock : applies rate bonus on visit days
+   achFactor : scales achievement income                                  */
+function simulate(p, arch){
+  const days = Math.max(1, Math.round(p.simDays));
+  const ocMult = arch.overclock ? (1 + p.ocBonus/100) : 1;
+  let streak=0, prevVisit=0, balance=0, gross=0, rigMult=1, capH=p.capHours;
+  const owned = new Array(parts.length).fill(false);
+  const series = {gross:[], balance:[], rigMult:[], idle:[], daily:[], ms:[], ach:[]};
+  const totals = {idle:0, daily:0, ms:0, ach:0};
+  const buyDay = new Array(parts.length).fill(null);
+
+  for(let day=1; day<=days; day++){
+    let idle=0, daily=0, ms=0;
+    const visit = ((day-1) % arch.visitEvery) === 0;
+    if(visit){
+      streak = (day - prevVisit === 1) ? streak+1 : 1;
+      prevVisit = day;
+      // idle accrued since last visit, capped at the offline cap
+      idle  = Math.min(capH, arch.visitEvery*24) * p.baseRate * rigMult * ocMult;
+      const payMult = 1 + Math.min(p.capPct, p.stepPct*(streak-1))/100;
+      daily = p.dailyBase * payMult;
+      if(streak % 7  === 0) ms += p.msWeekly;
+      if(streak % 30 === 0) ms += p.msMonthly;
+    }
+    // achievements accrue every day, tapering, scaled by engagement
+    const ach = p.achStart * Math.pow(0.5, (day-1)/Math.max(0.5,p.achHalf)) * arch.achFactor;
+
+    const inc = idle + daily + ms + ach;
+    balance += inc; gross += inc;
+    totals.idle+=idle; totals.daily+=daily; totals.ms+=ms; totals.ach+=ach;
+
+    // reinvest: buy cheapest unowned affordable part(s), cheapest-first
+    let bought=true;
+    while(bought){
+      bought=false;
+      let bestIdx=-1, bestCost=Infinity;
+      for(let i=0;i<parts.length;i++){
+        if(!owned[i] && parts[i].cost<=balance && parts[i].cost<bestCost){ bestCost=parts[i].cost; bestIdx=i; }
+      }
+      if(bestIdx>=0){
+        owned[bestIdx]=true; balance-=parts[bestIdx].cost;
+        rigMult += parts[bestIdx].rate; capH += parts[bestIdx].cap;
+        buyDay[bestIdx]=day; bought=true;
+      }
+    }
+    series.gross.push(gross); series.balance.push(balance); series.rigMult.push(rigMult);
+    series.idle.push(idle); series.daily.push(daily); series.ms.push(ms); series.ach.push(ach);
+  }
+  return {series, totals, buyDay, gross, rigMult};
+}
+
+/* ---------- Tiny canvas line chart ---------- */
+function lineChart(id, opts){
+  const cv=document.getElementById(id), dpr=window.devicePixelRatio||1;
+  const W=cv.clientWidth, H=cv.clientHeight;
+  cv.width=W*dpr; cv.height=H*dpr;
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+  const padL=46, padR=10, padT=10, padB=24;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const series=opts.series;
+  const n=Math.max(...series.map(s=>s.data.length));
+  let yMax=opts.yMax || Math.max(1, ...series.flatMap(s=>s.data));
+  yMax*=1.08;
+  const xMax=(opts.xMax||n)-1 || 1;
+  const X=i=>padL + (i/(xMax))*plotW;
+  const Y=v=>padT + plotH - (v/yMax)*plotH;
+  // grid + y labels
+  ctx.font='10px ui-monospace,monospace'; ctx.fillStyle='#5e726d'; ctx.strokeStyle='rgba(255,255,255,0.05)';
+  for(let g=0; g<=4; g++){
+    const v=yMax*g/4, y=Y(v);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+    ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText(fmtShort(v), padL-6, y);
+  }
+  // x labels
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  const ticks=Math.min(6,xMax);
+  for(let t=0;t<=ticks;t++){ const i=Math.round(xMax*t/ticks); ctx.fillText((opts.xBase||1)+i, X(i), H-padB+6); }
+  ctx.fillStyle='#5e726d'; ctx.textAlign='center';
+  if(opts.xLabel){ ctx.fillText(opts.xLabel, padL+plotW/2, H-10); }
+  // series
+  series.forEach(s=>{
+    ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle=s.color;
+    if(s.dashed) ctx.setLineDash([4,4]); else ctx.setLineDash([]);
+    s.data.forEach((v,i)=>{ const x=X(i),y=Y(v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+}
+function fmtShort(v){ v=Math.round(v);
+  if(v>=1e6) return (v/1e6).toFixed(1)+'M';
+  if(v>=1e3) return (v/1e3).toFixed(v>=1e4?0:1)+'k';
+  return ''+v;
+}
+function fmt(v){ return Math.round(v).toLocaleString(); }
+
+/* ---------- Render everything ---------- */
+function render(){
+  const p=P();
+  const grinder=simulate(p,{visitEvery:1,overclock:true ,achFactor:1});
+  const regular=simulate(p,{visitEvery:1,overclock:false,achFactor:p.achFacReg});
+  const casual =simulate(p,{visitEvery:2,overclock:false,achFactor:p.achFacCas});
+
+  /* cards */
+  const firstPartDay=(()=>{ const d=grinder.buyDay.filter(x=>x!=null); return d.length?Math.min(...d):'—'; })();
+  const gap=(casual.gross>0)?(grinder.gross/casual.gross):0;
+  const tot=grinder.totals, sum=tot.idle+tot.daily+tot.ms+tot.ach || 1;
+  const cards=[
+    {k:'Grinder — day '+Math.round(p.simDays)+' gross', v:fmt(grinder.gross), cls:'', d:'total NetCoin earned'},
+    {k:'Regular — day '+Math.round(p.simDays)+' gross', v:fmt(regular.gross), cls:'teal', d:(regular.gross/grinder.gross*100||0).toFixed(0)+'% of Grinder'},
+    {k:'Casual — day '+Math.round(p.simDays)+' gross',  v:fmt(casual.gross),  cls:'mag',  d:(casual.gross/grinder.gross*100||0).toFixed(0)+'% of Grinder'},
+    {k:'Consistency gap', v:gap.toFixed(1)+'×', cls:'viol', d:'Grinder vs Casual wealth'},
+    {k:'First part bought', v:'day '+firstPartDay, cls:'teal', d:'Grinder, cheapest part'},
+    {k:'Grinder rig multiplier', v:grinder.rigMult.toFixed(1)+'×', cls:'', d:'end of simulation'},
+    {k:'Income mix — idle', v:(tot.idle/sum*100).toFixed(0)+'%', cls:'teal', d:'of Grinder gross'},
+    {k:'Income mix — achievements', v:(tot.ach/sum*100).toFixed(0)+'%', cls:'', d:'daily '+(tot.daily/sum*100).toFixed(0)+'% · milestone '+(tot.ms/sum*100).toFixed(0)+'%'}
+  ];
+  document.getElementById('cards').innerHTML=cards.map(c=>
+    `<div class="card"><div class="k">${c.k}</div><div class="v ${c.cls}">${c.v}</div><div class="d">${c.d}</div></div>`).join('');
+
+  /* charts */
+  lineChart('c1',{xLabel:'day',series:[
+    {data:grinder.series.gross,color:'#ffd23d'},
+    {data:regular.series.gross,color:'#16f2c8'},
+    {data:casual.series.gross, color:'#ff3df0'}]});
+  lineChart('c2',{xLabel:'day',series:[
+    {data:grinder.series.idle, color:'#16f2c8'},
+    {data:grinder.series.daily,color:'#ffd23d'},
+    {data:grinder.series.ms,   color:'#7c5cff'},
+    {data:grinder.series.ach,  color:'#37e35b'}]});
+  // streak payout curve
+  const sd=[]; const cap=[]; const maxStreak=Math.max(14,Math.round(p.capPct/Math.max(1,p.stepPct))+6);
+  for(let s=1;s<=maxStreak;s++){ sd.push(p.dailyBase*(1+Math.min(p.capPct,p.stepPct*(s-1))/100)); cap.push(p.dailyBase*(1+p.capPct/100)); }
+  lineChart('c3',{xLabel:'consecutive day',xBase:1,series:[
+    {data:sd,color:'#ffd23d'},{data:cap,color:'#ff3df0',dashed:true}]});
+  lineChart('c4',{xLabel:'day',series:[
+    {data:grinder.series.rigMult,color:'#ffd23d'},
+    {data:regular.series.rigMult,color:'#16f2c8'},
+    {data:casual.series.rigMult, color:'#ff3df0'}]});
+
+  /* affordability table */
+  const order=parts.map((pt,i)=>({pt,i})).sort((a,b)=>a.pt.cost-b.pt.cost);
+  document.getElementById('affordBody').innerHTML=order.map(({pt,i})=>{
+    const d=v=>v==null?'<span class="tag no">never</span>':'<span class="tag">'+v+'</span>';
+    return `<tr>
+      <td>${pt.name}</td>
+      <td><span class="pcatbadge" style="color:${CATCOLOR[pt.cat]||'#ccc'}">${pt.cat}</span></td>
+      <td class="num tag">${fmt(pt.cost)}</td>
+      <td class="center">${d(grinder.buyDay[i])}</td>
+      <td class="center">${d(regular.buyDay[i])}</td>
+      <td class="center">${d(casual.buyDay[i])}</td>
+    </tr>`;
+  }).join('');
+
+  /* readout — including week-1 mix, where daily/achievements matter most
+     (idle compounds and dominates the long-run cumulative mix by design) */
+  const w=Math.min(7,grinder.series.idle.length);
+  let wi=0,wd=0,wm=0,wa=0;
+  for(let i=0;i<w;i++){ wi+=grinder.series.idle[i]; wd+=grinder.series.daily[i]; wm+=grinder.series.ms[i]; wa+=grinder.series.ach[i]; }
+  const wsum=(wi+wd+wm+wa)||1;
+  const topPart=parts.reduce((a,b)=>b.cost>a.cost?b:a,parts[0]||{cost:0,name:'—'});
+  const topIdx=parts.indexOf(topPart);
+  const topDay=topIdx>=0?grinder.buyDay[topIdx]:null;
+  document.getElementById('readout').innerHTML=
+    `<b style="color:var(--neon-3)">Baseline read:</b> a Grinder affords their first part on
+     <b>day ${firstPartDay}</b> (within the first session), reaches the priciest part
+     (<b>${topPart.name}</b>, ${fmt(topPart.cost)} ${coinSVG(12)}) around <b>day ${topDay==null?'>'+Math.round(p.simDays):topDay}</b>
+     — a genuine multi-week goal — and ends day ${Math.round(p.simDays)} with
+     <b>${fmt(grinder.gross)}</b> NetCoin and a <b>${grinder.rigMult.toFixed(1)}×</b> rig, while a Casual
+     player who keeps breaking their streak ends with only <b>${fmt(casual.gross)}</b> — a
+     <b>${gap.toFixed(1)}×</b> gap that rewards consistency without ever taking anything away.
+     <br><b style="color:var(--neon-5)">Week-1 income mix</b> (before idle compounds):
+     idle ${(wi/wsum*100).toFixed(0)}% · daily payout ${(wd/wsum*100).toFixed(0)}% ·
+     achievements ${(wa/wsum*100).toFixed(0)}% · milestones ${(wm/wsum*100).toFixed(0)}%.
+     <b style="color:var(--muted)">Full-sim cumulative:</b> idle ${(tot.idle/sum*100).toFixed(0)}% ·
+     daily ${(tot.daily/sum*100).toFixed(0)}% · ach ${(tot.ach/sum*100).toFixed(0)}% · milestones ${(tot.ms/sum*100).toFixed(0)}%
+     — idle dominating long-term is expected for a mining rig; the early mix is where streak &amp; achievements pull players back.`;
+}
+
+/* ---------- Parts table UI ---------- */
+function readParts(){
+  parts=[...document.querySelectorAll('#partsBody tr')].map(tr=>({
+    name: tr.querySelector('.p-name').value,
+    cat:  tr.querySelector('.p-cat').value,
+    cost: parseFloat(tr.querySelector('.p-cost').value)||0,
+    rate: parseFloat(tr.querySelector('.p-rate').value)||0,
+    cap:  parseFloat(tr.querySelector('.p-cap').value)||0
+  }));
+}
+function partRow(pt){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td><input class="p-name" value="${pt.name}"></td>
+    <td><input class="p-cat" value="${pt.cat}" list="cats" style="width:110px"></td>
+    <td class="num"><input type="number" class="p-cost" value="${pt.cost}" step="10"></td>
+    <td class="num"><input type="number" class="p-rate" value="${pt.rate}" step="0.05"></td>
+    <td class="num"><input type="number" class="p-cap"  value="${pt.cap}"  step="1"></td>
+    <td class="center"><button class="danger del">✕</button></td>`;
+  tr.querySelector('.del').onclick=()=>{ tr.remove(); readParts(); render(); };
+  return tr;
+}
+function buildParts(list){
+  const body=document.getElementById('partsBody'); body.innerHTML='';
+  list.forEach(pt=>body.appendChild(partRow(pt)));
+  readParts();
+}
+
+/* ---------- Init / events ---------- */
+function setParams(o){ PARAM_IDS.forEach(id=>document.getElementById(id).value=o[id]); }
+function init(){
+  // coin icons in headings
+  document.querySelectorAll('.coin-h').forEach(e=>e.innerHTML=coinSVG(13));
+  // datalist for categories
+  const dl=document.createElement('datalist'); dl.id='cats';
+  dl.innerHTML=['Hardware','Peripheral','Cosmetic'].map(c=>`<option value="${c}">`).join('');
+  document.body.appendChild(dl);
+
+  setParams(BASE);
+  buildParts(BASE_PARTS.map(p=>({...p})));
+
+  PARAM_IDS.forEach(id=>document.getElementById(id).addEventListener('input',render));
+  document.getElementById('partsBody').addEventListener('input',()=>{ readParts(); render(); });
+  document.getElementById('addRow').onclick=()=>{
+    document.getElementById('partsBody').appendChild(partRow({name:'New Part',cat:'Hardware',cost:100,rate:0.1,cap:0}));
+    readParts(); render();
+  };
+  document.getElementById('resetBtn').onclick=()=>{ setParams(BASE); buildParts(BASE_PARTS.map(p=>({...p}))); render(); };
+  window.addEventListener('resize',render);
+  render();
+}
+init();
+</script>
+</body>
+</html>
