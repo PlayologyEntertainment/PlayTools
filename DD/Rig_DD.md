@@ -134,10 +134,12 @@ payout** (illustrative base **100 NetCoin**).
   stays exciting without ballooning.
 * **Missing a day clears the streak bonus** — the streak counter resets to day 1
   (the *balance* and *rig* are untouched; only the escalating bonus resets).
-* **Milestones:** returning **7 days** in a row pays a lump bonus + a cosmetic
-  reward; **30 days** pays a larger lump + an **exclusive part/badge** unobtainable
-  any other way. (Milestones fire once per achievement of the streak; exact
-  re-trigger rules an open question — §11.)
+* **Milestones (recurring):** the **weekly** milestone pays a lump bonus + a
+  cosmetic reward; the **monthly** milestone pays a larger lump + an **exclusive
+  part/badge**. Both **re-arm and run again** off the same active streak: the
+  weekly fires at days **7, 14, 21, 28, …** and the monthly at days **30, 60, 90,
+  …** — so on day 8 a fresh weekly milestone begins, and on day 31 a fresh
+  monthly one. A missed day **resets the streak to day 1**, restarting both clocks.
 
 ### 5.3 Activity multiplier ("Overclock")
 Showing up is good; **using the tools is better.** Using **N distinct applets**
@@ -218,6 +220,9 @@ No new external dependencies; reuses existing plumbing.
   `localStorage` path GamerDNA/prefs already use.
 * **Header:** show the **NetCoin balance** in the top bar near Gamer Score / Rank
   (its own icon/symbol — TBD §11).
+* **Navigation:** The Rig is a **top-level nav entry**, positioned directly
+  **under "The Lobby" and above "Friends."** It is kept **fully separate from
+  Gamer DNA** for now (its own surface, its own state).
 * **Routes:** `#/rig` (battlestation + mining/daily dashboard) and `#/rig/store`
   (NetStore), wired through the existing `Router.add` pattern.
 * **Offline/daily calc** runs once on app load (and on route entry).
@@ -260,13 +265,13 @@ friends' rig comparison.
    tuning pass so "first upgrade in ~1 min" and "30-day goal feels worthy" both hold.
 3. **Offline cap** — confirm we want a cap (recommended, gentle) vs uncapped with
    diminishing returns.
-4. **Navigation home** — does The Rig sit as a top-level nav entry, or inside the
-   profile/DNA area?
-5. **Milestone re-trigger** — after a 30-day milestone, does the clock reset, roll
-   to a new tier, or keep paying a recurring monthly bonus?
 
 ### 11.1 Decided (this brainstorm)
 - **Name** = **The Rig** — straight from the fiction (your *NetCoin mining rig*).
+- **Navigation:** top-level nav entry, **under "The Lobby," above "Friends,"**
+  kept fully separate from Gamer DNA for now.
+- **Milestones recur:** weekly re-arms every 7 streak-days (7/14/21/…), monthly
+  every 30 (30/60/90/…); a missed day resets the streak and both clocks.
 - Theme = **battlestation builder**; currency = **NetCoin**; store = **NetStore**.
 - Goal blend: consistency multiplier (show up **and** use applets) + escalating
   daily payout + reset-on-miss + **7-day & 30-day** milestone rewards.
