@@ -381,6 +381,9 @@
   .jackin-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   /* Defrag badge: a 3.5" floppy disk, scales to the surrounding font-size */
   .defrag-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
+  /* Cold Stack badge: a single neon-cyan club, scales to the surrounding font-size */
+  .cs-ico{display:inline-block; line-height:1; vertical-align:-0.06em; color:#1fd9ff;
+    text-shadow:0 0 6px rgba(31,217,255,0.75), 0 0 13px rgba(31,217,255,0.45);}
   /* StarDodger badge: the in-game "Steel Raptor" pixel ship, scales to font-size */
   .dodge-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em; image-rendering:pixelated;}
   /* B0ggle badge: white "B0" on a purple chip, scales to the surrounding font-size */
@@ -1988,6 +1991,11 @@ const JACKIN_ICON = '<svg class="jackin-icon" viewBox="0 0 100 100" aria-hidden=
   '<rect x="40" y="26" width="44" height="66" rx="7" fill="#f4f6ff" stroke="#070912" stroke-width="3"/>'+
   '<path d="M62 30 C62 30 42 52 42 64 C42 74 53 78 60 71 C59 79 56 84 50 88 L74 88 C68 84 65 79 64 71 C71 78 82 74 82 64 C82 52 62 30 62 30 Z" fill="#070912"/></svg>';
 
+// COLDSTACK_ICON — Cold Stack's cabinet badge: a single club suit in neon cyan
+// (distinct from Jack-In's card-back glyph). U+FE0E forces text presentation so
+// the CSS colour/glow applies instead of an emoji rendering.
+const COLDSTACK_ICON = '<span class="cs-ico">♣︎</span>';
+
 // DODGE_ICON — StarDodger's cabinet badge: the actual "Steel Raptor" ship you
 // fly in the game, rebuilt from the same mirrored half-grid sprite the game
 // renders (see Views.pixelDodge) so the cabinet art matches the in-game craft.
@@ -2794,7 +2802,7 @@ const CABINETS = [
     desc:'Floor it down the sunset highway — weave the traffic, hammer the checkpoint gates to beat the clock, and bank every second to the finish.', dna:'Reflex +12 · Control +8' },
   { id:'arcade_defrag', lab:'Arcade', name:'Defrag', railName:'Defrag', icon:DEFRAG_ICON, tag:'mvp', route:'#/arcade/defrag',
     desc:'Swap adjacent data shards to purge runs of three, trigger chain CASCADES and forge Lance & Hypercore specials — defrag the drive before the clock flatlines.', dna:'Focus +12 · Speed +8' },
-  { id:'arcade_coldstack', lab:'Arcade', name:'Cold Stack', railName:'Cold Stack', icon:'🃏', tag:'mvp', route:'#/arcade/coldstack',
+  { id:'arcade_coldstack', lab:'Arcade', name:'Cold Stack', railName:'Cold Stack', icon:COLDSTACK_ICON, tag:'mvp', route:'#/arcade/coldstack',
     desc:'Sort a corrupted cold stack of data-chips into four clean root partitions — faithful Klondike solitaire under a neon skin. Decrypt, sequence and COMPILE the whole stack before the clock flatlines.', dna:'Strategy +12 · Speed +8' },
   { id:'arcade_ecto', lab:'Arcade', name:'Ecto', railName:'Ecto', icon:'👻', tag:'mvp', route:'#/arcade/ecto',
     desc:'Work the graveyard shift — stream plasma at the swooping spirits, bait their dives for double points, and survive the rising haunt.', dna:'Precision +12 · Reflex +8' }
