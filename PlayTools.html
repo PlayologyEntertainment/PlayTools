@@ -17409,6 +17409,13 @@ Views.rig = function(c){
     const panel = rigHead(c, RIG_ICON+' The Rig',
       'Your persistent NetCoin mining battlestation. It mines while you\'re away, pays you for showing up, and grows as you spend. <span class="muted">NetCoin is a spendable economy — it never affects your skill or Gamer Score.</span>');
 
+    // ---- shortcut to the NetStore (sits between the intro and the wallet) ----
+    const storeRow = el('div',{class:'controls-row'});
+    const storeBtn = el('button',{class:'btn primary', html:'🛒 Open NetStore'});
+    storeBtn.onclick = ()=> Router.go('#/rig/store');
+    storeRow.append(storeBtn);
+    panel.append(storeRow);
+
     // ---- wallet ----
     const wallet = el('div',{class:'rig-block'});
     wallet.append(el('h2',{class:'sub', text:'Wallet'}));
@@ -17486,9 +17493,7 @@ Views.rig = function(c){
 
     // ---- actions ----
     const actions = el('div',{class:'controls-row'});
-    const store = el('button',{class:'btn primary', html:'🛒 Open NetStore'});
-    store.onclick = ()=> Router.go('#/rig/store');
-    const share = el('button',{class:'btn', html:'📸 Share Battlestation'});
+    const share = el('button',{class:'btn primary', html:'📸 Share Battlestation'});
     share.onclick = ()=>{
       const rr = Store.get().rig;
       ShareCard.open({ lab:'THE RIG', tool:'Battlestation', glyph:'🖥️',
@@ -17496,7 +17501,7 @@ Views.rig = function(c){
                  {k:'Total Mined', v:rr.totalEarned.toLocaleString()}, {k:'Best Streak', v:rr.bestStreak+'d'} ],
         designation: rigTitle(rr.rigScore), badge:'NetCoin Mining Rig' });
     };
-    actions.append(store, share);
+    actions.append(share);
     panel.append(actions);
   }
   paint();
