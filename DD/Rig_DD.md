@@ -17,8 +17,9 @@ layer** — it is *not* a Retro Arcade cabinet)
 > can fund future games and unlocks.
 
 > **Decisions locked in this brainstorm.**
-> - **Theme:** The Rig / **Battlestation** builder (fits the whole audience and
->   bridges the Hardware/Setup labs — not just the Arcade).
+> - **Name / theme:** **The Rig** — literally your **NetCoin mining rig**, a
+>   battlestation builder (fits the whole audience and bridges the Hardware/Setup
+>   labs — not just the Arcade). Name comes straight from the fiction.
 > - **Currency:** **NetCoin** — one unified currency, usable across future games
 >   and to buy parts that upgrade your rig.
 > - **Store:** the **NetStore**, where NetCoin is spent.
@@ -60,8 +61,8 @@ layer** — it is *not* a Retro Arcade cabinet)
 
 ## 2. Concept
 
-**The Rig** is your persistent gaming battlestation. While you're away, the rig's
-idle compute **mines NetCoin**. When you return, you collect a **daily payout**
+**The Rig** is your persistent **NetCoin mining rig** — a gaming battlestation you
+build out. While you're away, the rig's idle compute **mines NetCoin**. When you return, you collect a **daily payout**
 that grows with your streak, and using the app's tools **overclocks** your
 mining rate for the day. You spend NetCoin in the **NetStore** on **parts** that
 both **raise your mining rate** and **visibly upgrade the battlestation** — a flex
@@ -81,7 +82,13 @@ not on your talent. Building a monster rig makes you *richer and cooler*, never
 | **Idle mining** | continuous (capped offline) | Base rate × rig multiplier × overclock (§4) |
 | **Daily payout** | once per local calendar day | Escalates with streak (§5) |
 | **Streak milestones** | at 7 & 30 consecutive days | Lump NetCoin + an exclusive part/cosmetic |
-| *(Phase 2)* Achievement drips | on unlock | Small one-time NetCoin per existing achievement |
+| **Achievements** | once per unlock | Lump NetCoin per achievement — gives the existing achievement system real purpose (see below) |
+
+> **No per-applet drips.** Using a tool does **not** pay NetCoin directly — that
+> path is reserved for the **Overclock multiplier** (§5.3), which rewards
+> engagement by boosting the *mining rate*. Direct NetCoin instead comes from
+> **achievements**, which turns the achievement system from a vanity list into a
+> meaningful, paying objective board.
 
 ### 3.2 Sinks
 | Sink | Notes |
@@ -163,10 +170,13 @@ Each category has **tiers** with escalating cost and effect.
 
 ### 6.2 Cosmetic / peripheral parts (identity, pure flex)
 Monitor(s), Mouse, Keyboard, Headset, Chair, Desk, **RGB lighting**, posters,
-desk-toys, etc. These change the **render** and the **Rig Score** but (proposal)
-give little or no rate — they exist for identity. Peripherals tie narratively to
-the **Hardware & Setup labs** (your rig literally *has* the mouse/monitor those
-tools measure and tune).
+desk-toys, etc. These change the **render** and the **Rig Score**. Most are
+identity-first, but **some peripherals also grant a small mining bump** — a nice
+extra dimension so the cosmetic tab isn't a pure money-sink and there's a reason
+to chase the *good* gear, not just the prettiest. (Which peripherals carry a
+bump, and how big, is a tuning detail.) Peripherals tie narratively to the
+**Hardware & Setup labs** (your rig literally *has* the mouse/monitor those tools
+measure and tune).
 
 ### 6.3 Rig Score
 A single flex number = weighted sum of owned part tiers. It headlines the Share
@@ -226,14 +236,15 @@ No new external dependencies; reuses existing plumbing.
 **Phase 1 (MVP)** — proves the loop end-to-end:
 1. NetCoin currency + header balance.
 2. Idle mining (rate, cap, offline calc).
-3. Daily payout + streak escalation + reset + 7/30 milestones.
+3. Daily payout + escalating streak + **strict** reset + 7/30 milestones.
 4. Overclock activity multiplier (≥N tools/day).
-5. The Rig screen: a handful of functional parts + procedural render.
-6. NetStore (Hardware tab).
-7. Battlestation Share Card.
+5. **Achievements pay NetCoin** (wire NetCoin rewards into the existing achievements).
+6. The Rig screen: a handful of functional parts + procedural render.
+7. NetStore (Hardware tab).
+8. Battlestation Share Card.
 
-**Phase 2:** cosmetic/peripheral catalog; NetCoin → Jack-In credits sink;
-achievement NetCoin drips; more tiers.
+**Phase 2:** cosmetic/peripheral catalog (incl. the peripherals that carry a
+mining bump); NetCoin → Jack-In credits sink; more tiers.
 
 **Phase 3 (future):** prestige/rebuild, seasonal events, NetCoin in new games,
 friends' rig comparison.
@@ -242,27 +253,29 @@ friends' rig comparison.
 
 ## 11. Open Questions (for iteration)
 
-1. **System name** — "The Rig" vs **Battlestation** / "Rig Lab" / "The Den"?
-2. **NetCoin symbol/icon** — what glyph represents NetCoin in the header (e.g. ⬡, ₦, a coin)?
-3. **Rates & curves** — base mining rate, offline cap hours, daily base, streak
-   step/cap, overclock size & threshold N. All illustrative above; needs a tuning
-   pass so "first upgrade in ~1 min" and "30-day goal feels worthy" both hold.
-4. **Offline cap** — confirm we want a cap (recommended, gentle) vs uncapped with
+1. **NetCoin symbol/icon** — what glyph represents NetCoin in the header (e.g. ⬡, ₦, a coin)?
+2. **Rates & curves** — base mining rate, offline cap hours, daily base, streak
+   step/cap, overclock size & threshold N, **per-achievement payout**, and which
+   peripherals carry a mining bump + how big. All illustrative above; needs a
+   tuning pass so "first upgrade in ~1 min" and "30-day goal feels worthy" both hold.
+3. **Offline cap** — confirm we want a cap (recommended, gentle) vs uncapped with
    diminishing returns.
-5. **Cosmetic rate** — do peripherals give *any* mining rate, or stay pure cosmetic?
-6. **Extra NetCoin sources** — should Arcade/tool play drip small NetCoin directly
-   (Phase 1), or keep Phase 1 to idle + daily only?
-7. **Navigation home** — does The Rig sit as a top-level nav entry, or inside the
+4. **Navigation home** — does The Rig sit as a top-level nav entry, or inside the
    profile/DNA area?
-8. **Milestone re-trigger** — after a 30-day milestone, does the clock reset, roll
+5. **Milestone re-trigger** — after a 30-day milestone, does the clock reset, roll
    to a new tier, or keep paying a recurring monthly bonus?
-9. **Streak grace** — strict "miss a day = reset," or a single optional
-   "NetCoin-bought streak freeze" (risk: edges toward a dark pattern)?
 
 ### 11.1 Decided (this brainstorm)
-- Theme = **Rig / Battlestation**; currency = **NetCoin**; store = **NetStore**.
+- **Name** = **The Rig** — straight from the fiction (your *NetCoin mining rig*).
+- Theme = **battlestation builder**; currency = **NetCoin**; store = **NetStore**.
 - Goal blend: consistency multiplier (show up **and** use applets) + escalating
   daily payout + reset-on-miss + **7-day & 30-day** milestone rewards.
+- **Streak reset is strict** — miss a day, the bonus resets to day 1. No freeze
+  token (avoids a dark pattern).
+- **Achievements pay NetCoin** (lump per unlock); **no direct per-applet drips** —
+  applet engagement is rewarded via the Overclock *multiplier* instead.
+- **Some peripherals also grant a small mining bump** (not pure cosmetic), adding
+  a dimension to the cosmetic catalog.
 - The Rig is **personal, persistent, shareable**.
 - NetCoin **unifies the economy**, buys rig parts, and funds future games.
 - Idle/NetCoin **never** grants skill or GamerDNA (kept separate from Gamer Score).
