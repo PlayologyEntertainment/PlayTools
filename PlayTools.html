@@ -381,6 +381,8 @@
   .jackin-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   /* Defrag badge: a 3.5" floppy disk, scales to the surrounding font-size */
   .defrag-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
+  /* The Rig badge: a miniature gaming-PC tower, scales to the surrounding font-size */
+  .rig-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   /* Cold Stack badge: a single neon-cyan club, scales to the surrounding font-size */
   .cs-ico{display:inline-block; line-height:1; vertical-align:-0.06em; color:#1fd9ff;
     text-shadow:0 0 6px rgba(31,217,255,0.75), 0 0 13px rgba(31,217,255,0.45);}
@@ -2108,6 +2110,32 @@ const DEFRAG_ICON = '<svg class="defrag-icon" viewBox="0 0 100 100" aria-hidden=
    NetStore and Share Card. Each call gets a unique gradient id so multiple
    coins on one page don't share a fill.
    ---------------------------------------------------------------------------- */
+// RIG_ICON — The Rig's nav/cabinet badge: a miniature gaming-PC tower with a
+// tempered-glass side panel showing an RGB strip, a GPU card and an AIO fan, in
+// the logo palette. Inline SVG sized to 1em (like the cabinet icons) so it
+// renders wherever the icon string lands in innerHTML.
+const RIG_ICON = '<svg class="rig-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
+  // case body
+  '<rect x="22" y="9" width="56" height="82" rx="9" fill="#0c1430" stroke="#16f2c8" stroke-width="4"/>'+
+  // front-panel power LED + vents (right strip)
+  '<circle cx="74" cy="17" r="2.5" fill="#ff3df0"/>'+
+  '<rect x="71.5" y="26" width="5" height="2.4" rx="1.2" fill="#7c5cff"/>'+
+  '<rect x="71.5" y="31" width="5" height="2.4" rx="1.2" fill="#7c5cff"/>'+
+  // tempered-glass window
+  '<rect x="29" y="19" width="38" height="62" rx="5" fill="#0a1024" stroke="#7c5cff" stroke-width="2.6"/>'+
+  // top RGB strip (gold)
+  '<rect x="33" y="23" width="30" height="5" rx="2.5" fill="#ffd23d"/>'+
+  // GPU card (teal) with a fan dot
+  '<rect x="33" y="44" width="30" height="11" rx="2" fill="#16f2c8"/>'+
+  '<circle cx="40" cy="49.5" r="3" fill="#0a1024"/>'+
+  // AIO/CPU fan (violet) with spokes
+  '<circle cx="48" cy="67" r="9" fill="none" stroke="#7c5cff" stroke-width="2.6"/>'+
+  '<path d="M48 67 L48 59 M48 67 L55 71 M48 67 L41 71" stroke="#7c5cff" stroke-width="2" stroke-linecap="round"/>'+
+  '<circle cx="48" cy="67" r="2.2" fill="#7c5cff"/>'+
+  // feet
+  '<rect x="28" y="91" width="9" height="4" rx="1.5" fill="#16f2c8"/>'+
+  '<rect x="63" y="91" width="9" height="4" rx="1.5" fill="#16f2c8"/></svg>';
+
 let _coinSeq = 0;
 function netcoinSVG(size){
   size = size || 16; const u = 'nc'+(++_coinSeq);
@@ -15528,7 +15556,7 @@ const UI = (function(){
     // Hub itself stays reachable from the header button.
     rail.append(railLink({ href:'#/',               icon:'🏠', label:'Lobby' }));
     // The Rig — top-level meta-progression, directly under the Lobby (Rig_DD §9).
-    const rigLink = railLink({ href:'#/rig', icon:'🛠️', label:'The Rig' });
+    const rigLink = railLink({ href:'#/rig', icon:RIG_ICON, label:'The Rig' });
     if(window.Rig && Rig.dailyAvailable()) rigLink.append(el('span',{class:'rail-dot', title:'Daily payout ready'}));
     rail.append(rigLink);
     rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends',
@@ -17271,7 +17299,7 @@ Views.rig = function(c){
     if(timer){ clearInterval(timer); timer=null; }
     c.innerHTML='';
     const r = Store.get().rig;
-    const panel = rigHead(c, '🛠️ The Rig',
+    const panel = rigHead(c, RIG_ICON+' The Rig',
       'Your persistent NetCoin mining battlestation. It mines while you\'re away, pays you for showing up, and grows as you spend. <span class="muted">NetCoin is a spendable economy — it never affects your skill or Gamer Score.</span>');
 
     // ---- wallet ----
@@ -17356,7 +17384,7 @@ Views.rig = function(c){
     const share = el('button',{class:'btn', html:'📸 Share Battlestation'});
     share.onclick = ()=>{
       const rr = Store.get().rig;
-      ShareCard.open({ lab:'THE RIG', tool:'Battlestation', glyph:'🛠️',
+      ShareCard.open({ lab:'THE RIG', tool:'Battlestation', glyph:'🖥️',
         metric:[ {k:'Rig Score', v:String(rr.rigScore)}, {k:'NetCoin', v:rr.netcoin.toLocaleString()},
                  {k:'Total Mined', v:rr.totalEarned.toLocaleString()}, {k:'Best Streak', v:rr.bestStreak+'d'} ],
         designation: rigTitle(rr.rigScore), badge:'NetCoin Mining Rig' });
