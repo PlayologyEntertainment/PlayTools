@@ -29,8 +29,28 @@ export function buildLights(scene){
   const vioL = new THREE.PointLight(VIO,5,14,2);  vioL.position.set(0,2.8,-2.6); scene.add(vioL);
   return { key, magL, cyL, vioL };
 }
+// Procedural light-brown shag carpet — fibrous strokes over a warm brown base.
+export function carpetTex(){
+  const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d');
+  x.fillStyle='#a8814f'; x.fillRect(0,0,512,512);
+  for(let i=0;i<26000;i++){ const px=Math.random()*512, py=Math.random()*512;
+    const len=Math.random()*6+2, ang=Math.random()*Math.PI*2, sh=(Math.random()*60-30)|0;
+    x.strokeStyle=`rgba(${168+sh},${129+sh},${79+sh},${Math.random()*0.5+0.3})`;
+    x.lineWidth=Math.random()*1.5+0.5; x.beginPath(); x.moveTo(px,py); x.lineTo(px+Math.cos(ang)*len,py+Math.sin(ang)*len); x.stroke(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+// Procedural beige stucco — soft mottled blobs over a beige base.
+export function stuccoTex(){
+  const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d');
+  x.fillStyle='#d9ccb0'; x.fillRect(0,0,512,512);
+  for(let i=0;i<11000;i++){ const sh=(Math.random()*44-22)|0;
+    x.fillStyle=`rgba(${217+sh},${204+sh},${176+sh},${Math.random()*0.5+0.18})`;
+    x.beginPath(); x.arc(Math.random()*512,Math.random()*512,Math.random()*2.4+0.5,0,7); x.fill(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
 export function buildFloor(scene){
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x0a0c16,roughness:0.3,metalness:0.5}));
+  const tex=carpetTex(); tex.repeat.set(24,24); const bump=carpetTex(); bump.repeat.set(24,24);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:1,metalness:0}));
   floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor); return floor;
 }
 export function buildFloorStrips(scene){
@@ -41,8 +61,12 @@ export function buildFloorStrips(scene){
 }
 export function buildWall(scene, wc){
   if(!wc) return null;
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(wc.w??16, wc.h??5), new THREE.MeshStandardMaterial({color:wc.color??0x0a0c1a,roughness:0.7,metalness:0.15}));
-  wall.position.set(wc.x??0,(wc.h??5)/2, wc.z??-2.3); wall.receiveShadow = true; scene.add(wall); return wall;
+  const w=wc.w??16, h=wc.h??5;
+  const tex=stuccoTex(); tex.repeat.set(Math.max(1,Math.round(w/2.5)), Math.max(1,Math.round(h/2.5)));
+  const bump=stuccoTex(); bump.repeat.copy(tex.repeat);
+  // textured beige stucco: the map carries the colour, so don't tint with wc.color
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.015,roughness:0.95,metalness:0}));
+  wall.position.set(wc.x??0,h/2, wc.z??-2.3); wall.receiveShadow = true; scene.add(wall); return wall;
 }
 
 // ---- procedural textures + parts ------------------------------------------
