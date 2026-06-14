@@ -14,7 +14,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { buildLights, buildFloor, buildScene, makeLoader } from '/tools/rig-build.mjs';
+import { A, buildLights, buildFloor, buildScene, makeLoader } from './rig-build.mjs';
 
 // ownIds: array of owned manifest part ids (null = show the full default scene).
 export async function mount(container, { ownIds=null }={}){
@@ -32,7 +32,7 @@ export async function mount(container, { ownIds=null }={}){
   buildLights(scene); buildFloor(scene);
   const loader = makeLoader();
 
-  const man = await (await fetch('/assets/rig/rig_manifest.json')).json();
+  const man = await (await fetch(A+'rig_manifest.json')).json();
   const cm = man.scene?.camera || {};
   const cam = new THREE.PerspectiveCamera(cm.fov||50, hostW()/hostH(), 0.1, 100);
   cam.position.set(...(cm.pos||[1.43,1.65,1.76]));

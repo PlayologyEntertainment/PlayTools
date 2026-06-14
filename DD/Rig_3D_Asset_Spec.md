@@ -161,9 +161,22 @@ agree:
   camera, drag per-part position/rotation/scale, toggle parts, tune bloom/FOV, then
   **Export** the updated `rig_manifest.json`.
 
-## 6. Open / deferred
-- **App integration** (Three.js into the single-file app, lazy-load, Share Card capture
-  from the WebGL canvas) happens **after** the scene looks right with real assets.
-- **Download weight:** photoreal PBR models are large; we'll budget/compress (Draco/meshopt,
-  WebP/KTX2 textures) before shipping. Stylised assets keep this trivial.
-- **Fallback:** devices without WebGL keep the existing SVG battlestation.
+## 6. Shipping (done) / open
+
+**Shipped to the app:**
+- **App integration** — the viewer mounts on `#/rig` (`tools/rig-inapp.mjs`), lazy-loaded
+  as a self-contained bundle (`npm run rig:bundle` → `tools/rig-inapp.bundle.mjs`, three.js
+  inlined), bound to NetStore ownership. **Fallback:** no WebGL / not served → the
+  procedural SVG battlestation.
+- **Compression** — models are meshopt-compressed (geometry) + WebP textures via
+  `gltf-transform optimize ... --compress meshopt --texture-compress webp` (the meshopt
+  decoder is bundled, so no runtime wasm fetch). The set went **58 MB → ~5 MB**.
+- **Deploy** — `.github/workflows/deploy.yml` FTPs `PlayTools.html` + the viewer bundle +
+  `assets/rig/` to Hostinger, preserving relative paths (`A` resolves via `import.meta.url`).
+
+**Still open:**
+- **HDRI weight** — `ferndale_studio_04_1k.exr` (~5.5 MB) ships uncompressed; convert to a
+  small compressed env (downscaled `.hdr` / KTX2) or swap to a procedural environment.
+- **Share Card capture** from the WebGL canvas (still uses the SVG/metric card).
+- **Ownership reach** — books / extra wall posters aren't NetStore items yet, so they don't
+  appear in-app (hero-render flair only).

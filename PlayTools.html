@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PlayTools — Gamified Gaming Tools for Gamers | Playology Entertainment</title>
-<!-- Resolves three.js for the optional in-app 3D Rig viewer (#/rig). Only used when
-     the app is served with /three/ + /jsm/ mapped (npm run serve); otherwise the
-     dynamic import simply fails and The Rig falls back to its procedural SVG. -->
-<script type="importmap">{"imports":{"three":"/three/three.module.js","three/addons/":"/jsm/"}}</script>
 <!--
   ============================================================
   PLAYTOOLS — Gamified Gaming Tools for Gamers
@@ -17419,7 +17415,8 @@ Views.rig = function(c){
   function webglOK(){ try { return !!document.createElement('canvas').getContext('webgl2'); } catch(e){ return false; } }
   // Mount (or re-attach) the 3D viewer into `host`, hiding the SVG fallback on success.
   function mount3D(host){
-    if(!webglOK()) return;                       // no WebGL → keep the SVG
+    if(location.protocol==='file:') return;      // can't fetch assets off file:// → keep the SVG
+    if(!webglOK()) return;                        // no WebGL → keep the SVG
     const owned = rig3DOwned(), sig = owned.join(',');
     const box = el('div',{class:'rig-3d'});
     box.append(el('div',{class:'hint', html:'drag to orbit · scroll to zoom'}));
@@ -17427,7 +17424,7 @@ Views.rig = function(c){
     const showCanvas = ()=>{ const svg = host.querySelector('svg'); if(svg) svg.style.display='none'; };
     if(rig3D && rig3DCanvas && sig===rig3DSig){ box.prepend(rig3DCanvas); showCanvas(); return; } // reuse (e.g. after Collect)
     if(rig3D){ rig3D.dispose(); rig3D=null; rig3DCanvas=null; }
-    import('/tools/rig-inapp.mjs')
+    import('./tools/rig-inapp.bundle.mjs')
       .then(m=> m.mount(box, { ownIds: owned }))
       .then(api=>{ rig3D=api; rig3DCanvas=api.canvas; rig3DSig=sig; showCanvas(); })
       .catch(err=>{ box.remove(); console.warn('Rig 3D viewer unavailable; using SVG fallback:', err&&err.message||err); });

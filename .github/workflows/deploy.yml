@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'PlayTools.html'
+      - 'tools/rig-inapp.bundle.mjs'
+      - 'assets/rig/**'
   workflow_dispatch:
 
 jobs:
@@ -15,10 +17,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Upload PlayTools.html via FTP
+      # Uploads the app plus the 3D battlestation viewer bundle + assets, preserving
+      # the repo-relative paths under the deploy root (so the app's ./tools and
+      # ../assets relative URLs resolve in production). The 3D bundle is
+      # self-contained (three.js inlined); models are meshopt+WebP compressed.
+      - name: Upload via FTP
         run: |
-          curl -T PlayTools.html \
-            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
-            --max-time 60 \
-            --connect-timeout 15 \
-            "ftp://ftp.playologyentertainment.com/experiments/PlayTools/PlayTools.html"
+          set -e
+          BASE="ftp://ftp.playologyentertainment.com/experiments/PlayTools"
+          AUTH="${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+          up() {
+            echo "↑ $1"
+            curl -fsS --ftp-create-dirs --retry 3 --max-time 180 --connect-timeout 15 \
+              --user "$AUTH" -T "$1" "$BASE/$1"
+          }
+          up PlayTools.html
+          up tools/rig-inapp.bundle.mjs
+          up assets/rig/rig_manifest.json
+          for f in assets/rig/models/*; do up "$f"; done
