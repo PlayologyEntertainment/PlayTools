@@ -1,0 +1,67 @@
+<!doctype html><html><head><meta charset="utf-8"><title>The Rig — 3D scene (dev / headless)</title>
+<style>html,body{margin:0;height:100%;background:#05060b;overflow:hidden}</style>
+<script type="importmap">{"imports":{"three":"/three/three.module.js","three/addons/":"/jsm/"}}</script>
+</head><body>
+<script type="module">
+// Headless preview: builds the manifest scene (via the shared tools/rig-build.mjs)
+// and renders it to a single frame for `npm run rig:preview` to screenshot.
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { A, buildLights, buildFloor, buildScene, setupEnv, makeLoader, meshify, place } from '/tools/rig-build.mjs';
+
+const qs=new URLSearchParams(location.search);
+const W=+(qs.get('w')||1100), H=+(qs.get('h')||850);
+window.__ready=false; window.__err=''; window.__dbg={};
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(1); renderer.setSize(W,H);
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.8;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#0b0816');
+buildLights(scene); buildFloor(scene);
+const loader=makeLoader();
+
+function finish(camera,bl){
+  const composer=new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene,camera));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(W,H),bl?.strength??0.5,bl?.radius??0.5,bl?.threshold??0.82));
+  composer.addPass(new OutputPass());
+  let f=0;(function loop(){composer.render(); if(++f>5){window.__ready=true; return;} requestAnimationFrame(loop);})();
+}
+
+async function contact(){
+  const files=(qs.get('models')||'').split(',').filter(Boolean);
+  await setupEnv(scene, renderer, qs.get('hdri'));
+  const per=2.0, cols=Math.ceil(Math.sqrt(files.length)), startX=-(Math.min(files.length,cols)-1)*per/2;
+  let i=0;
+  for(const f of files){
+    const col=i%cols, row=Math.floor(i/cols);
+    try{ const g=await loader.loadAsync(A+'models/'+f); meshify(g.scene);
+      place(g.scene,{fitHeight:1.0,pos:[startX+col*per,0,-row*per]}, f, window.__dbg); scene.add(g.scene);
+    }catch(e){ window.__dbg[f]={error:String(e.message||e)}; }
+    i++;
+  }
+  const span=Math.max(cols*per, Math.ceil(files.length/cols)*per);
+  const cam=new THREE.PerspectiveCamera(40,W/H,0.1,200);
+  cam.position.set(0, span*0.7, span*1.15); cam.lookAt(0,0.4,-(Math.ceil(files.length/cols)-1)*per/2);
+  finish(cam,{strength:0.35,threshold:0.85});
+}
+
+async function scene_(){
+  const man=await (await fetch(A+'rig_manifest.json')).json();
+  const cm=man.scene?.camera||{};
+  const cam=new THREE.PerspectiveCamera(cm.fov||42,W/H,0.1,100);
+  cam.position.set(...(cm.pos||[-1.6,1.4,3.0])); cam.lookAt(...(cm.target||[0.3,0.85,-0.6]));
+  await buildScene(scene, renderer, loader, man, { ownParam: qs.get('own'), dbg: window.__dbg });
+  finish(cam, man.scene?.bloom);
+}
+
+(qs.get('contact')? contact():scene_()).catch(e=>{window.__err=String(e&&e.stack||e); window.__ready=true;});
+</script>
+</body></html>
