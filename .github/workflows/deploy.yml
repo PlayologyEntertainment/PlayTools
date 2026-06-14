@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - 'PlayTools.html'
-      - 'tools/rig-inapp.bundle.mjs'
+      - 'tools/rig-inapp.bundle.js'
       - 'assets/rig/**'
   workflow_dispatch:
 
@@ -32,6 +32,6 @@ jobs:
               --user "$AUTH" -T "$1" "$BASE/$1"
           }
           up PlayTools.html
-          up tools/rig-inapp.bundle.mjs
+          up tools/rig-inapp.bundle.js
           up assets/rig/rig_manifest.json
           for f in assets/rig/models/*; do up "$f"; done

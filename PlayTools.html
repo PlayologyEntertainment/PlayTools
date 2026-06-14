@@ -17424,7 +17424,7 @@ Views.rig = function(c){
     const showCanvas = ()=>{ const svg = host.querySelector('svg'); if(svg) svg.style.display='none'; };
     if(rig3D && rig3DCanvas && sig===rig3DSig){ box.prepend(rig3DCanvas); showCanvas(); return; } // reuse (e.g. after Collect)
     if(rig3D){ rig3D.dispose(); rig3D=null; rig3DCanvas=null; }
-    import('./tools/rig-inapp.bundle.mjs')
+    import('./tools/rig-inapp.bundle.js')
       .then(m=> m.mount(box, { ownIds: owned }))
       .then(api=>{ rig3D=api; rig3DCanvas=api.canvas; rig3DSig=sig; showCanvas(); })
       .catch(err=>{ box.remove(); console.warn('Rig 3D viewer unavailable; using SVG fallback:', err&&err.message||err); });
