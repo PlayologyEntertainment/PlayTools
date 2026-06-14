@@ -153,6 +153,14 @@ posters have a home and the neon bounces.
    screen in `PlayTools.html` (lazy-loaded on the `#/rig` route; the current procedural
    SVG stays as the no-WebGL fallback) and bind part visibility to actual ownership.
 
+**Tooling.** Two entry points share one builder (`tools/rig-build.mjs`), so they always
+agree:
+- `npm run rig:preview` — headless render to `tools/output/rig.png` (`--contact` for an
+  asset grid, `--own=a,b,c` for a specific owned-set).
+- `npm run rig:edit` — interactive layout editor at `http://127.0.0.1:8132`: orbit the
+  camera, drag per-part position/rotation/scale, toggle parts, tune bloom/FOV, then
+  **Export** the updated `rig_manifest.json`.
+
 ## 6. Open / deferred
 - **App integration** (Three.js into the single-file app, lazy-load, Share Card capture
   from the WebGL canvas) happens **after** the scene looks right with real assets.

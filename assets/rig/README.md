@@ -16,6 +16,13 @@ rig_manifest.json  ← maps NetStore part ids → model + placement
 3. Preview: `npm run rig:preview` → renders the current scene to `tools/output/rig.png`.
    (I tune each item's `transform` so it sits correctly.)
 
+## Adjust the layout interactively
+`npm run rig:edit` → open **http://127.0.0.1:8132** in a browser. Orbit/zoom to frame the
+camera, pick a part and drag its X/Y/Z/rotation/scale sliders live, toggle parts on/off,
+and tune bloom/FOV. Hit **Export manifest JSON** (copy or download) and paste the result
+back into `rig_manifest.json`. The editor and the headless preview share one builder
+(`tools/rig-build.mjs`), so what you see in the editor is what `rig:preview` renders.
+
 ## Conventions (short version)
 - **.glb**, PBR metallic-roughness, **Y-up**, faces **−Z**, **real-world metres**.
 - Furniture origin = footprint centre on the floor; desk-top items = base resting point.
