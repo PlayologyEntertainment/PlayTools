@@ -124,11 +124,15 @@ to project — the monitor content is code-driven, not a sourced texture), `cred
 
 **Procedural parts (`proc`):** an item with `"proc": "<type>"` instead of `model` is built
 in-engine — no `.glb` needed. Implemented builders: `rgb` (LED strip along the desk front
-edge + a soft under-desk floor wash) and `poster` (framed neon NETCOIN print on the back
-wall). Their `transform.pos` is the **absolute centre** in metres (not floored), and they
-take a few extra params (`w`/`h`/`segs`). Procedural parts are how the always-cosmetic items
-(RGB kit, poster) ship without sourcing — internal hardware (GPU, RAM/PSU) and the
-sit/stand desk still want real `.glb` models.
+edge + a soft under-desk floor wash) and `poster` (framed neon NETCOIN print — a fallback
+for when no poster art is sourced). Their `transform.pos` is the **absolute centre** in
+metres (not floored) unless flagged `on:"desk"`, and they take a few extra params
+(`w`/`h`/`segs`). Procedural parts keep the RGB kit assetless; the wall **posters** and
+**books** now use sourced `.glb` models. Internal hardware (GPU, RAM/PSU) and the sit/stand
+desk still want real models.
+
+**`glow`** (number): self-illuminate a model from its own albedo (`emissiveIntensity`,
+double-sided) so flat wall-art / posters read in the dark neon scene.
 
 **`"default": false`** marks an alternate that the preview's "show everything" mode skips
 (e.g. the flat monitor and the second desk toy) so the hero shot stays clean; it still

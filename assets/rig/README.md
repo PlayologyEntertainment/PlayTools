@@ -27,8 +27,13 @@ Currently provided & wired: desk, gaming chair, monitors (base/flat/ultrawide), 
 placements are tuned in the manifest `transform` blocks (some source models ship in cm or
 odd units — handled there).
 
-**Procedural parts** (no `.glb`): the RGB Light Kit (`rgb`) and Wall Poster (`poster`) are
-built in-engine via a `"proc": "<type>"` manifest entry, plus an optional `scene.wall` for
-the poster to hang on. Alternates (the flat monitor, the second toy) are flagged
-`"default": false` so the hero render stays clean. Still want real models: the GPU/internal
-hardware and the sit/stand desk upgrade. Full field reference in the spec (§4).
+Decorations: a stack of `books` and five wall `posters` (poster01–05 + poster_base) sit on
+the back wall / desktop, lit via the `glow` field so flat prints read in the dark scene; a
+few are flagged `"default": false` to keep the hero shot uncluttered (toggle via `?own=`).
+
+**Procedural parts** (no `.glb`): the RGB Light Kit (`rgb`) is built in-engine via a
+`"proc": "<type>"` manifest entry; a procedural `poster` builder remains as a no-art
+fallback. An optional `scene.wall` gives posters something to hang on. Alternates (the flat
+monitor, the second toy, extra posters) are flagged `"default": false`. Still want real
+models: the GPU/internal hardware and the sit/stand desk upgrade. Field reference in the
+spec (§4).

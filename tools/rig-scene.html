@@ -85,6 +85,8 @@ const loader=new GLTFLoader(); loader.setDRACOLoader(draco);
 
 function meshify(model){ model.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } }); }
 function applyScreen(model){ const t=synthwaveTex(); model.traverse(o=>{ if(o.isMesh && /screen|display|monitor/i.test(o.name)){ o.material=o.material.clone(); o.material.map=t; o.material.emissive=new THREE.Color(0xffffff); o.material.emissiveMap=t; o.material.emissiveIntensity=1.1; } }); }
+// Self-illuminate a model from its own albedo so flat wall-art reads in the dark scene.
+function applyGlow(model,amt){ model.traverse(o=>{ if(o.isMesh && o.material){ o.material=o.material.clone(); if(o.material.map){ o.material.emissiveMap=o.material.map; o.material.emissive=new THREE.Color(0xffffff); } o.material.emissiveIntensity=amt; o.material.side=THREE.DoubleSide; } }); }
 
 // place: scale (fitHeight|scale), rotate, recenter footprint to (pos.x,pos.z), base to pos.y
 function place(model,tf,id){
@@ -176,7 +178,7 @@ async function scene_(){
       const tf=Object.assign({},e.transform); if(e.on==='desk'){ tf.pos=[...(tf.pos||[0,0,0])]; tf.pos[1]=deskTop+(tf.pos[1]||0); }
       let obj;
       if(e.proc){ obj=PROC[e.proc](tf); meshify(obj); place(obj,tf,id); }
-      else { const g=await loader.loadAsync(A+e.model); obj=g.scene; meshify(obj); place(obj,tf,id); if(e.screen) applyScreen(obj); }
+      else { const g=await loader.loadAsync(A+e.model); obj=g.scene; meshify(obj); place(obj,tf,id); if(e.screen) applyScreen(obj); if(e.glow) applyGlow(obj,e.glow); }
       scene.add(obj);
     }catch(err){ window.__dbg[id]={error:String(err.message||err)}; window.__err+=id+':'+err.message+';'; }
   }
