@@ -1,32 +1,317 @@
 {
   "scene": {
     "hdri": "models/ferndale_studio_04_1k.exr",
-    "camera": { "pos": [-1.95, 1.5, 2.85], "target": [0.35, 0.78, -0.45], "fov": 42 },
-    "bloom": { "strength": 0.25, "radius": 0.5, "threshold": 0.85 },
-    "wall": { "w": 16, "h": 5, "z": -2.3, "x": 0, "color": 658458 }
+    "camera": {
+      "pos": [
+        2.463,
+        1.419,
+        1.229
+      ],
+      "target": [
+        0.217,
+        0.934,
+        -0.576
+      ],
+      "fov": 50
+    },
+    "bloom": {
+      "strength": 0.06,
+      "radius": 0.5,
+      "threshold": 0.5
+    },
+    "wall": {
+      "w": 16,
+      "h": 5,
+      "z": -2.3,
+      "x": 0,
+      "color": 658458
+    }
   },
   "base": [
-    { "id": "desk_base",     "model": "models/desk_base.glb",     "transform": { "pos": [0.3, 0, -0.4], "scale": 0.013, "rotY": 90 }, "_note": "model is in cm; long axis along Z so rotate 90. scale 0.013 = ~30% larger than life-size for a roomier deck" },
-    { "id": "monitor_base",  "model": "models/monitor_base.glb",  "on": "desk", "transform": { "pos": [0.3, 0, -0.5] }, "screen": "synthwave" },
-    { "id": "tower_base",    "model": "models/tower_base.glb",    "transform": { "pos": [1.05, 0, -0.05] } },
-    { "id": "keyboard_base", "model": "models/keyboard_base.glb", "on": "desk", "transform": { "pos": [0.3, 0, -0.18] } },
-    { "id": "mouse_base",    "model": "models/mouse_base.glb",    "on": "desk", "transform": { "pos": [0.66, 0, -0.18], "fitHeight": 0.04 } }
+    {
+      "id": "desk_base",
+      "model": "models/desk_base.glb",
+      "transform": {
+        "pos": [
+          0.3,
+          0,
+          -0.4
+        ],
+        "scale": 0.013,
+        "rotY": 90
+      },
+      "_note": "model is in cm; long axis along Z so rotate 90. scale 0.013 = ~30% larger than life-size for a roomier deck"
+    },
+    {
+      "id": "monitor_base",
+      "model": "models/monitor_base.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.3,
+          0,
+          -0.5
+        ]
+      },
+      "screen": "synthwave"
+    },
+    {
+      "id": "tower_base",
+      "model": "models/tower_base.glb",
+      "transform": {
+        "pos": [
+          0.82,
+          0,
+          -0.51
+        ],
+        "rotY": 180
+      }
+    },
+    {
+      "id": "keyboard_base",
+      "model": "models/keyboard_base.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.3,
+          0,
+          -0.18
+        ]
+      }
+    },
+    {
+      "id": "mouse_base",
+      "model": "models/mouse_base.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.53,
+          0,
+          -0.27
+        ],
+        "fitHeight": 0.04,
+        "rotY": -107
+      }
+    }
   ],
   "parts": {
-    "chair":        { "model": "models/gaming_chair.glb", "replaces": "chair_base", "transform": { "pos": [0.62, 0, 0.82], "rotY": -22 }, "credit": "user-supplied", "_note": "right foreground, angled toward the desk so it frames the shot instead of blocking the monitor" },
-    "monitor":      { "model": "models/monitor_ultrawide.glb", "replaces": "monitor_base", "on": "desk", "transform": { "pos": [0.3, 0, -0.52], "fitHeight": 0.42, "rotY": 90 }, "screen": "synthwave" },
-    "monitor_flat": { "model": "models/monitor_flat.glb", "on": "desk", "transform": { "pos": [-1.1, 0, -0.5] }, "screen": "synthwave", "default": false, "_note": "alternate; not shown by default" },
-    "keyboard":     { "model": "models/keyboard_upgrade.glb", "replaces": "keyboard_base", "on": "desk", "transform": { "pos": [0.3, 0, -0.18] } },
-    "headset":      { "model": "models/headphone_headset.glb", "on": "desk", "transform": { "pos": [-0.18, 0, -0.22] }, "_note": "front-left of the desktop, clear of the monitor so it reads" },
-    "desktoy":      { "model": "models/toy1.glb", "on": "desk", "transform": { "pos": [-0.05, 0, -0.45] } },
-    "desktoy2":     { "model": "models/toy2.glb", "on": "desk", "transform": { "pos": [0.05, 0, -0.35], "fitHeight": 0.16 }, "default": false, "_note": "second toy; not shown by default" },
-    "books":        { "model": "models/books.glb", "on": "desk", "transform": { "pos": [-0.36, 0, -0.5] }, "credit": "user-supplied", "_note": "book stack, back-left of the desktop" },
-    "rgb":          { "proc": "rgb", "on": "desk", "transform": { "pos": [0.3, -0.06, -0.02], "w": 1.5 }, "credit": "procedural", "_note": "LED strip along the desk front edge (rides the desktop) + under-desk floor wash" },
-    "poster":       { "model": "models/poster05.glb", "transform": { "pos": [-0.3, 1.34, -2.26], "scale": 0.01 }, "glow": 0.6, "credit": "user-supplied", "_note": "framed print (model is in cm); centre of the back wall behind the desk" },
-    "poster_a":     { "model": "models/poster01.glb", "transform": { "pos": [-1.15, 1.2, -2.27], "fitHeight": 0.85, "rotY": -90 }, "glow": 0.6, "credit": "user-supplied", "_note": "flat print plane (faces ±X) rotated to face the room; left of the wall" },
-    "poster_b":     { "model": "models/poster04.glb", "transform": { "pos": [-0.4, 2.05, -2.27], "fitHeight": 0.7, "rotY": -90 }, "glow": 0.6, "default": false, "credit": "user-supplied", "_note": "wide print; alternate" },
-    "poster_c":     { "model": "models/poster02.glb", "transform": { "pos": [0.5, 1.5, -2.27], "fitHeight": 0.7, "rotY": -90 }, "glow": 0.6, "default": false, "credit": "user-supplied", "_note": "wide banner print; alternate" },
-    "poster_d":     { "model": "models/poster03.glb", "transform": { "pos": [-1.1, 2.05, -2.27], "fitHeight": 0.8, "rotY": -90 }, "glow": 0.6, "default": false, "credit": "user-supplied", "_note": "flat print; alternate" },
-    "poster_base":  { "model": "models/poster_base.glb", "transform": { "pos": [0, 0.0, -2.27], "fitHeight": 2.6, "rotY": -90 }, "glow": 0.45, "default": false, "credit": "user-supplied", "_note": "large backdrop print plane; alternate (shown via ?own=)" }
+    "chair": {
+      "model": "models/gaming_chair.glb",
+      "replaces": "chair_base",
+      "transform": {
+        "pos": [
+          -0.08,
+          0,
+          0.53
+        ],
+        "rotY": -22
+      },
+      "credit": "user-supplied",
+      "_note": "right foreground, angled toward the desk so it frames the shot instead of blocking the monitor"
+    },
+    "monitor": {
+      "model": "models/monitor_ultrawide.glb",
+      "replaces": "monitor_base",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.25,
+          0,
+          -0.61
+        ],
+        "fitHeight": 0.427,
+        "rotY": -90
+      },
+      "screen": "synthwave"
+    },
+    "monitor_flat": {
+      "model": "models/monitor_flat.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          -1.1,
+          0,
+          -0.5
+        ]
+      },
+      "screen": "synthwave",
+      "default": false,
+      "_note": "alternate; not shown by default"
+    },
+    "keyboard": {
+      "model": "models/keyboard_upgrade.glb",
+      "replaces": "keyboard_base",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.17,
+          0,
+          -0.25
+        ],
+        "rotY": 8,
+        "scale": 0.607
+      }
+    },
+    "headset": {
+      "model": "models/headphone_headset.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.86,
+          -0.09,
+          -0.56
+        ],
+        "rotY": 1
+      },
+      "_note": "front-left of the desktop, clear of the monitor so it reads"
+    },
+    "desktoy": {
+      "model": "models/toy1.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          -0.37,
+          0,
+          -0.37
+        ],
+        "rotY": 117,
+        "scale": 0.672
+      }
+    },
+    "desktoy2": {
+      "model": "models/toy2.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.05,
+          0,
+          -0.35
+        ],
+        "fitHeight": 0.16
+      },
+      "default": false,
+      "_note": "second toy; not shown by default"
+    },
+    "books": {
+      "model": "models/books.glb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          -0.32,
+          0,
+          -0.61
+        ],
+        "rotY": 32
+      },
+      "credit": "user-supplied",
+      "_note": "book stack, back-left of the desktop"
+    },
+    "rgb": {
+      "proc": "rgb",
+      "on": "desk",
+      "transform": {
+        "pos": [
+          0.31,
+          -0.01,
+          -0.79
+        ],
+        "w": 1.5,
+        "scale": 0.907
+      },
+      "credit": "procedural",
+      "_note": "LED strip along the desk front edge (rides the desktop) + under-desk floor wash"
+    },
+    "poster": {
+      "model": "models/poster05.glb",
+      "transform": {
+        "pos": [
+          0.11,
+          1.04,
+          -2.27
+        ],
+        "scale": 0.017
+      },
+      "glow": 0.6,
+      "credit": "user-supplied",
+      "_note": "framed print (model is in cm); centre of the back wall behind the desk"
+    },
+    "poster_a": {
+      "model": "models/poster01.glb",
+      "transform": {
+        "pos": [
+          -1.03,
+          1.02,
+          -2.29
+        ],
+        "fitHeight": 0.85,
+        "rotY": -90
+      },
+      "glow": 0.6,
+      "credit": "user-supplied",
+      "_note": "flat print plane (faces ±X) rotated to face the room; left of the wall"
+    },
+    "poster_b": {
+      "model": "models/poster04.glb",
+      "transform": {
+        "pos": [
+          -0.4,
+          2.05,
+          -2.27
+        ],
+        "fitHeight": 0.7,
+        "rotY": -90
+      },
+      "glow": 0.6,
+      "credit": "user-supplied",
+      "_note": "wide print; alternate"
+    },
+    "poster_c": {
+      "model": "models/poster02.glb",
+      "transform": {
+        "pos": [
+          0.5,
+          1.5,
+          -2.27
+        ],
+        "fitHeight": 0.7,
+        "rotY": -90
+      },
+      "glow": 0.6,
+      "default": false,
+      "credit": "user-supplied",
+      "_note": "wide banner print; alternate"
+    },
+    "poster_d": {
+      "model": "models/poster03.glb",
+      "transform": {
+        "pos": [
+          -1.1,
+          2.05,
+          -2.27
+        ],
+        "fitHeight": 0.8,
+        "rotY": -90
+      },
+      "glow": 0.6,
+      "default": false,
+      "credit": "user-supplied",
+      "_note": "flat print; alternate"
+    },
+    "poster_base": {
+      "model": "models/poster_base.glb",
+      "transform": {
+        "pos": [
+          0,
+          0,
+          -2.27
+        ],
+        "fitHeight": 2.6,
+        "rotY": -90
+      },
+      "glow": 0.45,
+      "default": false,
+      "credit": "user-supplied",
+      "_note": "large backdrop print plane; alternate (shown via ?own=)"
+    }
   }
 }
