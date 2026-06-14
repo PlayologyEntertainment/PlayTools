@@ -9,7 +9,8 @@
     "test:touchpad": "node test/touchpad.mjs",
     "browser": "node test/browser.mjs",
     "rig:preview": "node tools/rig-preview.mjs",
-    "rig:edit": "node tools/rig-edit.mjs"
+    "rig:edit": "node tools/rig-edit.mjs",
+    "serve": "node tools/serve.mjs"
   },
   "devDependencies": {
     "@sparticuz/chromium": "^131.0.0",

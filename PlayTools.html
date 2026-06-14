@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PlayTools — Gamified Gaming Tools for Gamers | Playology Entertainment</title>
+<!-- Resolves three.js for the optional in-app 3D Rig viewer (#/rig). Only used when
+     the app is served with /three/ + /jsm/ mapped (npm run serve); otherwise the
+     dynamic import simply fails and The Rig falls back to its procedural SVG. -->
+<script type="importmap">{"imports":{"three":"/three/three.module.js","three/addons/":"/jsm/"}}</script>
 <!--
   ============================================================
   PLAYTOOLS — Gamified Gaming Tools for Gamers
@@ -732,6 +736,11 @@
   .rig-streak .d{font-family:var(--pixel); font-size:30px; font-weight:800; color:var(--neon);}
   .rig-scene{border:1px solid var(--line); border-radius:8px; background:linear-gradient(180deg,#0a0e22,#070912); padding:10px; margin:14px 0; text-align:center;}
   .rig-scene svg{width:100%; max-width:440px; height:auto;}
+  /* 3D battlestation viewer (mounts over the SVG on #/rig when WebGL + assets are available) */
+  .rig-3d{position:relative; width:100%; aspect-ratio:16/10; min-height:260px; border-radius:8px; overflow:hidden; background:#0b0816; cursor:grab;}
+  .rig-3d:active{cursor:grabbing;}
+  .rig-3d canvas{display:block; width:100%; height:100%;}
+  .rig-3d .hint{position:absolute; left:10px; bottom:8px; font-size:11px; color:#9aa6d8; background:rgba(7,11,24,.5); padding:2px 7px; border-radius:6px; pointer-events:none;}
   .rig-store-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 13px; border:1px solid var(--line); border-radius:8px; margin-bottom:9px; background:var(--panel-2);}
   .rig-store-row .info{min-width:0;}
   .rig-store-row .nm{font-family:var(--pixel); color:var(--ink);}
@@ -17402,6 +17411,27 @@ function rigSceneSVG(){
 
 Views.rig = function(c){
   let timer = null;
+  // 3D battlestation viewer state (persists across re-paints within this route visit)
+  let rig3D = null, rig3DCanvas = null, rig3DSig = null;
+  // manifest part ids that map to a purchasable NetStore item (drives ownership binding)
+  const RIG3D_PARTS = new Set(['chair','monitor','keyboard','headset','rgb','poster','desktoy']);
+  function rig3DOwned(){ const p = Store.get().rig.parts||{}; return Object.keys(p).filter(k=>RIG3D_PARTS.has(k)).sort(); }
+  function webglOK(){ try { return !!document.createElement('canvas').getContext('webgl2'); } catch(e){ return false; } }
+  // Mount (or re-attach) the 3D viewer into `host`, hiding the SVG fallback on success.
+  function mount3D(host){
+    if(!webglOK()) return;                       // no WebGL → keep the SVG
+    const owned = rig3DOwned(), sig = owned.join(',');
+    const box = el('div',{class:'rig-3d'});
+    box.append(el('div',{class:'hint', html:'drag to orbit · scroll to zoom'}));
+    host.append(box);
+    const showCanvas = ()=>{ const svg = host.querySelector('svg'); if(svg) svg.style.display='none'; };
+    if(rig3D && rig3DCanvas && sig===rig3DSig){ box.prepend(rig3DCanvas); showCanvas(); return; } // reuse (e.g. after Collect)
+    if(rig3D){ rig3D.dispose(); rig3D=null; rig3DCanvas=null; }
+    import('/tools/rig-inapp.mjs')
+      .then(m=> m.mount(box, { ownIds: owned }))
+      .then(api=>{ rig3D=api; rig3DCanvas=api.canvas; rig3DSig=sig; showCanvas(); })
+      .catch(err=>{ box.remove(); console.warn('Rig 3D viewer unavailable; using SVG fallback:', err&&err.message||err); });
+  }
   function paint(){
     if(timer){ clearInterval(timer); timer=null; }
     c.innerHTML='';
@@ -17490,6 +17520,7 @@ Views.rig = function(c){
     const scene = el('div',{class:'rig-scene'}); scene.innerHTML = rigSceneSVG();
     sceneB.append(scene);
     panel.append(sceneB);
+    mount3D(scene);   // upgrade the SVG to the live 3D battlestation when available
 
     // ---- actions ----
     const actions = el('div',{class:'controls-row'});
@@ -17505,7 +17536,7 @@ Views.rig = function(c){
     panel.append(actions);
   }
   paint();
-  return ()=>{ if(timer) clearInterval(timer); };
+  return ()=>{ if(timer) clearInterval(timer); if(rig3D){ rig3D.dispose(); rig3D=null; } };
 };
 
 // Which NetStore tab to open on mount — let the Jack-In cabinet deep-link to Credits.
