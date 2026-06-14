@@ -1,0 +1,29 @@
+{
+  "scene": {
+    "hdri": null,
+    "camera": { "pos": [-1.5, 1.35, 2.9], "target": [0.4, 0.85, -0.7], "fov": 42 },
+    "bloom": { "strength": 0.6, "radius": 0.5, "threshold": 0.8 }
+  },
+  "base": [
+    { "id": "desk_base",    "model": null, "transform": { "pos": [0.3, 0, -0.75] }, "_note": "placeholder desk drawn until a model is provided" },
+    { "id": "monitor_base", "model": null, "transform": { "pos": [0, 0.78, -1.0] }, "screen": "synthwave" },
+    { "id": "tower_base",   "model": null, "transform": { "pos": [1.7, 0.78, -0.85] } },
+    { "id": "keyboard_base","model": null, "transform": { "pos": [-0.05, 0.80, -0.5] } },
+    { "id": "mouse_base",   "model": null, "transform": { "pos": [0.5, 0.80, -0.45] } }
+  ],
+  "parts": {
+    "chair":    { "model": "models/chair_office_basic.glb", "replaces": "chair_base",
+                  "transform": { "pos": [-0.7, 0, 0.65], "rotY": 28, "fitHeight": 1.05 },
+                  "credit": "Quaternius — CC0 (placeholder/basic chair)" },
+    "monitor":  { "model": null, "replaces": "monitor_base", "transform": { "pos": [0, 0.78, -1.0] }, "screen": "synthwave" },
+    "keyboard": { "model": null, "replaces": "keyboard_base", "transform": { "pos": [-0.05, 0.80, -0.5] } },
+    "mouse":    { "model": null, "replaces": "mouse_base", "transform": { "pos": [0.5, 0.80, -0.45] } },
+    "headset":  { "model": null, "transform": { "pos": [2.05, 0.78, -0.55] } },
+    "desk":     { "model": null, "replaces": "desk_base", "transform": { "pos": [0.3, 0, -0.75] } },
+    "rgb":      { "model": null, "transform": { "pos": [0.3, 0.75, -0.3] } },
+    "poster":   { "model": null, "transform": { "pos": [-1.2, 2.1, -1.5] } },
+    "desktoy":  { "model": null, "transform": { "pos": [-0.9, 0.80, -0.55] } },
+    "gpu":      { "model": null, "transform": { "pos": [1.7, 0.95, -0.85] }, "_note": "case-interior accent" },
+    "cooling":  { "model": null, "transform": { "pos": [1.7, 1.05, -0.85] }, "_note": "case-interior accent" }
+  }
+}
