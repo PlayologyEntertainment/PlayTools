@@ -33,7 +33,10 @@ function resolve(url){
 http.createServer((req,res)=>{
   const fp = resolve(req.url);
   fs.readFile(fp,(e,buf)=>{ if(e){ res.writeHead(404); res.end('not found: '+req.url); return; }
-    res.writeHead(200,{'content-type':TM[path.extname(fp)]||'application/octet-stream'}); res.end(buf); });
+    res.writeHead(200,{'content-type':TM[path.extname(fp)]||'application/octet-stream','cache-control':'no-store'}); res.end(buf); });
 }).listen(PORT,'127.0.0.1',()=>{
-  console.log(`\n  PlayTools → http://127.0.0.1:${PORT}/PlayTools.html\n  (The Rig at #/rig renders in 3D when served this way. Ctrl-C to stop.)\n`);
+  console.log(`\n  PlayTools → http://127.0.0.1:${PORT}/PlayTools.html\n  (The Rig at #/rig renders in 3D when served this way. Ctrl-C to stop.)`);
+  if(!fs.existsSync(path.join(ROOT,'node_modules/three/build/three.module.js')))
+    console.log(`\n  ⚠ three.js not found in node_modules — run "npm install" first,\n    or The Rig will fall back to the SVG battlestation.`);
+  console.log('');
 });
