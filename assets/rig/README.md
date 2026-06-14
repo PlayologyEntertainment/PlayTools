@@ -23,6 +23,12 @@ and tune bloom/FOV. Hit **Export manifest JSON** (copy or download) and paste th
 back into `rig_manifest.json`. The editor and the headless preview share one builder
 (`tools/rig-build.mjs`), so what you see in the editor is what `rig:preview` renders.
 
+## See it in the app (#/rig)
+`npm run serve` → open **http://127.0.0.1:8133/PlayTools.html** and go to **The Rig**.
+When served this way the battlestation renders in **3D** (lazy-loaded, bound to the parts
+you own in the NetStore); opened any other way — or without WebGL — it falls back to the
+procedural SVG. The in-app viewer shares this same manifest + `tools/rig-build.mjs`.
+
 ## Conventions (short version)
 - **.glb**, PBR metallic-roughness, **Y-up**, faces **−Z**, **real-world metres**.
 - Furniture origin = footprint centre on the floor; desk-top items = base resting point.

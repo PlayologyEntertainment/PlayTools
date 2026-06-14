@@ -14,8 +14,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
-export const A = '/assets/rig/';
+// Asset base, resolved relative to this module's URL so it works both when served
+// at the site root (dev) and when deployed in a sub-path (e.g. /experiments/PlayTools/).
+export const A = new URL('../assets/rig/', import.meta.url).href;
 export const TEAL = 0x16f2c8, MAG = 0xff3df0, VIO = 0x7c5cff;
 
 // ---- lights + ground -------------------------------------------------------
@@ -104,7 +107,7 @@ export const PROC = {
 
 // ---- model helpers ---------------------------------------------------------
 export function makeLoader(){ const draco=new DRACOLoader(); draco.setDecoderPath('/jsm/libs/draco/');
-  const loader=new GLTFLoader(); loader.setDRACOLoader(draco); return loader; }
+  const loader=new GLTFLoader(); loader.setDRACOLoader(draco); loader.setMeshoptDecoder(MeshoptDecoder); return loader; }
 export function meshify(model){ model.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } }); }
 export function applyScreen(model){ const t=synthwaveTex(); model.traverse(o=>{ if(o.isMesh && /screen|display|monitor/i.test(o.name)){ o.material=o.material.clone(); o.material.map=t; o.material.emissive=new THREE.Color(0xffffff); o.material.emissiveMap=t; o.material.emissiveIntensity=1.1; } }); }
 // Self-illuminate a model from its own albedo so flat wall-art reads in the dark scene.
