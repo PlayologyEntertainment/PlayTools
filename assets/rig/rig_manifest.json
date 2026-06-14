@@ -3,14 +3,14 @@
     "hdri": "models/ferndale_studio_04_1k.exr",
     "camera": {
       "pos": [
-        2.463,
-        1.419,
-        1.229
+        1.432,
+        1.651,
+        1.756
       ],
       "target": [
-        0.217,
-        0.934,
-        -0.576
+        0.138,
+        1.186,
+        -0.5
       ],
       "fov": 50
     },
@@ -100,11 +100,11 @@
       "replaces": "chair_base",
       "transform": {
         "pos": [
-          -0.08,
+          -0.09,
           0,
-          0.53
+          0.46
         ],
-        "rotY": -22
+        "rotY": -28
       },
       "credit": "user-supplied",
       "_note": "right foreground, angled toward the desk so it frames the shot instead of blocking the monitor"
@@ -115,12 +115,12 @@
       "on": "desk",
       "transform": {
         "pos": [
-          0.25,
+          0.75,
           0,
-          -0.61
+          -0.65
         ],
         "fitHeight": 0.427,
-        "rotY": -90
+        "rotY": -107
       },
       "screen": "synthwave"
     },
@@ -129,13 +129,13 @@
       "on": "desk",
       "transform": {
         "pos": [
-          -1.1,
+          0.06,
           0,
-          -0.5
-        ]
+          -0.65
+        ],
+        "rotY": 18
       },
       "screen": "synthwave",
-      "default": false,
       "_note": "alternate; not shown by default"
     },
     "keyboard": {
@@ -157,11 +157,12 @@
       "on": "desk",
       "transform": {
         "pos": [
-          0.86,
-          -0.09,
-          -0.56
+          0.87,
+          -0.07,
+          -0.28
         ],
-        "rotY": 1
+        "rotY": -10,
+        "scale": 0.823
       },
       "_note": "front-left of the desktop, clear of the monitor so it reads"
     },
@@ -183,13 +184,13 @@
       "on": "desk",
       "transform": {
         "pos": [
-          0.05,
+          0.39,
           0,
-          -0.35
+          -0.61
         ],
-        "fitHeight": 0.16
+        "fitHeight": 0.16,
+        "rotY": -180
       },
-      "default": false,
       "_note": "second toy; not shown by default"
     },
     "books": {
@@ -225,8 +226,8 @@
       "model": "models/poster05.glb",
       "transform": {
         "pos": [
-          0.11,
-          1.04,
+          0.08,
+          1.17,
           -2.27
         ],
         "scale": 0.017
@@ -239,8 +240,8 @@
       "model": "models/poster01.glb",
       "transform": {
         "pos": [
-          -1.03,
-          1.02,
+          -1.85,
+          1.08,
           -2.29
         ],
         "fitHeight": 0.85,
@@ -269,15 +270,14 @@
       "model": "models/poster02.glb",
       "transform": {
         "pos": [
-          0.5,
-          1.5,
+          -1.93,
+          2.06,
           -2.27
         ],
         "fitHeight": 0.7,
         "rotY": -90
       },
       "glow": 0.6,
-      "default": false,
       "credit": "user-supplied",
       "_note": "wide banner print; alternate"
     },
@@ -285,15 +285,14 @@
       "model": "models/poster03.glb",
       "transform": {
         "pos": [
-          -1.1,
-          2.05,
+          -1.03,
+          1.14,
           -2.27
         ],
         "fitHeight": 0.8,
         "rotY": -90
       },
       "glow": 0.6,
-      "default": false,
       "credit": "user-supplied",
       "_note": "flat print; alternate"
     },
@@ -301,15 +300,14 @@
       "model": "models/poster_base.glb",
       "transform": {
         "pos": [
-          0,
-          0,
+          -2.77,
+          0.68,
           -2.27
         ],
-        "fitHeight": 2.6,
+        "fitHeight": 1.254,
         "rotY": -90
       },
       "glow": 0.45,
-      "default": false,
       "credit": "user-supplied",
       "_note": "large backdrop print plane; alternate (shown via ?own=)"
     }
