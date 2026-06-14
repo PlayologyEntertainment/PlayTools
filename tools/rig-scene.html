@@ -1,6 +1,5 @@
 <!doctype html><html><head><meta charset="utf-8"><title>The Rig — 3D scene (dev)</title>
 <style>html,body{margin:0;height:100%;background:#05060b;overflow:hidden}</style>
-<!-- three + addons are served by tools/rig-preview.mjs from node_modules -->
 <script type="importmap">{"imports":{"three":"/three/three.module.js","three/addons/":"/jsm/"}}</script>
 </head><body>
 <script type="module">
@@ -9,40 +8,36 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-const A='/assets/rig/';                       // asset root
+const A='/assets/rig/';
 const qs=new URLSearchParams(location.search);
 const W=+(qs.get('w')||1100), H=+(qs.get('h')||850);
-window.__ready=false; window.__err='';
+window.__ready=false; window.__err=''; window.__dbg={};
 
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(1); renderer.setSize(W,H);
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.9;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.8;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 const scene=new THREE.Scene(); scene.background=new THREE.Color('#0b0816');
-scene.fog=new THREE.FogExp2('#0b0816',0.05);
 const TEAL=0x16f2c8,MAG=0xff3df0,VIO=0x7c5cff;
-
-// neon-ish lighting (HDRI overrides ambient look if provided)
-scene.add(new THREE.AmbientLight(0x222838,0.35));
-const key=new THREE.DirectionalLight(0xcfe0ff,1.6); key.position.set(3,5,4);
+scene.add(new THREE.AmbientLight(0x222838,0.3));
+const key=new THREE.DirectionalLight(0xcfe0ff,1.5); key.position.set(3,5,4);
 key.castShadow=true; key.shadow.mapSize.set(2048,2048); key.shadow.bias=-0.0004;
-Object.assign(key.shadow.camera,{near:0.5,far:25,left:-4,right:4,top:4,bottom:-4}); scene.add(key);
-const magL=new THREE.PointLight(MAG,10,9,2); magL.position.set(-2.2,1.4,1.2); scene.add(magL);
-const cyL=new THREE.PointLight(TEAL,8,9,2); cyL.position.set(2.6,1.3,-0.4); scene.add(cyL);
-const vioL=new THREE.PointLight(VIO,6,10,2); vioL.position.set(0,2.6,-2.4); scene.add(vioL);
+Object.assign(key.shadow.camera,{near:0.5,far:30,left:-6,right:6,top:6,bottom:-6}); scene.add(key);
+const magL=new THREE.PointLight(MAG,9,12,2); magL.position.set(-2.4,1.5,1.4); scene.add(magL);
+const cyL=new THREE.PointLight(TEAL,7,12,2); cyL.position.set(2.8,1.4,-0.4); scene.add(cyL);
+const vioL=new THREE.PointLight(VIO,5,14,2); vioL.position.set(0,2.8,-2.6); scene.add(vioL);
 
-// floor + neon ground strips (placeholder room)
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0x0a0c16,roughness:0.3,metalness:0.5}));
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0x0a0c16,roughness:0.3,metalness:0.5}));
 floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
-for(let i=-4;i<=4;i++){const s=new THREE.Mesh(new THREE.PlaneGeometry(0.04,18),new THREE.MeshBasicMaterial({color:i%2?MAG:TEAL,transparent:true,opacity:0.45}));s.rotation.x=-Math.PI/2;s.position.set(i*0.85,0.001,-2);scene.add(s);}
 
 function synthwaveTex(){const c=document.createElement('canvas');c.width=1024;c.height=440;const x=c.getContext('2d');
   const sky=x.createLinearGradient(0,0,0,280);sky.addColorStop(0,'#1a0b3a');sky.addColorStop(1,'#3a1466');x.fillStyle=sky;x.fillRect(0,0,1024,280);x.fillStyle='#0a0820';x.fillRect(0,280,1024,160);
@@ -52,63 +47,96 @@ function synthwaveTex(){const c=document.createElement('canvas');c.width=1024;c.
   x.strokeStyle='#ff2bd6';x.lineWidth=2;for(let i=-12;i<=12;i++){x.beginPath();x.moveTo(512+i*15,300);x.lineTo(512+i*140,440);x.stroke();}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 
-function placeholder(id,tf){ // dark box stand-ins so the scene has context until real models land
-  const sizes={desk_base:[1.5,0.06,0.9],monitor_base:[1.4,0.5,0.05],tower_base:[0.45,0.9,0.9],keyboard_base:[0.55,0.04,0.18],mouse_base:[0.12,0.05,0.18]};
-  const s=sizes[id]; if(!s) return null;
-  const m=new THREE.Mesh(new THREE.BoxGeometry(...s),new THREE.MeshStandardMaterial({color:0x12141d,roughness:0.5,metalness:0.3,emissive:0x140a20,emissiveIntensity:0.4}));
-  m.castShadow=true;m.receiveShadow=true; const p=tf.pos||[0,0,0]; m.position.set(p[0],p[1]+s[1]/2,p[2]);
-  if(id==='monitor_base'){const sc=new THREE.Mesh(new THREE.PlaneGeometry(s[0]*0.92,s[1]*0.86),new THREE.MeshBasicMaterial({map:synthwaveTex()}));sc.position.set(p[0],p[1]+s[1]/2+0.04,p[2]+0.03);scene.add(sc);}
-  return m;}
-
 const draco=new DRACOLoader(); draco.setDecoderPath('/jsm/libs/draco/');
 const loader=new GLTFLoader(); loader.setDRACOLoader(draco);
 
-function applyTransform(model,tf){
+function meshify(model){ model.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } }); }
+function applyScreen(model){ const t=synthwaveTex(); model.traverse(o=>{ if(o.isMesh && /screen|display|monitor/i.test(o.name)){ o.material=o.material.clone(); o.material.map=t; o.material.emissive=new THREE.Color(0xffffff); o.material.emissiveMap=t; o.material.emissiveIntensity=1.1; } }); }
+
+// place: scale (fitHeight|scale), rotate, recenter footprint to (pos.x,pos.z), base to pos.y
+function place(model,tf,id){
   tf=tf||{};
-  let box=new THREE.Box3().setFromObject(model), size=box.getSize(new THREE.Vector3());
-  if(tf.fitHeight){const s=tf.fitHeight/size.y; model.scale.setScalar(s);}
-  else if(tf.scale){ Array.isArray(tf.scale)?model.scale.set(...tf.scale):model.scale.setScalar(tf.scale); }
+  let box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3());
+  const nat=[+size.x.toFixed(3),+size.y.toFixed(3),+size.z.toFixed(3)];
+  if(tf.fitHeight){model.scale.setScalar(tf.fitHeight/size.y);}
+  else if(tf.scale){Array.isArray(tf.scale)?model.scale.set(...tf.scale):model.scale.setScalar(tf.scale);}
   if(tf.rotY) model.rotation.y=tf.rotY*Math.PI/180;
-  // recenter footprint to origin, drop base to floor, then move to pos
   box=new THREE.Box3().setFromObject(model); const c=box.getCenter(new THREE.Vector3());
   model.position.x+=-c.x; model.position.z+=-c.z; model.position.y+=-box.min.y;
   const p=tf.pos||[0,0,0]; model.position.x+=p[0]; model.position.y+=p[1]; model.position.z+=p[2];
-  model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  box=new THREE.Box3().setFromObject(model); const fs=box.getSize(new THREE.Vector3());
+  window.__dbg[id]={native:nat, final:[+fs.x.toFixed(2),+fs.y.toFixed(2),+fs.z.toFixed(2)], y:+model.position.y.toFixed(2)};
+  return box;
 }
 
-async function build(){
-  const man=await (await fetch(A+'rig_manifest.json')).json();
-  // camera
-  const cm=man.scene&&man.scene.camera||{};
-  const cam=new THREE.PerspectiveCamera(cm.fov||42,W/H,0.1,100);
-  cam.position.set(...(cm.pos||[-1.5,1.35,2.9])); cam.lookAt(...(cm.target||[0.4,0.85,-0.7]));
-  // environment
-  if(man.scene&&man.scene.hdri){ try{ const hdr=await new RGBELoader().loadAsync(A+man.scene.hdri); hdr.mapping=THREE.EquirectangularReflectionMapping; scene.environment=hdr; }catch(e){ window.__err='hdri:'+e.message; } }
-  if(!scene.environment){ const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(new RoomEnvironment(),0.05).texture; scene.environmentIntensity=0.5; }
+async function setupEnv(hdri){
+  if(hdri){ try{
+    const L = /\.exr$/i.test(hdri)? new EXRLoader() : new RGBELoader();
+    const tex = await L.loadAsync(A+hdri); tex.mapping=THREE.EquirectangularReflectionMapping;
+    scene.environment=tex; scene.environmentIntensity=0.35; return;   // lighting/reflections only — keep the room dark & neon
+  }catch(e){ window.__err+='hdri:'+e.message+';'; } }
+  const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(new RoomEnvironment(),0.05).texture; scene.environmentIntensity=0.5;
+}
 
-  // which parts are "owned" for this preview: all that have a model (override via ?own=a,b)
-  const ownParam=qs.get('own'); const parts=man.parts||{};
-  const owned=ownParam!=null? new Set(ownParam?ownParam.split(','):[]) : new Set(Object.keys(parts).filter(k=>parts[k].model));
-  const replaced=new Set(); owned.forEach(k=>{ if(parts[k]&&parts[k].replaces) replaced.add(parts[k].replaces); });
-
-  const jobs=[];
-  // base items (skip any replaced by an owned upgrade)
-  (man.base||[]).forEach(b=>{ if(replaced.has(b.id)) return;
-    if(b.model){ jobs.push(loader.loadAsync(A+b.model).then(g=>{applyTransform(g.scene,b.transform);scene.add(g.scene);})); }
-    else { const ph=placeholder(b.id,b.transform||{}); if(ph) scene.add(ph); }
-  });
-  // owned parts
-  owned.forEach(k=>{ const p=parts[k]; if(!p||!p.model) return;
-    jobs.push(loader.loadAsync(A+p.model).then(g=>{applyTransform(g.scene,p.transform);scene.add(g.scene);}).catch(e=>{window.__err=k+':'+e.message;})); });
-
-  await Promise.all(jobs);
-
+function finish(camera,bl){
   const composer=new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene,cam));
-  const bl=man.scene&&man.scene.bloom||{}; composer.addPass(new UnrealBloomPass(new THREE.Vector2(W,H),bl.strength??0.6,bl.radius??0.5,bl.threshold??0.8));
+  composer.addPass(new RenderPass(scene,camera));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(W,H),bl?.strength??0.5,bl?.radius??0.5,bl?.threshold??0.82));
   composer.addPass(new OutputPass());
-  let f=0;(function loop(){composer.render(); if(++f>4){window.__ready=true; return;} requestAnimationFrame(loop);})();
+  let f=0;(function loop(){composer.render(); if(++f>5){window.__ready=true; return;} requestAnimationFrame(loop);})();
 }
-build().catch(e=>{window.__err=String(e&&e.stack||e); window.__ready=true;});
+
+async function contact(){
+  const files=(qs.get('models')||'').split(',').filter(Boolean);
+  await setupEnv(qs.get('hdri'));
+  const per=2.0, cols=Math.ceil(Math.sqrt(files.length)), startX=-(Math.min(files.length,cols)-1)*per/2;
+  let i=0;
+  for(const f of files){
+    const col=i%cols, row=Math.floor(i/cols);
+    try{ const g=await loader.loadAsync(A+'models/'+f); meshify(g.scene);
+      place(g.scene,{fitHeight:1.0,pos:[startX+col*per,0,-row*per]}, f); scene.add(g.scene);
+    }catch(e){ window.__dbg[f]={error:String(e.message||e)}; }
+    i++;
+  }
+  const span=Math.max(cols*per, Math.ceil(files.length/cols)*per);
+  const cam=new THREE.PerspectiveCamera(40,W/H,0.1,200);
+  cam.position.set(0, span*0.7, span*1.15); cam.lookAt(0,0.4,-(Math.ceil(files.length/cols)-1)*per/2);
+  finish(cam,{strength:0.35,threshold:0.85});
+}
+
+async function scene_(){
+  const man=await (await fetch(A+'rig_manifest.json')).json();
+  const cm=man.scene?.camera||{};
+  const cam=new THREE.PerspectiveCamera(cm.fov||42,W/H,0.1,100);
+  cam.position.set(...(cm.pos||[-1.6,1.4,3.0])); cam.lookAt(...(cm.target||[0.3,0.85,-0.6]));
+  for(let i=-4;i<=4;i++){const s=new THREE.Mesh(new THREE.PlaneGeometry(0.04,18),new THREE.MeshBasicMaterial({color:i%2?MAG:TEAL,transparent:true,opacity:0.4}));s.rotation.x=-Math.PI/2;s.position.set(i*0.8,0.001,-2);scene.add(s);}
+  await setupEnv(man.scene?.hdri);
+
+  const parts=man.parts||{};
+  const ownParam=qs.get('own');
+  const owned=ownParam!=null? new Set(ownParam?ownParam.split(','):[]) : new Set(Object.keys(parts).filter(k=>parts[k].model));
+  const replaced=new Set(); owned.forEach(k=>{ if(parts[k]?.replaces) replaced.add(parts[k].replaces); });
+
+  // 1) load desk first to find the desktop height
+  const deskEntry = (owned.has('desk')&&parts.desk?.model)? parts.desk
+    : (man.base||[]).find(b=>b.id==='desk_base' && b.model);
+  let deskTop=0.75;
+  if(deskEntry){ const g=await loader.loadAsync(A+deskEntry.model); meshify(g.scene); const box=place(g.scene,deskEntry.transform,'desk'); scene.add(g.scene); deskTop=box.max.y; }
+
+  // 2) everything else; on:'desk' items sit at deskTop
+  const items=[];
+  (man.base||[]).forEach(b=>{ if(b.id==='desk_base'||replaced.has(b.id)||!b.model) return; items.push([b.id,b]); });
+  owned.forEach(k=>{ const p=parts[k]; if(!p||!p.model||k==='desk') return; items.push([k,p]); });
+
+  for(const [id,e] of items){
+    try{ const g=await loader.loadAsync(A+e.model); meshify(g.scene);
+      const tf=Object.assign({},e.transform); if(e.on==='desk'){ tf.pos=[...(tf.pos||[0,0,0])]; tf.pos[1]=deskTop+(tf.pos[1]||0); }
+      place(g.scene,tf,id); if(e.screen) applyScreen(g.scene); scene.add(g.scene);
+    }catch(err){ window.__dbg[id]={error:String(err.message||err)}; window.__err+=id+':'+err.message+';'; }
+  }
+  finish(cam,man.scene?.bloom);
+}
+
+(qs.get('contact')? contact():scene_()).catch(e=>{window.__err=String(e&&e.stack||e); window.__ready=true;});
 </script>
 </body></html>

@@ -14,8 +14,11 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));         // repo root
-const out  = process.argv[2] || path.join(ROOT, 'tools/output/rig.png');
-const own  = process.argv[4];                                       // optional ?own=
+const args = process.argv.slice(2);
+const getf = (n,d)=>{ const a=args.find(x=>x.startsWith('--'+n+'=')); return a?a.slice(n.length+3):d; };
+const contact = args.includes('--contact');
+const own = getf('own', null);
+const out = getf('out', path.join(ROOT, contact ? 'tools/output/rig_contact.png' : 'tools/output/rig.png'));
 fs.mkdirSync(path.dirname(out), { recursive: true });
 
 const TM = { '.html':'text/html','.js':'text/javascript','.mjs':'text/javascript',
@@ -53,12 +56,15 @@ page.on('console',m=>{ if(m.type()==='error') errs.push('c:'+m.text()); });
 page.on('response',r=>{ if(r.status()>=400) errs.push('HTTP'+r.status()+' '+r.url()); });
 
 let url = `http://127.0.0.1:8131/?w=${W}&h=${H}`;
+if (contact){ const files=fs.readdirSync(path.join(ROOT,'assets/rig/models')).filter(f=>/\.glb$/i.test(f)); url+=`&contact=1&models=${encodeURIComponent(files.join(','))}`; }
 if (own != null) url += `&own=${encodeURIComponent(own)}`;
 await page.goto(url, { waitUntil:'load' });
 let ready=false; try { await page.waitForFunction('window.__ready===true',null,{ timeout:300000 }); ready=true; } catch(e){}
 const sceneErr = await page.evaluate(()=>window.__err);
+const dbg = await page.evaluate(()=>window.__dbg||{});
 await page.waitForTimeout(300);
 await page.screenshot({ path: out, timeout:300000 });
 await browser.close(); server.close();
 console.log(`rendered → ${out}  ready=${ready}  sceneErr=${sceneErr||'none'}`);
-if (errs.length) console.log(errs.slice(0,6).join('\n'));
+console.log('sizes [native WxHxD | final y]:'); for(const [k,v] of Object.entries(dbg)) console.log('  '+k+': '+JSON.stringify(v));
+if (errs.length) console.log('errors:\n'+errs.slice(0,6).join('\n'));

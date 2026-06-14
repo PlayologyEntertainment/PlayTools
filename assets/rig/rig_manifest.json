@@ -1,29 +1,23 @@
 {
   "scene": {
-    "hdri": null,
-    "camera": { "pos": [-1.5, 1.35, 2.9], "target": [0.4, 0.85, -0.7], "fov": 42 },
-    "bloom": { "strength": 0.6, "radius": 0.5, "threshold": 0.8 }
+    "hdri": "models/ferndale_studio_04_1k.exr",
+    "camera": { "pos": [-1.95, 1.5, 2.85], "target": [0.35, 0.78, -0.45], "fov": 42 },
+    "bloom": { "strength": 0.5, "radius": 0.5, "threshold": 0.8 }
   },
   "base": [
-    { "id": "desk_base",    "model": null, "transform": { "pos": [0.3, 0, -0.75] }, "_note": "placeholder desk drawn until a model is provided" },
-    { "id": "monitor_base", "model": null, "transform": { "pos": [0, 0.78, -1.0] }, "screen": "synthwave" },
-    { "id": "tower_base",   "model": null, "transform": { "pos": [1.7, 0.78, -0.85] } },
-    { "id": "keyboard_base","model": null, "transform": { "pos": [-0.05, 0.80, -0.5] } },
-    { "id": "mouse_base",   "model": null, "transform": { "pos": [0.5, 0.80, -0.45] } }
+    { "id": "desk_base",     "model": "models/desk_base.glb",     "transform": { "pos": [0.3, 0, -0.4], "scale": 0.01, "rotY": 90 }, "_note": "model is in cm; long axis along Z so rotate 90" },
+    { "id": "monitor_base",  "model": "models/monitor_base.glb",  "on": "desk", "transform": { "pos": [0.3, 0, -0.5] }, "screen": "synthwave" },
+    { "id": "tower_base",    "model": "models/tower_base.glb",    "transform": { "pos": [1.05, 0, -0.05] } },
+    { "id": "keyboard_base", "model": "models/keyboard_base.glb", "on": "desk", "transform": { "pos": [0.3, 0, -0.18] } },
+    { "id": "mouse_base",    "model": "models/mouse_base.glb",    "on": "desk", "transform": { "pos": [0.66, 0, -0.18], "fitHeight": 0.04 } }
   ],
   "parts": {
-    "chair":    { "model": "models/chair_office_basic.glb", "replaces": "chair_base",
-                  "transform": { "pos": [-0.7, 0, 0.65], "rotY": 28, "fitHeight": 1.05 },
-                  "credit": "Quaternius — CC0 (placeholder/basic chair)" },
-    "monitor":  { "model": null, "replaces": "monitor_base", "transform": { "pos": [0, 0.78, -1.0] }, "screen": "synthwave" },
-    "keyboard": { "model": null, "replaces": "keyboard_base", "transform": { "pos": [-0.05, 0.80, -0.5] } },
-    "mouse":    { "model": null, "replaces": "mouse_base", "transform": { "pos": [0.5, 0.80, -0.45] } },
-    "headset":  { "model": null, "transform": { "pos": [2.05, 0.78, -0.55] } },
-    "desk":     { "model": null, "replaces": "desk_base", "transform": { "pos": [0.3, 0, -0.75] } },
-    "rgb":      { "model": null, "transform": { "pos": [0.3, 0.75, -0.3] } },
-    "poster":   { "model": null, "transform": { "pos": [-1.2, 2.1, -1.5] } },
-    "desktoy":  { "model": null, "transform": { "pos": [-0.9, 0.80, -0.55] } },
-    "gpu":      { "model": null, "transform": { "pos": [1.7, 0.95, -0.85] }, "_note": "case-interior accent" },
-    "cooling":  { "model": null, "transform": { "pos": [1.7, 1.05, -0.85] }, "_note": "case-interior accent" }
+    "chair":        { "model": "models/gaming_chair.glb", "replaces": "chair_base", "transform": { "pos": [-0.45, 0, 0.75], "rotY": 28 }, "credit": "user-supplied" },
+    "monitor":      { "model": "models/monitor_ultrawide.glb", "replaces": "monitor_base", "on": "desk", "transform": { "pos": [0.3, 0, -0.52], "fitHeight": 0.42, "rotY": 90 }, "screen": "synthwave" },
+    "monitor_flat": { "model": "models/monitor_flat.glb", "on": "desk", "transform": { "pos": [-1.1, 0, -0.5] }, "screen": "synthwave", "_note": "alternate; not shown by default" },
+    "keyboard":     { "model": "models/keyboard_upgrade.glb", "replaces": "keyboard_base", "on": "desk", "transform": { "pos": [0.3, 0, -0.18] } },
+    "headset":      { "model": "models/headphone_headset.glb", "on": "desk", "transform": { "pos": [0.74, 0, -0.5] } },
+    "desktoy":      { "model": "models/toy1.glb", "on": "desk", "transform": { "pos": [-0.05, 0, -0.45] } },
+    "desktoy2":     { "model": "models/toy2.glb", "on": "desk", "transform": { "pos": [0.05, 0, -0.35], "fitHeight": 0.16 }, "_note": "second toy; not shown by default" }
   }
 }

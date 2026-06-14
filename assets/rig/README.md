@@ -21,4 +21,8 @@ rig_manifest.json  ← maps NetStore part ids → model + placement
 - Furniture origin = footprint centre on the floor; desk-top items = base resting point.
 - < ~50k tris, ≤ 2K textures per item. Note license in the manifest `credit` field.
 
-Currently provided: `models/chair_office_basic.glb` (Quaternius CC0) — a placeholder/basic chair.
+Currently provided & wired: desk, gaming chair, monitors (base/flat/ultrawide), keyboards
+(base/upgrade), mouse, tower, headset, two desk toys, and a `.exr` HDRI
+(`ferndale_studio_04_1k`). See `rig_manifest.json` for the mapping. Per-model scales/
+placements are tuned in the manifest `transform` blocks (some source models ship in cm or
+odd units — handled there).
