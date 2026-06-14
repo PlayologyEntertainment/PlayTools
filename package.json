@@ -10,7 +10,7 @@
     "browser": "node test/browser.mjs",
     "rig:preview": "node tools/rig-preview.mjs",
     "rig:edit": "node tools/rig-edit.mjs",
-    "rig:bundle": "esbuild tools/rig-inapp.mjs --bundle --format=esm --minify --legal-comments=none --outfile=tools/rig-inapp.bundle.mjs",
+    "rig:bundle": "esbuild tools/rig-inapp.mjs --bundle --format=esm --minify --legal-comments=none --outfile=tools/rig-inapp.bundle.js",
     "serve": "node tools/serve.mjs"
   },
   "devDependencies": {
