@@ -26,3 +26,9 @@ Currently provided & wired: desk, gaming chair, monitors (base/flat/ultrawide), 
 (`ferndale_studio_04_1k`). See `rig_manifest.json` for the mapping. Per-model scales/
 placements are tuned in the manifest `transform` blocks (some source models ship in cm or
 odd units — handled there).
+
+**Procedural parts** (no `.glb`): the RGB Light Kit (`rgb`) and Wall Poster (`poster`) are
+built in-engine via a `"proc": "<type>"` manifest entry, plus an optional `scene.wall` for
+the poster to hang on. Alternates (the flat monitor, the second toy) are flagged
+`"default": false` so the hero render stays clean. Still want real models: the GPU/internal
+hardware and the sit/stand desk upgrade. Full field reference in the spec (§4).

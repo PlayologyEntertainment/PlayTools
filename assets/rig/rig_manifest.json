@@ -2,7 +2,8 @@
   "scene": {
     "hdri": "models/ferndale_studio_04_1k.exr",
     "camera": { "pos": [-1.95, 1.5, 2.85], "target": [0.35, 0.78, -0.45], "fov": 42 },
-    "bloom": { "strength": 0.5, "radius": 0.5, "threshold": 0.8 }
+    "bloom": { "strength": 0.5, "radius": 0.5, "threshold": 0.8 },
+    "wall": { "w": 16, "h": 5, "z": -2.3, "x": 0, "color": 658458 }
   },
   "base": [
     { "id": "desk_base",     "model": "models/desk_base.glb",     "transform": { "pos": [0.3, 0, -0.4], "scale": 0.01, "rotY": 90 }, "_note": "model is in cm; long axis along Z so rotate 90" },
@@ -12,12 +13,14 @@
     { "id": "mouse_base",    "model": "models/mouse_base.glb",    "on": "desk", "transform": { "pos": [0.66, 0, -0.18], "fitHeight": 0.04 } }
   ],
   "parts": {
-    "chair":        { "model": "models/gaming_chair.glb", "replaces": "chair_base", "transform": { "pos": [-0.45, 0, 0.75], "rotY": 28 }, "credit": "user-supplied" },
+    "chair":        { "model": "models/gaming_chair.glb", "replaces": "chair_base", "transform": { "pos": [0.62, 0, 0.82], "rotY": -22 }, "credit": "user-supplied", "_note": "right foreground, angled toward the desk so it frames the shot instead of blocking the monitor" },
     "monitor":      { "model": "models/monitor_ultrawide.glb", "replaces": "monitor_base", "on": "desk", "transform": { "pos": [0.3, 0, -0.52], "fitHeight": 0.42, "rotY": 90 }, "screen": "synthwave" },
-    "monitor_flat": { "model": "models/monitor_flat.glb", "on": "desk", "transform": { "pos": [-1.1, 0, -0.5] }, "screen": "synthwave", "_note": "alternate; not shown by default" },
+    "monitor_flat": { "model": "models/monitor_flat.glb", "on": "desk", "transform": { "pos": [-1.1, 0, -0.5] }, "screen": "synthwave", "default": false, "_note": "alternate; not shown by default" },
     "keyboard":     { "model": "models/keyboard_upgrade.glb", "replaces": "keyboard_base", "on": "desk", "transform": { "pos": [0.3, 0, -0.18] } },
-    "headset":      { "model": "models/headphone_headset.glb", "on": "desk", "transform": { "pos": [0.74, 0, -0.5] } },
+    "headset":      { "model": "models/headphone_headset.glb", "on": "desk", "transform": { "pos": [-0.18, 0, -0.22] }, "_note": "front-left of the desktop, clear of the monitor so it reads" },
     "desktoy":      { "model": "models/toy1.glb", "on": "desk", "transform": { "pos": [-0.05, 0, -0.45] } },
-    "desktoy2":     { "model": "models/toy2.glb", "on": "desk", "transform": { "pos": [0.05, 0, -0.35], "fitHeight": 0.16 }, "_note": "second toy; not shown by default" }
+    "desktoy2":     { "model": "models/toy2.glb", "on": "desk", "transform": { "pos": [0.05, 0, -0.35], "fitHeight": 0.16 }, "default": false, "_note": "second toy; not shown by default" },
+    "rgb":          { "proc": "rgb", "transform": { "pos": [0.3, 0.70, -0.08], "w": 1.24 }, "credit": "procedural", "_note": "LED strip along the desk front edge + under-desk floor wash" },
+    "poster":       { "proc": "poster", "transform": { "pos": [-0.72, 1.72, -2.27] }, "credit": "procedural", "_note": "framed neon NETCOIN print on the back wall, upper-left" }
   }
 }

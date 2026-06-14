@@ -47,6 +47,39 @@ function synthwaveTex(){const c=document.createElement('canvas');c.width=1024;c.
   x.strokeStyle='#ff2bd6';x.lineWidth=2;for(let i=-12;i<=12;i++){x.beginPath();x.moveTo(512+i*15,300);x.lineTo(512+i*140,440);x.stroke();}
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 
+// Wall-poster artwork — a neon "NETCOIN" grid print (procedural; no sourced art).
+function posterTex(){const c=document.createElement('canvas');c.width=420;c.height=600;const x=c.getContext('2d');
+  x.fillStyle='#0a0820';x.fillRect(0,0,420,600);
+  const g=x.createLinearGradient(0,0,0,600);g.addColorStop(0,'#2a0e54');g.addColorStop(.55,'#5a166b');g.addColorStop(1,'#0a0820');x.fillStyle=g;x.fillRect(0,0,420,600);
+  // horizon sun
+  const cx=210,cy=250,r=120,sg=x.createLinearGradient(0,cy-r,0,cy+r);sg.addColorStop(0,'#ffe24a');sg.addColorStop(.5,'#ff5da2');sg.addColorStop(1,'#a02a8f');
+  x.save();x.beginPath();x.arc(cx,cy,r,0,Math.PI*2);x.clip();x.fillStyle=sg;x.fillRect(cx-r,cy-r,r*2,r*2);x.fillStyle='#0a0820';for(let i=0;i<9;i++)x.fillRect(cx-r,cy+i*12,r*2,5-i*0.2);x.restore();
+  // perspective floor grid
+  x.strokeStyle='#16f2c8';x.lineWidth=2;for(let i=-10;i<=10;i++){x.beginPath();x.moveTo(210+i*22,360);x.lineTo(210+i*150,600);x.stroke();}
+  for(let i=0;i<8;i++){const y=360+i*i*4;x.beginPath();x.moveTo(0,y);x.lineTo(420,y);x.stroke();}
+  x.fillStyle='#ffd23d';x.font='bold 44px monospace';x.textAlign='center';x.fillText('NETCOIN',210,90);
+  x.fillStyle='#ff3df0';x.font='16px monospace';x.fillText('// MINE  ·  STACK  ·  ASCEND',210,120);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+
+// Procedural NetStore items (no .glb needed). Each returns an Object3D placed via place().
+const PROC={
+  // RGB Light Kit — an emissive strip that rims the desk's front edge plus a soft
+  // under-desk floor wash. Bloom turns the strip into neon; point lights spill colour.
+  rgb(e){const g=new THREE.Group(); const w=e.w??1.24, segs=e.segs??24;
+    for(let i=0;i<segs;i++){ const t=i/(segs-1); const col=new THREE.Color().setHSL(0.5+0.45*Math.sin(t*Math.PI),1,0.6);
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w/segs*0.92,0.012,0.012),new THREE.MeshStandardMaterial({color:0x05060b,emissive:col,emissiveIntensity:1.0}));
+      m.position.x=-w/2+w*t; g.add(m); }
+    // soft under-desk floor wash — kept low and aimed downward so it doesn't bloom over the desktop
+    const teal=new THREE.PointLight(0x16f2c8,1.4,1.4,2.2); teal.position.set(-w*0.3,-0.3,-0.02);
+    const mag=new THREE.PointLight(0xff3df0,1.4,1.4,2.2); mag.position.set(w*0.3,-0.3,-0.02);
+    g.add(teal,mag); g.userData.noFloor=true; return g; },
+  // Wall Poster — framed neon print, mounted flat on the back wall.
+  poster(e){const w=e.w??0.62, h=e.h??0.88, tex=posterTex();
+    const art=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:0.4,roughness:0.55,metalness:0}));
+    const frame=new THREE.Mesh(new THREE.BoxGeometry(w+0.06,h+0.06,0.025),new THREE.MeshStandardMaterial({color:0x141c33,roughness:0.4,metalness:0.7}));
+    art.position.z=0.015; const g=new THREE.Group(); g.add(frame,art); g.userData.noFloor=true; return g; }
+};
+
 const draco=new DRACOLoader(); draco.setDecoderPath('/jsm/libs/draco/');
 const loader=new GLTFLoader(); loader.setDRACOLoader(draco);
 
@@ -61,9 +94,15 @@ function place(model,tf,id){
   if(tf.fitHeight){model.scale.setScalar(tf.fitHeight/size.y);}
   else if(tf.scale){Array.isArray(tf.scale)?model.scale.set(...tf.scale):model.scale.setScalar(tf.scale);}
   if(tf.rotY) model.rotation.y=tf.rotY*Math.PI/180;
-  box=new THREE.Box3().setFromObject(model); const c=box.getCenter(new THREE.Vector3());
-  model.position.x+=-c.x; model.position.z+=-c.z; model.position.y+=-box.min.y;
-  const p=tf.pos||[0,0,0]; model.position.x+=p[0]; model.position.y+=p[1]; model.position.z+=p[2];
+  if(tf.rotX) model.rotation.x=tf.rotX*Math.PI/180;
+  const p=tf.pos||[0,0,0];
+  if(model.userData.noFloor){ // procedural wall/under-desk items: position centre absolutely
+    model.position.set(p[0],p[1],p[2]);
+  } else {
+    box=new THREE.Box3().setFromObject(model); const c=box.getCenter(new THREE.Vector3());
+    model.position.x+=-c.x; model.position.z+=-c.z; model.position.y+=-box.min.y;
+    model.position.x+=p[0]; model.position.y+=p[1]; model.position.z+=p[2];
+  }
   box=new THREE.Box3().setFromObject(model); const fs=box.getSize(new THREE.Vector3());
   window.__dbg[id]={native:nat, final:[+fs.x.toFixed(2),+fs.y.toFixed(2),+fs.z.toFixed(2)], y:+model.position.y.toFixed(2)};
   return box;
@@ -110,11 +149,15 @@ async function scene_(){
   const cam=new THREE.PerspectiveCamera(cm.fov||42,W/H,0.1,100);
   cam.position.set(...(cm.pos||[-1.6,1.4,3.0])); cam.lookAt(...(cm.target||[0.3,0.85,-0.6]));
   for(let i=-4;i<=4;i++){const s=new THREE.Mesh(new THREE.PlaneGeometry(0.04,18),new THREE.MeshBasicMaterial({color:i%2?MAG:TEAL,transparent:true,opacity:0.4}));s.rotation.x=-Math.PI/2;s.position.set(i*0.8,0.001,-2);scene.add(s);}
+  // optional back wall — gives posters a home and bounces the neon
+  const wc=man.scene?.wall; if(wc){ const wall=new THREE.Mesh(new THREE.PlaneGeometry(wc.w??16,wc.h??5),new THREE.MeshStandardMaterial({color:wc.color??0x0a0c1a,roughness:0.7,metalness:0.15}));
+    wall.position.set(wc.x??0,(wc.h??5)/2,wc.z??-2.3); wall.receiveShadow=true; scene.add(wall); }
   await setupEnv(man.scene?.hdri);
 
   const parts=man.parts||{};
   const ownParam=qs.get('own');
-  const owned=ownParam!=null? new Set(ownParam?ownParam.split(','):[]) : new Set(Object.keys(parts).filter(k=>parts[k].model));
+  // default (no ?own=) = every modelled/procedural part except those flagged default:false (alternates)
+  const owned=ownParam!=null? new Set(ownParam?ownParam.split(','):[]) : new Set(Object.keys(parts).filter(k=>(parts[k].model||parts[k].proc)&&parts[k].default!==false));
   const replaced=new Set(); owned.forEach(k=>{ if(parts[k]?.replaces) replaced.add(parts[k].replaces); });
 
   // 1) load desk first to find the desktop height
@@ -126,12 +169,15 @@ async function scene_(){
   // 2) everything else; on:'desk' items sit at deskTop
   const items=[];
   (man.base||[]).forEach(b=>{ if(b.id==='desk_base'||replaced.has(b.id)||!b.model) return; items.push([b.id,b]); });
-  owned.forEach(k=>{ const p=parts[k]; if(!p||!p.model||k==='desk') return; items.push([k,p]); });
+  owned.forEach(k=>{ const p=parts[k]; if(!p||(!p.model&&!p.proc)||k==='desk') return; items.push([k,p]); });
 
   for(const [id,e] of items){
-    try{ const g=await loader.loadAsync(A+e.model); meshify(g.scene);
+    try{
       const tf=Object.assign({},e.transform); if(e.on==='desk'){ tf.pos=[...(tf.pos||[0,0,0])]; tf.pos[1]=deskTop+(tf.pos[1]||0); }
-      place(g.scene,tf,id); if(e.screen) applyScreen(g.scene); scene.add(g.scene);
+      let obj;
+      if(e.proc){ obj=PROC[e.proc](tf); meshify(obj); place(obj,tf,id); }
+      else { const g=await loader.loadAsync(A+e.model); obj=g.scene; meshify(obj); place(obj,tf,id); if(e.screen) applyScreen(obj); }
+      scene.add(obj);
     }catch(err){ window.__dbg[id]={error:String(err.message||err)}; window.__err+=id+':'+err.message+';'; }
   }
   finish(cam,man.scene?.bloom);

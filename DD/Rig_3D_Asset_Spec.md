@@ -117,9 +117,25 @@ as models arrive; you just supply the file. Tiered parts list a model per tier.
 ```
 
 **Fields:** `model` (path under `assets/rig/`), `transform` (`pos` [x,y,z] metres,
-`rotY` degrees, `scale` number or [x,y,z]), `replaces` (a base id this swaps out when
-owned), `screen` (which procedural screen image to project — the monitor content is
-code-driven, not a sourced texture), `credit` (license/attribution).
+`rotY`/`rotX` degrees, `scale` number or [x,y,z], `fitHeight` to scale by target height),
+`replaces` (a base id this swaps out when owned), `screen` (which procedural screen image
+to project — the monitor content is code-driven, not a sourced texture), `credit`
+(license/attribution).
+
+**Procedural parts (`proc`):** an item with `"proc": "<type>"` instead of `model` is built
+in-engine — no `.glb` needed. Implemented builders: `rgb` (LED strip along the desk front
+edge + a soft under-desk floor wash) and `poster` (framed neon NETCOIN print on the back
+wall). Their `transform.pos` is the **absolute centre** in metres (not floored), and they
+take a few extra params (`w`/`h`/`segs`). Procedural parts are how the always-cosmetic items
+(RGB kit, poster) ship without sourcing — internal hardware (GPU, RAM/PSU) and the
+sit/stand desk still want real `.glb` models.
+
+**`"default": false`** marks an alternate that the preview's "show everything" mode skips
+(e.g. the flat monitor and the second desk toy) so the hero shot stays clean; it still
+renders when explicitly owned via `?own=`.
+
+**`scene.wall`** (optional) draws a dark back wall (`w`/`h`/`z`/`x`/`color`) so wall-mounted
+posters have a home and the neon bounces.
 
 ---
 
