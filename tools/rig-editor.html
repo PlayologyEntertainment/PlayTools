@@ -1,0 +1,212 @@
+<!doctype html><html><head><meta charset="utf-8"><title>The Rig — layout editor</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060b;color:#dfe6ff;font:13px/1.4 system-ui,sans-serif;overflow:hidden}
+  #app{display:flex;height:100%}
+  #view{flex:1;position:relative}
+  #panel{width:320px;background:#0b0f1e;border-left:1px solid #1b2440;padding:14px;overflow-y:auto;box-sizing:border-box}
+  h1{font-size:15px;margin:0 0 4px;color:#16f2c8;letter-spacing:.5px}
+  .hint{color:#7b86b4;font-size:11px;margin:0 0 12px}
+  fieldset{border:1px solid #1b2440;border-radius:8px;margin:0 0 12px;padding:10px}
+  legend{color:#ffd23d;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:0 6px}
+  label{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px}
+  label>span:first-child{width:74px;color:#9aa6d8;flex:none}
+  input[type=range]{flex:1;min-width:0;accent-color:#16f2c8}
+  input[type=number]{width:64px;background:#070b18;color:#dfe6ff;border:1px solid #26315a;border-radius:4px;padding:3px 5px}
+  select,button{background:#111934;color:#dfe6ff;border:1px solid #2a3768;border-radius:6px;padding:6px 8px;font:inherit;cursor:pointer}
+  select{width:100%}
+  button{width:100%;margin-top:6px}
+  button.go{background:#16382f;border-color:#16f2c8;color:#9af5e0}
+  textarea{width:100%;height:150px;background:#070b18;color:#9af5e0;border:1px solid #26315a;border-radius:6px;font:11px/1.35 ui-monospace,monospace;box-sizing:border-box;margin-top:6px}
+  .readout{font:11px ui-monospace,monospace;color:#7b86b4;white-space:pre-wrap;margin-top:6px}
+  .row2{display:flex;gap:8px}.row2>label{flex:1}
+  #err{position:absolute;left:10px;bottom:10px;color:#ff7da6;font:11px ui-monospace,monospace;max-width:60%}
+</style>
+<script type="importmap">{"imports":{"three":"/three/three.module.js","three/addons/":"/jsm/"}}</script>
+</head><body>
+<div id="app">
+  <div id="view"><div id="err"></div></div>
+  <div id="panel">
+    <h1>THE RIG — layout editor</h1>
+    <p class="hint">Drag to orbit · scroll to zoom · right-drag to pan. Tweak a part, then Export the manifest.</p>
+
+    <fieldset><legend>Camera</legend>
+      <div class="readout" id="camRead">—</div>
+      <label><span>FOV</span><input type="range" id="fov" min="20" max="80" step="1"><input type="number" id="fovN" step="1"></label>
+    </fieldset>
+
+    <fieldset><legend>Lighting</legend>
+      <label><span>Bloom str</span><input type="range" id="bloomS" min="0" max="1.2" step="0.01"><input type="number" id="bloomSN" step="0.01"></label>
+      <label><span>Bloom thr</span><input type="range" id="bloomT" min="0" max="1" step="0.01"><input type="number" id="bloomTN" step="0.01"></label>
+    </fieldset>
+
+    <fieldset><legend>Part</legend>
+      <select id="part"></select>
+      <label style="margin-top:8px"><span>Visible</span><input type="checkbox" id="vis" style="flex:none"></label>
+      <label><span>X</span><input type="range" id="px" min="-3" max="3" step="0.01"><input type="number" id="pxN" step="0.01"></label>
+      <label><span>Y</span><input type="range" id="py" min="-1" max="3.5" step="0.01"><input type="number" id="pyN" step="0.01"></label>
+      <label><span>Z</span><input type="range" id="pz" min="-3" max="3" step="0.01"><input type="number" id="pzN" step="0.01"></label>
+      <label><span>Rot Y°</span><input type="range" id="ry" min="-180" max="180" step="1"><input type="number" id="ryN" step="1"></label>
+      <label id="scaleRow"><span id="scaleLab">Scale</span><input type="number" id="scaleN" step="0.001"><input type="range" id="scaleX" min="0.2" max="3" step="0.01" title="× current"></label>
+    </fieldset>
+
+    <button class="go" id="export">Export manifest JSON</button>
+    <button id="download">Download rig_manifest.json</button>
+    <button id="copy">Copy to clipboard</button>
+    <textarea id="out" spellcheck="false" placeholder="Exported JSON appears here…"></textarea>
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { A, buildLights, buildFloor, buildScene, makeLoader, place } from '/tools/rig-build.mjs';
+
+const view=document.getElementById('view'); const errEl=document.getElementById('err');
+window.__err='';
+const W=()=>view.clientWidth, H=()=>view.clientHeight;
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(W(),H());
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.8;
+renderer.outputColorSpace=THREE.SRGBColorSpace; view.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#0b0816');
+buildLights(scene); buildFloor(scene);
+const loader=makeLoader();
+
+const cam=new THREE.PerspectiveCamera(42, W()/H(), 0.1, 100);
+const controls=new OrbitControls(cam, renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08;
+
+let composer, bloomPass;
+function buildComposer(){
+  composer=new EffectComposer(renderer); composer.setSize(W(),H());
+  composer.addPass(new RenderPass(scene,cam));
+  bloomPass=new UnrealBloomPass(new THREE.Vector2(W(),H()),0.25,0.5,0.85);
+  composer.addPass(bloomPass); composer.addPass(new OutputPass());
+}
+buildComposer();
+
+let man, placed=[], deskTop=0.75; const editTf={};
+
+function tfOf(entry){ // editable copy of a transform
+  const t=entry.transform||{}; const o={ pos:[...(t.pos||[0,0,0])] };
+  if('rotY' in t) o.rotY=t.rotY; if('rotX' in t) o.rotX=t.rotX;
+  if('fitHeight' in t) o.fitHeight=t.fitHeight; else o.scale=('scale' in t? t.scale : 1);
+  return o;
+}
+function replace(rec){
+  const t=editTf[rec.id]; const tf=Object.assign({}, t, { pos:[...t.pos] });
+  if(rec.on) tf.pos[1]=deskTop+(t.pos[1]||0);
+  place(rec.obj, tf, rec.id, null);
+}
+function reflowDesk(){
+  const desk=placed.find(r=>r.id==='desk'); if(!desk) return;
+  const box=new THREE.Box3().setFromObject(desk.obj); deskTop=box.max.y;
+  placed.filter(r=>r.on).forEach(replace);
+}
+
+async function init(){
+  man=await (await fetch(A+'rig_manifest.json')).json();
+  const cm=man.scene?.camera||{};
+  cam.position.set(...(cm.pos||[-1.95,1.5,2.85]));
+  controls.target.set(...(cm.target||[0.35,0.78,-0.45]));
+  if(cm.fov) cam.fov=cm.fov; cam.updateProjectionMatrix();
+  const bl=man.scene?.bloom||{}; bloomPass.strength=bl.strength??0.25; bloomPass.threshold=bl.threshold??0.85;
+
+  // load EVERY part (incl. alternates) so they can be toggled; hide default:false ones.
+  const allKeys=Object.keys(man.parts||{}).join(',');
+  const res=await buildScene(scene, renderer, loader, man, { ownParam: allKeys, dbg:null });
+  placed=res.placed; deskTop=res.deskTop;
+  placed.forEach(r=>{ editTf[r.id]=tfOf(r.entry);
+    const def=man.parts?.[r.id]?.default; if(def===false) r.obj.visible=false; });
+
+  // populate part selector
+  const sel=document.getElementById('part'); sel.innerHTML='';
+  placed.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.id+(r.obj.visible?'':' (hidden)'); sel.append(o); });
+  sel.onchange=loadPart; loadPart();
+
+  initLightingUI();
+  if(window.__err) errEl.textContent=window.__err;
+}
+
+// ---- per-part controls ----
+const $=id=>document.getElementById(id);
+function curRec(){ return placed.find(r=>r.id===$('part').value); }
+function loadPart(){
+  const r=curRec(); if(!r) return; const t=editTf[r.id];
+  $('vis').checked=r.obj.visible;
+  bind('px','pxN',t.pos[0]); bind('py','pyN',t.pos[1]); bind('pz','pzN',t.pos[2]);
+  bind('ry','ryN', t.rotY||0);
+  const fit='fitHeight' in t; $('scaleLab').textContent=fit?'Fit H (m)':'Scale';
+  $('scaleN').value=fit?t.fitHeight:(t.scale??1); $('scaleX').value=1;
+}
+function bind(rng,num,val){ $(rng).value=val; $(num).value=+(+val).toFixed(3); }
+function apply(){ const r=curRec(); if(!r) return; const t=editTf[r.id];
+  t.pos=[+$('pxN').value,+$('pyN').value,+$('pzN').value]; t.rotY=+$('ryN').value;
+  if('fitHeight' in t) t.fitHeight=+$('scaleN').value; else t.scale=+$('scaleN').value;
+  if(r.id==='desk'){ replace(r); reflowDesk(); } else replace(r);
+  updateCam();
+}
+// wire range<->number pairs
+[['px','pxN'],['py','pyN'],['pz','pzN'],['ry','ryN']].forEach(([rng,num])=>{
+  $(rng).oninput=()=>{ $(num).value=+(+$(rng).value).toFixed(3); apply(); };
+  $(num).oninput=()=>{ $(rng).value=$(num).value; apply(); };
+});
+$('scaleN').oninput=apply;
+$('scaleX').oninput=()=>{ const base=+$('scaleN').value||1; /* multiplier nudges the number live */
+  const r=curRec(); if(!r) return; const t=editTf[r.id]; const start=('fitHeight' in t? t.fitHeight : t.scale)||1;
+  const v=+(start*+$('scaleX').value).toFixed(4); $('scaleN').value=v; };
+$('scaleX').onchange=()=>{ $('scaleX').value=1; }; // reset multiplier after release
+$('vis').onchange=()=>{ const r=curRec(); if(!r) return; r.obj.visible=$('vis').checked;
+  const opt=[...$('part').options].find(o=>o.value===r.id); if(opt) opt.textContent=r.id+(r.obj.visible?'':' (hidden)'); };
+
+function initLightingUI(){
+  pair('fov','fovN', cam.fov, v=>{ cam.fov=v; cam.updateProjectionMatrix(); });
+  pair('bloomS','bloomSN', bloomPass.strength, v=>bloomPass.strength=v);
+  pair('bloomT','bloomTN', bloomPass.threshold, v=>bloomPass.threshold=v);
+}
+function pair(rng,num,val,set){ $(rng).value=val; $(num).value=val;
+  $(rng).oninput=()=>{ $(num).value=$(rng).value; set(+$(rng).value); };
+  $(num).oninput=()=>{ $(rng).value=$(num).value; set(+$(num).value); };
+}
+
+// ---- camera readout + render loop ----
+const camRead=$('camRead'); const r3=v=>+v.toFixed(3);
+function updateCam(){ camRead.textContent=
+  `pos    [${r3(cam.position.x)}, ${r3(cam.position.y)}, ${r3(cam.position.z)}]\n`+
+  `target [${r3(controls.target.x)}, ${r3(controls.target.y)}, ${r3(controls.target.z)}]\nfov    ${Math.round(cam.fov)}`; }
+function onResize(){ renderer.setSize(W(),H()); composer.setSize(W(),H()); cam.aspect=W()/H(); cam.updateProjectionMatrix(); }
+addEventListener('resize', onResize);
+(function loop(){ requestAnimationFrame(loop); controls.update(); updateCam(); composer.render(); })();
+
+// ---- export ----
+function findEntry(out,id){ if(id==='desk') return out.parts.desk||out.base.find(b=>b.id==='desk_base');
+  return (out.parts&&out.parts[id])||(out.base||[]).find(b=>b.id===id); }
+function exportManifest(){
+  const out=JSON.parse(JSON.stringify(man)); out.scene=out.scene||{};
+  out.scene.camera={ pos:[r3(cam.position.x),r3(cam.position.y),r3(cam.position.z)],
+    target:[r3(controls.target.x),r3(controls.target.y),r3(controls.target.z)], fov:Math.round(cam.fov) };
+  out.scene.bloom=Object.assign({}, out.scene.bloom, { strength:+(+bloomPass.strength).toFixed(3), threshold:+(+bloomPass.threshold).toFixed(3) });
+  for(const rec of placed){ const tgt=findEntry(out,rec.id); if(!tgt) continue;
+    const t=editTf[rec.id]; const tf=tgt.transform=Object.assign({}, tgt.transform);
+    tf.pos=[r3(t.pos[0]),r3(t.pos[1]),r3(t.pos[2])];
+    if(t.rotY) tf.rotY=t.rotY; else delete tf.rotY;
+    if(t.rotX) tf.rotX=t.rotX; else delete tf.rotX;
+    if('fitHeight' in t) tf.fitHeight=t.fitHeight; else if(t.scale!==1) tf.scale=t.scale; else delete tf.scale;
+    if(out.parts&&out.parts[rec.id]){ if(!rec.obj.visible) out.parts[rec.id].default=false; else delete out.parts[rec.id].default; }
+  }
+  return JSON.stringify(out,null,2);
+}
+$('export').onclick=()=>{ $('out').value=exportManifest(); };
+$('copy').onclick=async()=>{ const v=$('out').value||exportManifest(); try{ await navigator.clipboard.writeText(v); $('copy').textContent='Copied!'; setTimeout(()=>$('copy').textContent='Copy to clipboard',1200);}catch(e){ $('out').value=v; $('out').select(); } };
+$('download').onclick=()=>{ const v=$('out').value||exportManifest(); const b=new Blob([v],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='rig_manifest.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+init().catch(e=>{ errEl.textContent=String(e&&e.stack||e); });
+</script>
+</body></html>
