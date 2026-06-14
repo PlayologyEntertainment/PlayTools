@@ -53,12 +53,6 @@ export function buildFloor(scene){
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:1,metalness:0}));
   floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor); return floor;
 }
-export function buildFloorStrips(scene){
-  const g = new THREE.Group();
-  for(let i=-4;i<=4;i++){ const s=new THREE.Mesh(new THREE.PlaneGeometry(0.04,18),new THREE.MeshBasicMaterial({color:i%2?MAG:TEAL,transparent:true,opacity:0.4}));
-    s.rotation.x=-Math.PI/2; s.position.set(i*0.8,0.001,-2); g.add(s); }
-  scene.add(g); return g;
-}
 export function buildWall(scene, wc){
   if(!wc) return null;
   const w=wc.w??16, h=wc.h??5;
@@ -159,7 +153,6 @@ export function resolveOwned(man, ownParam){
 // Load + place the whole scene from a manifest. Returns placed records so callers
 // (the editor) can keep live handles. `dbg` (optional) collects per-item sizes.
 export async function buildScene(scene, renderer, loader, man, { ownParam=null, dbg=null }={}){
-  buildFloorStrips(scene);
   buildWall(scene, man.scene?.wall);
   await setupEnv(scene, renderer, man.scene?.hdri);
 
