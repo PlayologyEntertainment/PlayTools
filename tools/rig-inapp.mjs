@@ -21,9 +21,11 @@ export async function mount(container, { ownIds=null }={}){
   const hostW = ()=> container.clientWidth || 640;
   const hostH = ()=> container.clientHeight || Math.round(hostW()*0.62);
 
-  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  // preserveDrawingBuffer so the Share Card can read a still off the live canvas
+  // (toDataURL/drawImage are otherwise blank on a cleared WebGL buffer).
+  const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(hostW(), hostH());
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;  // PCFSoftShadowMap is deprecated (r184) and silently downgrades to this anyway
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
@@ -62,6 +64,8 @@ export async function mount(container, { ownIds=null }={}){
 
   return {
     canvas: renderer.domElement,
+    // Render one fresh frame and return it as a PNG data URL — used by the Share Card.
+    capture(){ composer.render(); return renderer.domElement.toDataURL('image/png'); },
     dispose(){ alive=false; controls.dispose();
       scene.traverse(o=>{ o.geometry?.dispose?.(); const m=o.material; if(m){ (Array.isArray(m)?m:[m]).forEach(x=>{ x.map?.dispose?.(); x.dispose?.(); }); } });
       renderer.dispose(); renderer.forceContextLoss?.(); renderer.domElement.remove(); }
