@@ -164,7 +164,27 @@ export const PROC = {
   poster(e){const w=e.w??0.62, h=e.h??0.88, tex=posterTex();
     const art=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:0.4,roughness:0.55,metalness:0}));
     const frame=new THREE.Mesh(new THREE.BoxGeometry(w+0.06,h+0.06,0.025),new THREE.MeshStandardMaterial({color:0x141c33,roughness:0.4,metalness:0.7}));
-    art.position.z=0.015; const g=new THREE.Group(); g.add(frame,art); g.userData.noFloor=true; return g; }
+    art.position.z=0.015; const g=new THREE.Group(); g.add(frame,art); g.userData.noFloor=true; return g; },
+  // chair_base — a plain 5-star office chair (placeholder until a real .glb is sourced).
+  // Floored item: place() sits it on the ground at pos. The gaming-chair upgrade
+  // `replaces` it, so this is the "mundane" starting seat.
+  chair(e){const seatMat=new THREE.MeshStandardMaterial({color:e.color??0x232a3a,roughness:0.7,metalness:0.15});
+    const metal=new THREE.MeshStandardMaterial({color:0x4a4f63,roughness:0.4,metalness:0.8});
+    const g=new THREE.Group();
+    const seat=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.08,0.46),seatMat); seat.position.y=0.5; g.add(seat);
+    const back=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.5,0.07),seatMat); back.position.set(0,0.78,-0.2); g.add(back);
+    const post=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.42,12),metal); post.position.y=0.27; g.add(post);
+    for(let i=0;i<5;i++){ const a=i/5*Math.PI*2;
+      const leg=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.03,0.05),metal); leg.position.set(Math.cos(a)*0.14,0.05,Math.sin(a)*0.14); leg.rotation.y=-a; g.add(leg);
+      const caster=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.026,0.04,8),metal); caster.position.set(Math.cos(a)*0.27,0.03,Math.sin(a)*0.27); g.add(caster); }
+    return g; },
+  // room — a simple procedural room shell (two side walls) framing the desk. The back
+  // wall comes from `scene.wall`; this adds the L/R returns. noFloor → placed at its
+  // absolute centre (default origin). Placeholder until a room model is sourced.
+  room(e){const h=e.h??5, half=e.half??3.0, depth=e.depth??6, zc=e.zc??0.5,
+      mat=new THREE.MeshStandardMaterial({color:e.color??0x111a30,roughness:0.95,metalness:0,side:THREE.DoubleSide});
+    const mk=x=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(depth,h),mat); m.rotation.y=Math.PI/2; m.position.set(x,h/2,zc); m.receiveShadow=true; return m; };
+    const g=new THREE.Group(); g.add(mk(-half), mk(half)); g.userData.noFloor=true; return g; }
 };
 
 // ---- model helpers ---------------------------------------------------------
@@ -224,13 +244,16 @@ export function resolveOwned(man, ownParam){
 
 // Load + place the whole scene from a manifest. Returns placed records so callers
 // (the editor) can keep live handles. `dbg` (optional) collects per-item sizes.
-export async function buildScene(scene, renderer, loader, man, { ownParam=null, dbg=null, wall=null }={}){
-  buildWall(scene, man.scene?.wall, wall);
+// `noReplace` keeps base models that an upgrade would normally swap out (the editor
+// uses it to show the full catalog at once). `skipWall` lets a caller own the back
+// wall itself (the editor builds it separately so it can swap variants live).
+export async function buildScene(scene, renderer, loader, man, { ownParam=null, dbg=null, wall=null, noReplace=false, skipWall=false }={}){
+  if(!skipWall) buildWall(scene, man.scene?.wall, wall);
   await setupEnv(scene, renderer, man.scene?.hdri);
 
   const parts = man.parts||{};
   const owned = resolveOwned(man, ownParam);
-  const replaced = new Set(); owned.forEach(k=>{ if(parts[k]?.replaces) replaced.add(parts[k].replaces); });
+  const replaced = new Set(); if(!noReplace) owned.forEach(k=>{ if(parts[k]?.replaces) replaced.add(parts[k].replaces); });
 
   // 1) desk first, to find the desktop height
   const deskEntry = (owned.has('desk')&&parts.desk?.model)? parts.desk
@@ -242,7 +265,7 @@ export async function buildScene(scene, renderer, loader, man, { ownParam=null, 
 
   // 2) everything else; on:'desk' items sit at deskTop
   const items=[];
-  (man.base||[]).forEach(b=>{ if(b.id==='desk_base'||replaced.has(b.id)||!b.model) return; items.push([b.id,b]); });
+  (man.base||[]).forEach(b=>{ if(b.id==='desk_base'||replaced.has(b.id)||!(b.model||b.proc)) return; items.push([b.id,b]); });
   owned.forEach(k=>{ const p=parts[k]; if(!p||(!p.model&&!p.proc)||k==='desk') return; items.push([k,p]); });
 
   for(const [id,e] of items){

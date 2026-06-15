@@ -39,6 +39,19 @@
       <label><span>Bloom thr</span><input type="range" id="bloomT" min="0" max="1" step="0.01"><input type="number" id="bloomTN" step="0.01"></label>
     </fieldset>
 
+    <fieldset><legend>Scene (preview only)</legend>
+      <label><span>Floor</span><select id="floorV">
+        <option value="floor_t1">Shag carpet — Tier 1</option>
+        <option value="floor_t2">Dark hardwood — Tier 2</option>
+        <option value="floor_t3">Neon glass tiles — Tier 3</option>
+      </select></label>
+      <label><span>Wall</span><select id="wallV">
+        <option value="wall_t1">Beige stucco — Tier 1</option>
+        <option value="wall_t2">Exposed brick — Tier 2</option>
+        <option value="wall_t3">Synthwave mural — Tier 3</option>
+      </select></label>
+    </fieldset>
+
     <fieldset><legend>Part</legend>
       <select id="part"></select>
       <label style="margin-top:8px"><span>Visible</span><input type="checkbox" id="vis" style="flex:none"></label>
@@ -62,7 +75,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { A, buildLights, buildFloor, buildScene, makeLoader, place } from '/tools/rig-build.mjs';
+import { A, buildLights, buildFloor, buildWall, buildScene, makeLoader, place } from '/tools/rig-build.mjs';
 
 const view=document.getElementById('view'); const errEl=document.getElementById('err');
 window.__err='';
@@ -75,8 +88,16 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0
 renderer.outputColorSpace=THREE.SRGBColorSpace; view.appendChild(renderer.domElement);
 
 const scene=new THREE.Scene(); scene.background=new THREE.Color('#0b0816');
-buildLights(scene); buildFloor(scene);
+buildLights(scene);
 const loader=makeLoader();
+
+// Floor + back wall are previewed live (variant choice is not saved to the manifest —
+// the app picks tiers by ownership). We keep handles so the dropdowns can swap them.
+let floorVariant='floor_t1', wallVariant='wall_t1', floorMesh, wallMesh;
+floorMesh=buildFloor(scene, floorVariant);
+function disposeMesh(m){ if(!m) return; scene.remove(m); m.geometry?.dispose(); m.material?.dispose(); }
+function rebuildFloor(){ disposeMesh(floorMesh); floorMesh=buildFloor(scene, floorVariant); }
+function rebuildWall(){ disposeMesh(wallMesh); wallMesh=buildWall(scene, man?.scene?.wall, wallVariant); }
 
 const cam=new THREE.PerspectiveCamera(42, W()/H(), 0.1, 100);
 const controls=new OrbitControls(cam, renderer.domElement);
@@ -118,9 +139,12 @@ async function init(){
   if(cm.fov) cam.fov=cm.fov; cam.updateProjectionMatrix();
   const bl=man.scene?.bloom||{}; bloomPass.strength=bl.strength??0.25; bloomPass.threshold=bl.threshold??0.85;
 
-  // load EVERY part (incl. alternates) so they can be toggled; hide default:false ones.
+  // load EVERY part (incl. alternates) AND every base model (noReplace keeps the ones an
+  // upgrade would swap out) so the full catalog is editable at once; hide default:false ones.
+  // skipWall: we own the back wall here so its variant can be swapped live (see Scene UI).
+  wallMesh=buildWall(scene, man.scene?.wall, wallVariant);
   const allKeys=Object.keys(man.parts||{}).join(',');
-  const res=await buildScene(scene, renderer, loader, man, { ownParam: allKeys, dbg:null });
+  const res=await buildScene(scene, renderer, loader, man, { ownParam: allKeys, noReplace:true, skipWall:true, dbg:null });
   placed=res.placed; deskTop=res.deskTop;
   placed.forEach(r=>{ editTf[r.id]=tfOf(r.entry);
     const def=man.parts?.[r.id]?.default; if(def===false) r.obj.visible=false; });
@@ -130,8 +154,14 @@ async function init(){
   placed.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.id+(r.obj.visible?'':' (hidden)'); sel.append(o); });
   sel.onchange=loadPart; loadPart();
 
-  initLightingUI();
+  initLightingUI(); initSceneUI();
   if(window.__err) errEl.textContent=window.__err;
+}
+
+function initSceneUI(){
+  const fv=document.getElementById('floorV'), wv=document.getElementById('wallV');
+  fv.value=floorVariant; fv.onchange=()=>{ floorVariant=fv.value; rebuildFloor(); };
+  wv.value=wallVariant;  wv.onchange=()=>{ wallVariant=wv.value;  rebuildWall();  };
 }
 
 // ---- per-part controls ----
