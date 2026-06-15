@@ -31,6 +31,30 @@ check(rowInfo.monitorModel === 'monitor', `monitor maps to its 3D model (got "${
 const cards = await page.evaluate(() => document.querySelectorAll('#cards .card').length);
 check(cards > 0, `headline metrics rendered (${cards} cards)`);
 
+// The Part + Description fields auto-fit: no input clips its text (scrollWidth
+// never exceeds clientWidth), and the longer Description column is wider.
+const fit = await page.evaluate(() => {
+  const clips = (sel) => [...document.querySelectorAll('#partsBody ' + sel)]
+    .filter(i => i.scrollWidth > i.clientWidth + 1).length;
+  const w = (sel) => parseFloat(document.querySelector('#partsBody ' + sel).style.width);
+  return { nameClips: clips('.p-name'), descClips: clips('.p-desc'),
+           nameW: w('.p-name'), descW: w('.p-desc') };
+});
+check(fit.nameClips === 0, `no Part field clips its text (${fit.nameClips} clipped)`);
+check(fit.descClips === 0, `no Description field clips its text (${fit.descClips} clipped)`);
+check(fit.descW > fit.nameW, `Description column wider than Part (${fit.descW}px > ${fit.nameW}px)`);
+
+// Auto-fit is live: typing a long value grows its field so it still fits.
+const grew = await page.evaluate(() => {
+  const row = document.querySelector('#partsBody tr');
+  const inp = row.querySelector('.p-desc');
+  const before = parseFloat(inp.style.width);
+  inp.value = 'X'.repeat(200);
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+  return { grew: parseFloat(inp.style.width) > before, fits: inp.scrollWidth <= inp.clientWidth + 1 };
+});
+check(grew.grew && grew.fits, 'Description field grows to fit a long live edit');
+
 // Add a new item, then export and confirm it appears in both outputs.
 await page.evaluate(() => {
   document.getElementById('addRow').click();
