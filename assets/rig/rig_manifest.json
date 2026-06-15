@@ -35,6 +35,33 @@
   },
   "base": [
     {
+      "id": "room",
+      "proc": "room",
+      "transform": {
+        "pos": [
+          0,
+          0,
+          0
+        ]
+      },
+      "credit": "procedural",
+      "_note": "procedural room shell (L/R side walls); placeholder until a room .glb is sourced. Back wall comes from scene.wall."
+    },
+    {
+      "id": "chair_base",
+      "proc": "chair",
+      "transform": {
+        "pos": [
+          -0.09,
+          0,
+          0.46
+        ],
+        "rotY": -28
+      },
+      "credit": "procedural",
+      "_note": "procedural basic office chair; placeholder until a chair_base .glb is sourced. Replaced by the gaming chair upgrade."
+    },
+    {
       "id": "desk_base",
       "model": "models/desk_base.glb",
       "transform": {

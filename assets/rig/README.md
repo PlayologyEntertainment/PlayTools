@@ -23,6 +23,13 @@ and tune bloom/FOV. Hit **Export manifest JSON** (copy or download) and paste th
 back into `rig_manifest.json`. The editor and the headless preview share one builder
 (`tools/rig-build.mjs`), so what you see in the editor is what `rig:preview` renders.
 
+The editor shows the **full catalog at once**: every base model *and* every upgrade is
+loaded and individually editable/toggleable — including the bases an upgrade normally
+replaces (e.g. `monitor_base` alongside the ultrawide `monitor`, `keyboard_base` alongside
+the upgrade). The **Scene** panel has Floor (carpet / hardwood / neon tiles) and Wall
+(stucco / brick / synthwave) dropdowns to preview each tier variant live; these are
+**preview-only** — they aren't written to the manifest (the app picks tiers by ownership).
+
 ## See it in the app (#/rig)
 `npm run serve` → open **http://127.0.0.1:8133/PlayTools.html** and go to **The Rig**.
 When served this way the battlestation renders in **3D** (lazy-loaded, bound to the parts
@@ -47,7 +54,10 @@ few are flagged `"default": false` to keep the hero shot uncluttered (toggle via
 
 **Procedural parts** (no `.glb`): the RGB Light Kit (`rgb`) is built in-engine via a
 `"proc": "<type>"` manifest entry; a procedural `poster` builder remains as a no-art
-fallback. An optional `scene.wall` gives posters something to hang on. Alternates (the flat
-monitor, the second toy, extra posters) are flagged `"default": false`. Still want real
-models: the GPU/internal hardware and the sit/stand desk upgrade. Field reference in the
-spec (§4).
+fallback. Two base placeholders are also procedural until real models are sourced:
+`chair_base` (a plain 5-star office chair — replaced by the gaming chair upgrade) and
+`room` (L/R side-wall shell; the back wall still comes from `scene.wall`). An optional
+`scene.wall` gives posters something to hang on. Alternates (the flat monitor, the second
+toy, extra posters) are flagged `"default": false`. Still want real models: the
+GPU/internal hardware and the sit/stand desk upgrade, plus drop-in `.glb`s for `chair_base`
+and `room` to retire the placeholders. Field reference in the spec (§4).

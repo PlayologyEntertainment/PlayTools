@@ -53,10 +53,10 @@ through the case glass, so they're cheap accents, not full hero models.
 ### 3.1 Base scene (the mundane starting point — always visible)
 | id | What to find | Notes |
 | --- | --- | --- |
-| `room` | A simple room shell: back wall + side wall + floor (or just a floor + back wall) | Optional — I can keep this procedural. A tiled floor + dark wall is enough. |
+| `room` | A simple room shell: back wall + side wall + floor (or just a floor + back wall) | ✅ **procedural placeholder** (`proc: room` — L/R side walls; back wall + floor are also procedural). Swap in a `.glb` anytime. |
 | `desk_base` | A plain office/computer desk | The "mundane" desk. ~1.2–1.6 m wide. |
 | `monitor_base` | A basic single monitor | Starter display. I drive the on-screen image. |
-| `chair_base` | A basic office chair | ✅ **provided** (`chair_office_basic.glb`) |
+| `chair_base` | A basic office chair | ✅ **procedural placeholder** (`proc: chair` — plain 5-star office chair; replaced by the gaming chair upgrade). Swap in a `.glb` anytime. |
 | `keyboard_base` | A plain keyboard | Starter. |
 | `mouse_base` | A plain mouse | Starter. |
 | `tower_base` | A PC case (ideally with a glass side panel showing internals) | The mining rig. Tiers light up the internals. |
@@ -157,8 +157,10 @@ posters have a home and the neon bounces.
 agree:
 - `npm run rig:preview` — headless render to `tools/output/rig.png` (`--contact` for an
   asset grid, `--own=a,b,c` for a specific owned-set).
-- `npm run rig:edit` — interactive layout editor at `http://127.0.0.1:8132`: orbit the
-  camera, drag per-part position/rotation/scale, toggle parts, tune bloom/FOV, then
+- `npm run rig:edit` — interactive layout editor at `http://127.0.0.1:8132`: loads the
+  **full catalog at once** (every base model *and* every upgrade, including bases an upgrade
+  would normally replace), orbit the camera, drag per-part position/rotation/scale, toggle
+  parts, tune bloom/FOV, switch Floor/Wall tier variants live (preview-only), then
   **Export** the updated `rig_manifest.json`.
 
 ## 6. Shipping (done) / open
