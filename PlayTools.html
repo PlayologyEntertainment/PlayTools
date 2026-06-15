@@ -1481,6 +1481,9 @@
 
   /* ---- Mobile / narrow screens ---- */
   @media(max-width:640px){
+    /* Reclaim horizontal room on phones so wide panels (the Rig, NetStore)
+       have more to work with down to ~360px-wide screens. */
+    .frame{ padding-left:12px; padding-right:12px; }
     /* Stack the status strip so the action buttons sit ABOVE the stats and
        both rows are centred (DD UX pass). */
     .controls{ flex-direction:column; align-items:center; gap:10px; flex-wrap:nowrap; }
@@ -1494,6 +1497,27 @@
       font-size:clamp(9px, 3vw, 12px); letter-spacing:0;
     }
     .score-strip .sep{ margin:0 3px; }
+
+    /* ---- The Rig — narrow-screen pass (whole page) ---- */
+    /* Trim panel padding so the inner content keeps as much width as possible. */
+    .rig-block{ padding:13px; }
+
+    /* 3D battlestation: the 16:10 + 260px min-height combo forces a near-square,
+       cropped framing once the viewport drops below ~415px. Swap to an explicit
+       taller 4:3 ratio (and drop the min-height) so the rig keeps a clean,
+       intentional aspect ratio while shrinking with the screen. */
+    .rig-3d{ aspect-ratio:4/3; min-height:0; }
+
+    /* NetStore tab pill spans the row and the three tabs share the width evenly
+       (otherwise "🪑 Battlestation" pushes the pill past a 360px screen). */
+    .rig-store-tabs{ gap:8px; }
+    .rig-store-tabs .seg{ display:flex; width:100%; }
+    .rig-store-tabs .seg button{ flex:1 1 0; min-width:0; padding:8px 4px; font-size:11px; text-align:center; }
+
+    /* Store rows: stack the item info above its Buy/Equip control so the price
+       and button never get squeezed against a long name + blurb. */
+    .rig-store-row{ flex-direction:column; align-items:stretch; gap:10px; }
+    .rig-store-row .buy{ justify-content:flex-end; }
   }
 
   /* ============================================================
