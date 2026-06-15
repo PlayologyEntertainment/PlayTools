@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
@@ -109,7 +109,14 @@ export const PROC = {
 export function makeLoader(){ const draco=new DRACOLoader(); draco.setDecoderPath('/jsm/libs/draco/');
   const loader=new GLTFLoader(); loader.setDRACOLoader(draco); loader.setMeshoptDecoder(MeshoptDecoder); return loader; }
 export function meshify(model){ model.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } }); }
-export function applyScreen(model){ const t=synthwaveTex(); model.traverse(o=>{ if(o.isMesh && /screen|display|monitor/i.test(o.name)){ o.material=o.material.clone(); o.material.map=t; o.material.emissive=new THREE.Color(0xffffff); o.material.emissiveMap=t; o.material.emissiveIntensity=1.1; } }); }
+// Paint the synthwave display onto ONLY the screen surface. Match on screen/
+// display/glass (in the mesh OR material name) — never the bare word "monitor",
+// which also names the chassis/bezel mesh (e.g. CRT_Monitor_monitor_plastic_0)
+// and would otherwise smear the texture over the whole housing.
+export function applyScreen(model){ const t=synthwaveTex();
+  model.traverse(o=>{ if(o.isMesh){ const n=(o.name||'')+' '+(o.material?.name||'');
+    if(/screen|display|glass/i.test(n)){ o.material=o.material.clone(); o.material.map=t;
+      o.material.emissive=new THREE.Color(0xffffff); o.material.emissiveMap=t; o.material.emissiveIntensity=1.1; } } }); }
 // Self-illuminate a model from its own albedo so flat wall-art reads in the dark scene.
 export function applyGlow(model,amt){ model.traverse(o=>{ if(o.isMesh && o.material){ o.material=o.material.clone(); if(o.material.map){ o.material.emissiveMap=o.material.map; o.material.emissive=new THREE.Color(0xffffff); } o.material.emissiveIntensity=amt; o.material.side=THREE.DoubleSide; } }); }
 
@@ -138,7 +145,7 @@ export function place(model, tf, id, dbg){
 
 export async function setupEnv(scene, renderer, hdri){
   if(hdri){ try{
-    const L = /\.exr$/i.test(hdri)? new EXRLoader() : new RGBELoader();
+    const L = /\.exr$/i.test(hdri)? new EXRLoader() : new HDRLoader();
     const tex = await L.loadAsync(A+hdri); tex.mapping=THREE.EquirectangularReflectionMapping;
     scene.environment=tex; scene.environmentIntensity=0.35; return;   // lighting/reflections only — keep the room dark & neon
   }catch(e){ if(typeof window!=='undefined') window.__err=(window.__err||'')+'hdri:'+e.message+';'; } }

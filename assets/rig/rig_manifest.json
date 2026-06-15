@@ -1,6 +1,6 @@
 {
   "scene": {
-    "hdri": "models/ferndale_studio_04_1k.exr",
+    "hdri": "models/ferndale_studio_04_512.hdr",
     "camera": {
       "pos": [
         1.432,

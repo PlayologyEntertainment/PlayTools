@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PlayTools — Gamified Gaming Tools for Gamers | Playology Entertainment</title>
+<!-- Favicon: a neon arcade joystick (ball-top stick on a base) in the PlayTools
+     palette — inline SVG data-URI so the single-file app keeps zero asset deps. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0816'/%3E%3Cellipse cx='16' cy='25.5' rx='9' ry='3.2' fill='%2316f2c8'/%3E%3Crect x='14.2' y='11' width='3.6' height='13.5' rx='1.8' fill='%237c5cff'/%3E%3Ccircle cx='16' cy='9' r='6' fill='%23ff3df0'/%3E%3Ccircle cx='13.8' cy='6.9' r='1.9' fill='%23ffffff' fill-opacity='0.55'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0816'/%3E%3Cellipse cx='16' cy='25.5' rx='9' ry='3.2' fill='%2316f2c8'/%3E%3Crect x='14.2' y='11' width='3.6' height='13.5' rx='1.8' fill='%237c5cff'/%3E%3Ccircle cx='16' cy='9' r='6' fill='%23ff3df0'/%3E%3Ccircle cx='13.8' cy='6.9' r='1.9' fill='%23ffffff' fill-opacity='0.55'/%3E%3C/svg%3E">
 <!--
   ============================================================
   PLAYTOOLS — Gamified Gaming Tools for Gamers
@@ -2633,9 +2637,20 @@ const ShareCard = (function(){
       ctx.fillText((tag[0]||'P').toUpperCase(), a.avatarX+r, a.avatarY+r+a.avatarSize*0.18);
     }
 
-    // glyph — either a text glyph or, when supplied, four connected quadrant pads
+    // glyph — a captured image (e.g. the live 3D battlestation), four connected
+    // quadrant pads, or a text glyph. The image is cover-fit into a neon frame.
     const Gl=T.glyph;
-    if(data.glyphQuads){
+    if(data.glyphImage && (data.glyphImage.width||data.glyphImage.naturalWidth)){
+      const img=data.glyphImage, fw=300, fh=150, fx=(Wc-fw)/2, fy=104, rad=10;
+      const iw=img.width||img.naturalWidth, ih=img.height||img.naturalHeight;
+      ctx.save(); roundRectPath(ctx,fx,fy,fw,fh,rad); ctx.clip();
+      ctx.fillStyle='#0a1230'; ctx.fillRect(fx,fy,fw,fh);
+      const s=Math.max(fw/iw, fh/ih), dw=iw*s, dh=ih*s;   // cover-fit, centred
+      ctx.drawImage(img, fx+(fw-dw)/2, fy+(fh-dh)/2, dw, dh);
+      ctx.restore();
+      ctx.save(); ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.shadowColor=accent; ctx.shadowBlur=10;
+      roundRectPath(ctx,fx,fy,fw,fh,rad); ctx.stroke(); ctx.restore();
+    } else if(data.glyphQuads){
       const cols=data.glyphQuads, S=Gl.quadSize, gap=Gl.quadGap, half=(S-gap)/2, x0=Wc/2-S/2, y0=Gl.quadY;
       [[0,0],[1,0],[0,1],[1,1]].forEach((p,i)=>{
         ctx.fillStyle=cols[i];
@@ -2846,15 +2861,21 @@ const Rig = (function(){
   // good gear (not just the prettiest) is worth chasing. All add Rig Score and
   // grow the procedural render. Listed in ascending cost. ----
   const COSMETICS = [
-    { id:'desktoy',  cat:'Cosmetic',   name:'Desk Toy',           cost:60,   rate:0,    cap:0, score:3,  blurb:'A little kinetic figurine. Pure desk charm.' },
-    { id:'poster',   cat:'Cosmetic',   name:'Wall Poster',        cost:90,   rate:0,    cap:0, score:4,  blurb:'Retro arcade art for the back wall.' },
-    { id:'rgb',      cat:'Lighting',   name:'RGB Light Kit',      cost:120,  rate:0,    cap:0, score:6,  blurb:'Underglow that paints the whole setup. Mandatory.' },
-    { id:'mouse',    cat:'Peripheral', name:'Gaming Mouse',       cost:150,  rate:0.1,  cap:0, score:8,  blurb:'A featherweight flick machine. +0.1 mining rate.' },
-    { id:'keyboard', cat:'Peripheral', name:'Mechanical Keyboard',cost:450,  rate:0.1,  cap:0, score:12, blurb:'Thocky switches and macro keys. +0.1 mining rate.' },
-    { id:'headset',  cat:'Peripheral', name:'Surround Headset',   cost:700,  rate:0,    cap:0, score:14, blurb:'Positional audio for the deep dives.' },
-    { id:'desk',     cat:'Cosmetic',   name:'Sit/Stand Desk',     cost:1800, rate:0,    cap:0, score:18, blurb:'A proper battlestation deck.' },
-    { id:'chair',    cat:'Peripheral', name:'Gaming Chair',       cost:2200, rate:0.15, cap:0, score:30, blurb:'Ergonomic throne. Comfort is uptime. +0.15 mining rate.' },
-    { id:'monitor',  cat:'Peripheral', name:'Ultrawide Monitor',  cost:5500, rate:0.25, cap:0, score:50, blurb:'A wall of pixels. +0.25 mining rate.' }
+    { id:'desktoy',    cat:'Cosmetic',   name:'Desk Toy',           cost:60,   rate:0,    cap:0, score:3,  blurb:'A little kinetic figurine. Pure desk charm.' },
+    { id:'poster',     cat:'Cosmetic',   name:'Wall Poster',        cost:90,   rate:0,    cap:0, score:4,  blurb:'Retro arcade art for the back wall.' },
+    { id:'rgb',        cat:'Lighting',   name:'RGB Light Kit',      cost:120,  rate:0,    cap:0, score:6,  blurb:'Underglow that paints the whole setup. Mandatory.' },
+    { id:'books',      cat:'Cosmetic',   name:'Book Stack',         cost:140,  rate:0,    cap:0, score:4,  blurb:'A lean of well-thumbed strategy guides for the desk.' },
+    { id:'mouse',      cat:'Peripheral', name:'Gaming Mouse',       cost:150,  rate:0.1,  cap:0, score:8,  blurb:'A featherweight flick machine. +0.1 mining rate.' },
+    { id:'poster_a',   cat:'Cosmetic',   name:'Neon Grid Print',    cost:220,  rate:0,    cap:0, score:5,  blurb:'A glowing perspective-grid print for the left wall.' },
+    { id:'poster_d',   cat:'Cosmetic',   name:'Arcade Flyer',       cost:320,  rate:0,    cap:0, score:5,  blurb:'A vintage cabinet flyer, centre-left of the wall.' },
+    { id:'poster_b',   cat:'Cosmetic',   name:'Synthwave Banner',   cost:420,  rate:0,    cap:0, score:5,  blurb:'A wide synthwave banner mounted up high.' },
+    { id:'keyboard',   cat:'Peripheral', name:'Mechanical Keyboard',cost:450,  rate:0.1,  cap:0, score:12, blurb:'Thocky switches and macro keys. +0.1 mining rate.' },
+    { id:'poster_c',   cat:'Cosmetic',   name:'Vaporwave Banner',   cost:560,  rate:0,    cap:0, score:5,  blurb:'A wide vaporwave banner for the upper-left.' },
+    { id:'headset',    cat:'Peripheral', name:'Surround Headset',   cost:700,  rate:0,    cap:0, score:14, blurb:'Positional audio for the deep dives.' },
+    { id:'poster_base',cat:'Cosmetic',   name:'Backdrop Mural',     cost:1200, rate:0,    cap:0, score:6,  blurb:'A floor-to-rail backdrop mural for the far wall.' },
+    { id:'desk',       cat:'Cosmetic',   name:'Sit/Stand Desk',     cost:1800, rate:0,    cap:0, score:18, blurb:'A proper battlestation deck.' },
+    { id:'chair',      cat:'Peripheral', name:'Gaming Chair',       cost:2200, rate:0.15, cap:0, score:30, blurb:'Ergonomic throne. Comfort is uptime. +0.15 mining rate.' },
+    { id:'monitor',    cat:'Peripheral', name:'Ultrawide Monitor',  cost:5500, rate:0.25, cap:0, score:50, blurb:'A wall of pixels. +0.25 mining rate.' }
   ];
 
   const ALL = PARTS.concat(COSMETICS);
@@ -2997,8 +3018,13 @@ const Rig = (function(){
     }
   }
 
+  // Dev-only: top up the wallet so a tester can deck out the rig. Gated by the
+  // caller (the #/rig?dev=1 panel) — there is no in-game path that reaches this.
+  function grant(n){ n=Math.floor(n); if(!(n>0)) return 0;
+    Store.update(s=>{ s.rig.netcoin+=n; s.rig.totalEarned+=n; }); return n; }
+
   return {
-    PARTS, COSMETICS, partById, owns, init, noteTool, payAchievements,
+    PARTS, COSMETICS, partById, owns, init, noteTool, payAchievements, grant,
     rate, rigMultiplier, capHours, computeRigScore,
     pending, tankFrac, tankFull, collectIdle,
     overclocked, ocTools,
@@ -3201,12 +3227,18 @@ const Router = (function(){
   let current = null;   // { teardown }
   const routes = {};    // path -> mount(container) -> teardownFn|undefined
 
+  let curQuery = new URLSearchParams();   // parsed ?query suffix of the active route
+
   function add(path, mount){ routes[path]=mount; }
 
   function resolve(){
-    const hash = location.hash || '#/';
-    // exact match, else prefix fallback to home
-    const mount = routes[hash] || routes['#/'];
+    const raw = location.hash || '#/';
+    // Allow an optional "?key=val" suffix on any route (e.g. #/rig?dev=1) without
+    // breaking the exact-match table: route on the path, expose the query separately.
+    const qi = raw.indexOf('?');
+    const path = qi>=0 ? raw.slice(0,qi) : raw;
+    curQuery = new URLSearchParams(qi>=0 ? raw.slice(qi+1) : '');
+    const mount = routes[path] || routes['#/'];
     if(current && current.teardown){ try{ current.teardown(); }catch(e){ console.error(e); } }
     screen.innerHTML='';
     const mroot = document.getElementById('modal-root'); if(mroot) mroot.innerHTML='';  // drop any open overlay (e.g. a confirm-rerun gate) when leaving a view
@@ -3214,9 +3246,9 @@ const Router = (function(){
     let teardown=null;
     try{ teardown = mount(screen); }catch(e){ console.error('view error', e); screen.innerHTML='<div class="panel"><h1 class="title">Glitch in the Matrix</h1><p class="muted">This cabinet failed to load.</p></div>'; }
     current = { teardown: typeof teardown==='function' ? teardown : null };
-    UI.highlightRail(hash);
+    UI.highlightRail(path);
     if(window.UI && UI.syncRail) UI.syncRail();   // refresh live tallies (Friends roster, etc.)
-    mountFavToggle(hash);
+    mountFavToggle(path);
   }
 
   // If this route is an unlocked cabinet, drop a "Favorite" toggle into its
@@ -3232,7 +3264,8 @@ const Router = (function(){
 
   function start(){ window.addEventListener('hashchange', resolve); resolve(); }
   function go(hash){ if(location.hash===hash) resolve(); else location.hash=hash; }
-  return { add, start, go };
+  function query(){ return curQuery; }   // URLSearchParams of the active route's ?suffix
+  return { add, start, go, query };
 })();
 
 /* ============================================================================
@@ -17410,7 +17443,8 @@ Views.rig = function(c){
   // 3D battlestation viewer state (persists across re-paints within this route visit)
   let rig3D = null, rig3DCanvas = null, rig3DSig = null;
   // manifest part ids that map to a purchasable NetStore item (drives ownership binding)
-  const RIG3D_PARTS = new Set(['chair','monitor','keyboard','headset','rgb','poster','desktoy']);
+  const RIG3D_PARTS = new Set(['chair','monitor','keyboard','headset','rgb','poster','desktoy',
+    'books','poster_a','poster_b','poster_c','poster_d','poster_base']);
   function rig3DOwned(){ const p = Store.get().rig.parts||{}; return Object.keys(p).filter(k=>RIG3D_PARTS.has(k)).sort(); }
   function webglOK(){ try { return !!document.createElement('canvas').getContext('webgl2'); } catch(e){ return false; } }
   // Mount (or re-attach) the 3D viewer into `host`, hiding the SVG fallback on success.
@@ -17442,6 +17476,24 @@ Views.rig = function(c){
     storeBtn.onclick = ()=> Router.go('#/rig/store');
     storeRow.append(storeBtn);
     panel.append(storeRow);
+
+    // ---- dev tools (only on #/rig?dev=1) — grant NetCoin to deck out the rig
+    //      for testing. There is no in-game route here; it never reaches players. ----
+    if(Router.query().get('dev')==='1'){
+      const dev = el('div',{class:'rig-block'});
+      dev.append(el('h2',{class:'sub', text:'🛠 Dev Tools'}));
+      dev.append(el('p',{class:'muted', style:'margin:0 0 10px;',
+        html:'Local testing only — grant NetCoin to deck out the rig, then spend it in the NetStore. Hidden unless the URL ends in <code>?dev=1</code>.'}));
+      const grantAmt = (n)=>{ Rig.grant(n); UI.toast('Dev Grant', '+'+n.toLocaleString()+' NetCoin'); paint(); };
+      const row = el('div',{class:'controls-row'});
+      [1000,10000,100000].forEach(n=>{ const b=el('button',{class:'btn', html:'+'+n.toLocaleString()}); b.onclick=()=>grantAmt(n); row.append(b); });
+      const inp = el('input',{class:'pl-input', type:'number', min:'1', value:'50000', style:'max-width:130px;'});
+      const gb = el('button',{class:'btn primary', html:'Grant'});
+      gb.onclick = ()=>{ const n=Math.max(0,Math.floor(+inp.value||0)); if(n>0) grantAmt(n); };
+      row.append(inp, gb);
+      dev.append(row);
+      panel.append(dev);
+    }
 
     // ---- wallet ----
     const wallet = el('div',{class:'rig-block'});
@@ -17522,15 +17574,32 @@ Views.rig = function(c){
     // ---- actions ----
     const actions = el('div',{class:'controls-row'});
     const share = el('button',{class:'btn primary', html:'📸 Share Battlestation'});
-    share.onclick = ()=>{
+    share.onclick = async ()=>{
       const rr = Store.get().rig;
-      ShareCard.open({ lab:'THE RIG', tool:'Battlestation', glyph:'🖥️',
+      const data = { lab:'THE RIG', tool:'Battlestation', glyph:'🖥️',
         metric:[ {k:'Rig Score', v:String(rr.rigScore)}, {k:'NetCoin', v:rr.netcoin.toLocaleString()},
                  {k:'Total Mined', v:rr.totalEarned.toLocaleString()}, {k:'Best Streak', v:rr.bestStreak+'d'} ],
-        designation: rigTitle(rr.rigScore), badge:'NetCoin Mining Rig' });
+        designation: rigTitle(rr.rigScore), badge:'NetCoin Mining Rig' };
+      // Snapshot the live 3D battlestation for the card; if WebGL/the viewer isn't
+      // up, fall back to rasterising the SVG battlestation. Either way the card opens.
+      try{ data.glyphImage = await rigShareImage(); }catch(e){ /* keep the 🖥️ glyph */ }
+      ShareCard.open(data);
     };
     actions.append(share);
     panel.append(actions);
+  }
+
+  // Load a URL (data: or otherwise) into a decoded HTMLImageElement.
+  function loadImg(src){ return new Promise((res,rej)=>{ const im=new Image();
+    im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
+  // The image used on the Share Card: prefer a still off the live WebGL canvas,
+  // else rasterise the procedural SVG battlestation (given an explicit pixel size).
+  async function rigShareImage(){
+    if(rig3D && rig3D.capture){
+      try{ return await loadImg(rig3D.capture()); }catch(e){ /* fall through to SVG */ }
+    }
+    const svg = rigSceneSVG().replace('<svg ', '<svg width="460" height="250" ');
+    return loadImg('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg));
   }
   paint();
   return ()=>{ if(timer) clearInterval(timer); if(rig3D){ rig3D.dispose(); rig3D=null; } };

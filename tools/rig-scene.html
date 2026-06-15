@@ -18,7 +18,7 @@ window.__ready=false; window.__err=''; window.__dbg={};
 
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(1); renderer.setSize(W,H);
-renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFShadowMap;  // PCFSoftShadowMap deprecated in r184
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.8;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);

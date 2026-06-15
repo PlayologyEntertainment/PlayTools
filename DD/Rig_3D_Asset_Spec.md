@@ -175,8 +175,9 @@ agree:
   `assets/rig/` to Hostinger, preserving relative paths (`A` resolves via `import.meta.url`).
 
 **Still open:**
-- **HDRI weight** — `ferndale_studio_04_1k.exr` (~5.5 MB) ships uncompressed; convert to a
-  small compressed env (downscaled `.hdr` / KTX2) or swap to a procedural environment.
+- ~~**HDRI weight**~~ — *done.* The 1k `.exr` (~5.5 MB) was box-downsampled to 512×256 and
+  re-encoded to RGBE `ferndale_studio_04_512.hdr` (~385 KB, −93%) via
+  `tools/rig-hdri-encode.mjs`; loaded through three's `HDRLoader`.
 - **Share Card capture** from the WebGL canvas (still uses the SVG/metric card).
 - **Ownership reach** — books / extra wall posters aren't NetStore items yet, so they don't
   appear in-app (hero-render flair only).

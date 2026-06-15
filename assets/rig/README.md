@@ -35,8 +35,9 @@ procedural SVG. The in-app viewer shares this same manifest + `tools/rig-build.m
 - < ~50k tris, ≤ 2K textures per item. Note license in the manifest `credit` field.
 
 Currently provided & wired: desk, gaming chair, monitors (base/flat/ultrawide), keyboards
-(base/upgrade), mouse, tower, headset, two desk toys, and a `.exr` HDRI
-(`ferndale_studio_04_1k`). See `rig_manifest.json` for the mapping. Per-model scales/
+(base/upgrade), mouse, tower, headset, two desk toys, and a `.hdr` HDRI
+(`ferndale_studio_04_512`, 512×256 RGBE — re-encoded from the original 1k EXR via
+`tools/rig-hdri-encode.mjs`). See `rig_manifest.json` for the mapping. Per-model scales/
 placements are tuned in the manifest `transform` blocks (some source models ship in cm or
 odd units — handled there).
 
