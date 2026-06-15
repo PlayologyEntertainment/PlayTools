@@ -10,7 +10,7 @@ const { page, errors } = await loadPage(browser, 'DD/Rig_Economy_Tuner.html');
 let failed = 0;
 const check = (cond, msg) => { console.log(`${cond ? 'PASS' : 'FAIL'}  ${msg}`); if (!cond) failed++; };
 
-// Catalog mirrors the live store: 28 rows, each carrying the new fields.
+// Catalog mirrors the live store: 29 rows, each carrying the new fields.
 const rowInfo = await page.evaluate(() => {
   const rows = [...document.querySelectorAll('#partsBody tr')];
   return {
@@ -22,7 +22,7 @@ const rowInfo = await page.evaluate(() => {
       return r && r.querySelector('.p-model').value; })(),
   };
 });
-check(rowInfo.n === 28, `catalog has 28 rows (got ${rowInfo.n})`);
+check(rowInfo.n === 29, `catalog has 29 rows (got ${rowInfo.n})`);
 check(rowInfo.fields, 'each row exposes id/name/cat/cost/rate/cap/score/needs/model/desc inputs');
 check(rowInfo.hasGpu1, "synced to live catalog (gpu1 present)");
 check(rowInfo.monitorModel === 'monitor', `monitor maps to its 3D model (got "${rowInfo.monitorModel}")`);
