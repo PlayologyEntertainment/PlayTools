@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PlayTools — The Rig Asset Pipeline | End-to-End Build Guide</title>
+<style>
+  /* ============================================================
+     PLAYTOOLS — THE RIG ASSET PIPELINE (HOW-TO GUIDE)
+     Playology Entertainment · Retro-Arcade / CRT Theme
+     A standalone, self-contained HTML artifact. No build step,
+     no external assets — open it in any browser.
+     ============================================================ */
+
+  :root{
+    --bg:#070912;
+    --bg-2:#0c1024;
+    --panel:#101736;
+    --panel-2:#0a0e22;
+    --ink:#e8ecff;
+    --ink-dim:#9aa3d4;
+    --neon:#16f2c8;      /* primary accent (cyan/teal) */
+    --neon-2:#ff3df0;    /* magenta */
+    --neon-3:#ffd23d;    /* arcade gold */
+    --neon-4:#7c5cff;    /* violet */
+    --neon-5:#37e35b;    /* go-green */
+    --danger:#ff5a6e;
+    --grid:rgba(124,92,255,0.10);
+    --line:rgba(124,92,255,0.30);
+    --shadow:0 0 0 2px rgba(22,242,200,0.18), 0 0 24px rgba(22,242,200,0.10);
+    --mono:"DejaVu Sans Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --pixel:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(124,92,255,0.18), transparent 60%),
+      radial-gradient(900px 500px at 90% 10%, rgba(255,61,240,0.10), transparent 55%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:15px;
+    line-height:1.6;
+    letter-spacing:0.2px;
+    min-height:100vh;
+  }
+
+  /* CRT scanline + flicker overlay */
+  .crt-overlay{
+    position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0px, rgba(0,0,0,0.16) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:multiply;
+    opacity:0.7;
+  }
+  .crt-overlay::after{
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(120% 120% at 50% 50%, transparent 60%, rgba(0,0,0,0.45) 100%);
+  }
+  body.no-crt .crt-overlay{display:none;}
+
+  /* Layout frame */
+  .frame{max-width:1080px; margin:0 auto; padding:0 22px 120px;}
+
+  /* Marquee */
+  header.marquee{ position:relative; text-align:center; padding:46px 16px 26px; }
+  .brand-kicker{
+    font-size:12px; letter-spacing:6px; text-transform:uppercase;
+    color:var(--neon-3); text-shadow:0 0 10px rgba(255,210,61,0.6);
+  }
+  .logo{
+    font-family:var(--pixel); font-weight:800;
+    font-size:clamp(34px,7vw,68px); margin:8px 0 4px;
+    letter-spacing:2px; line-height:1; color:#fff;
+    text-shadow:0 0 8px var(--neon), 0 0 22px rgba(22,242,200,0.7),
+      3px 3px 0 var(--neon-2), 6px 6px 0 rgba(255,61,240,0.4);
+  }
+  .logo .play{color:var(--neon);}
+  .logo .tools{color:var(--neon-2);}
+  .subtitle{ font-size:14px; color:var(--ink-dim); letter-spacing:3px; text-transform:uppercase; }
+  .doc-meta{ margin-top:18px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .chip{
+    font-size:11px; letter-spacing:2px; text-transform:uppercase;
+    padding:5px 12px; border:1px solid var(--line); border-radius:2px;
+    background:var(--panel-2); color:var(--ink-dim);
+  }
+  .chip.live{color:var(--neon-5); border-color:rgba(55,227,91,0.5); text-shadow:0 0 8px rgba(55,227,91,0.5);}
+  .chip.gold{color:var(--neon-3); border-color:rgba(255,210,61,0.5);}
+  .insert-coin{
+    margin-top:18px; font-family:var(--pixel); font-weight:700;
+    color:var(--neon-3); letter-spacing:4px; font-size:13px;
+    animation:blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink{50%{opacity:0.15;}}
+
+  /* Controls bar */
+  .controls{
+    position:sticky; top:0; z-index:50;
+    display:flex; justify-content:space-between; align-items:center;
+    gap:12px; flex-wrap:wrap;
+    padding:10px 14px; margin:0 0 26px;
+    background:rgba(10,14,34,0.92);
+    border:1px solid var(--line); border-radius:4px;
+    backdrop-filter:blur(6px); box-shadow:var(--shadow);
+  }
+  .controls .score-strip{font-size:12px; color:var(--ink-dim); letter-spacing:1px;}
+  .controls .score-strip b{color:var(--neon); font-family:var(--pixel);}
+  .controls .ctl-group{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn{
+    font-family:var(--mono); font-size:12px; letter-spacing:1px;
+    cursor:pointer; color:var(--ink); background:var(--panel);
+    border:1px solid var(--line); border-radius:3px; padding:7px 12px;
+    text-transform:uppercase; transition:.15s;
+  }
+  .btn:hover{border-color:var(--neon); color:var(--neon); box-shadow:0 0 12px rgba(22,242,200,0.25);}
+
+  /* Nav rail (table of contents) */
+  nav.toc{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+    padding:18px 22px; margin-bottom:30px;
+  }
+  nav.toc h2{
+    margin:0 0 12px; font-family:var(--pixel); font-size:15px; letter-spacing:3px;
+    color:var(--neon-3); text-transform:uppercase;
+  }
+  nav.toc ol{margin:0; padding-left:22px; columns:2; column-gap:30px;}
+  nav.toc li{margin:5px 0; break-inside:avoid;}
+  nav.toc a{color:var(--ink-dim); text-decoration:none; transition:.15s;}
+  nav.toc a:hover{color:var(--neon); text-shadow:0 0 8px rgba(22,242,200,0.4);}
+  nav.toc .toc-sub{font-size:12px; color:#6e76a8;}
+
+  /* Sections */
+  section{
+    background:linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border:1px solid var(--line); border-radius:8px;
+    padding:24px 28px; margin:0 0 22px;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.4), 0 14px 40px rgba(0,0,0,0.35);
+    position:relative; overflow:hidden; scroll-margin-top:70px;
+  }
+  section::before{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background-image:linear-gradient(var(--grid) 1px, transparent 1px),
+                     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:34px 34px; opacity:0.5;
+  }
+  section > *{position:relative;}
+
+  /* Collapsible header */
+  h1.sec{
+    font-family:var(--pixel); font-weight:800; font-size:23px;
+    color:#fff; margin:0; letter-spacing:1px; cursor:pointer;
+    display:flex; align-items:center; gap:12px; user-select:none;
+  }
+  h1.sec .num{
+    font-size:13px; color:var(--bg); background:var(--neon);
+    padding:4px 9px; border-radius:3px; letter-spacing:1px;
+    box-shadow:0 0 14px rgba(22,242,200,0.5); flex:none;
+  }
+  h1.sec .caret{margin-left:auto; color:var(--neon); font-size:16px; transition:.2s;}
+  section.collapsed h1.sec .caret{transform:rotate(-90deg);}
+  section.collapsed .sec-body{display:none;}
+  .sec-tag{
+    font-size:11px; letter-spacing:3px; text-transform:uppercase;
+    color:var(--neon-2); margin:14px 0 6px; display:block;
+  }
+  .sec-body{margin-top:6px;}
+
+  h2.sub{
+    font-family:var(--pixel); font-size:17px; color:var(--neon);
+    margin:26px 0 8px; letter-spacing:1px;
+    border-left:3px solid var(--neon); padding-left:10px; scroll-margin-top:70px;
+  }
+  h3.subsub{
+    font-family:var(--pixel); font-size:14px; color:var(--neon-3);
+    margin:18px 0 4px; letter-spacing:1px;
+  }
+  p{margin:8px 0;}
+  .muted{color:var(--ink-dim);}
+  .lead{font-size:15.5px;}
+  strong{color:#fff;}
+  em{color:var(--neon-3); font-style:normal;}
+  a.inline{color:var(--neon); text-decoration:none; border-bottom:1px dotted var(--neon);}
+  a.inline:hover{text-shadow:0 0 8px rgba(22,242,200,0.5);}
+
+  ul,ol{margin:8px 0; padding-left:24px;}
+  li{margin:6px 0;}
+
+  code{
+    font-family:var(--mono); background:rgba(124,92,255,0.16);
+    color:var(--neon); padding:1px 6px; border-radius:3px; font-size:13px;
+    word-break:break-word;
+  }
+  .formula{
+    display:block; background:var(--panel-2); border:1px solid var(--line);
+    border-left:3px solid var(--neon-4); border-radius:4px;
+    padding:12px 16px; margin:12px 0; color:var(--neon-3);
+    font-size:14px; overflow-x:auto;
+  }
+
+  /* Code blocks with copy button */
+  .codewrap{position:relative; margin:14px 0;}
+  pre.code{
+    background:#05070f; border:1px solid var(--line); border-radius:6px;
+    padding:16px 16px; overflow-x:auto; color:#cfe6ff; font-size:12.7px;
+    line-height:1.5; box-shadow:inset 0 0 30px rgba(124,92,255,0.10);
+    font-family:var(--mono); margin:0; white-space:pre;
+  }
+  pre.code .c-key{color:var(--neon-3);}
+  pre.code .c-str{color:var(--neon-5);}
+  pre.code .c-com{color:#6e76a8; font-style:italic;}
+  pre.code .c-cmd{color:var(--neon);}
+  pre.code .c-num{color:var(--neon-2);}
+  .copy-btn{
+    position:absolute; top:8px; right:8px; z-index:2;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:1px;
+    cursor:pointer; color:var(--ink-dim); background:rgba(16,23,54,0.9);
+    border:1px solid var(--line); border-radius:3px; padding:4px 9px;
+    text-transform:uppercase; transition:.15s;
+  }
+  .copy-btn:hover{border-color:var(--neon); color:var(--neon);}
+  .copy-btn.copied{color:var(--neon-5); border-color:rgba(55,227,91,0.6);}
+
+  /* Tags / pills */
+  .tag{
+    display:inline-block; font-size:10px; letter-spacing:1px; font-weight:700;
+    padding:2px 7px; border-radius:3px; vertical-align:middle; margin-left:6px;
+    text-transform:uppercase; font-family:var(--mono);
+  }
+  .tag.req{background:var(--danger); color:#190307; box-shadow:0 0 10px rgba(255,90,110,0.4);}
+  .tag.opt{background:#2a3160; color:var(--ink-dim);}
+  .tag.code{background:var(--neon); color:#04120a;}
+  .tag.art{background:var(--neon-2); color:#1a0016;}
+  .tag.econ{background:var(--neon-3); color:#1a1400;}
+  .tag.ship{background:var(--neon-4); color:#fff;}
+
+  /* Tables */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:13px;}
+  th,td{border:1px solid var(--line); padding:9px 11px; text-align:left; vertical-align:top;}
+  th{background:var(--panel-2); color:var(--neon-3); text-transform:uppercase; letter-spacing:1px; font-size:11px;}
+  td code{font-size:12px;}
+  .tbl-scroll{overflow-x:auto;}
+
+  /* Callout */
+  .callout{
+    border:1px dashed var(--neon-2); border-radius:6px; padding:12px 16px;
+    margin:14px 0; background:rgba(255,61,240,0.06); font-size:13.5px;
+  }
+  .callout b{color:var(--neon-2);}
+  .callout.note{border-color:var(--neon); background:rgba(22,242,200,0.06);}
+  .callout.note b{color:var(--neon);}
+  .callout.warn{border-color:var(--neon-3); background:rgba(255,210,61,0.07);}
+  .callout.warn b{color:var(--neon-3);}
+  .callout.danger{border-color:var(--danger); background:rgba(255,90,110,0.07);}
+  .callout.danger b{color:var(--danger);}
+
+  /* Step list (numbered cards) */
+  ol.steps{counter-reset:step; list-style:none; padding-left:0; margin:16px 0;}
+  ol.steps > li{
+    position:relative; counter-increment:step;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+    padding:14px 16px 14px 56px; margin:10px 0;
+  }
+  ol.steps > li::before{
+    content:counter(step); position:absolute; left:14px; top:14px;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--neon); color:#04120a; font-family:var(--pixel); font-weight:800;
+    display:flex; align-items:center; justify-content:center; font-size:14px;
+    box-shadow:0 0 12px rgba(22,242,200,0.4);
+  }
+  ol.steps > li .st-title{font-family:var(--pixel); color:#fff; font-size:14.5px; letter-spacing:.5px;}
+
+  /* Interactive checklist */
+  .check{list-style:none; padding-left:0; margin:14px 0;}
+  .check li{
+    display:flex; align-items:flex-start; gap:10px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px;
+    padding:10px 12px; margin:7px 0; cursor:pointer; transition:.12s;
+  }
+  .check li:hover{border-color:var(--neon);}
+  .check li .box{
+    flex:none; width:18px; height:18px; border:2px solid var(--neon); border-radius:3px;
+    margin-top:2px; display:flex; align-items:center; justify-content:center;
+    font-size:13px; color:var(--neon-5); font-weight:800;
+  }
+  .check li.done{opacity:0.55;}
+  .check li.done .box{background:rgba(55,227,91,0.15); border-color:var(--neon-5);}
+  .check li.done .lbl{text-decoration:line-through;}
+
+  /* File-map tree */
+  pre.tree{
+    background:#05070f; border:1px solid var(--line); border-radius:6px;
+    padding:16px; overflow-x:auto; color:var(--ink-dim); font-size:12.5px; line-height:1.5;
+  }
+  pre.tree b{color:var(--neon);}
+  pre.tree .ann{color:var(--neon-3);}
+
+  /* Pipeline flow diagram */
+  .flow{display:flex; flex-wrap:wrap; align-items:stretch; gap:10px; margin:18px 0;}
+  .flow .node{
+    flex:1 1 150px; min-width:140px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+    padding:12px 14px; position:relative;
+  }
+  .flow .node .nt{font-family:var(--pixel); color:#fff; font-size:13px; letter-spacing:.5px;}
+  .flow .node .nd{font-size:11.5px; color:var(--ink-dim); margin-top:5px;}
+  .flow .node.code{border-color:rgba(22,242,200,0.5);}
+  .flow .node.art{border-color:rgba(255,61,240,0.5);}
+  .flow .node.econ{border-color:rgba(255,210,61,0.5);}
+  .flow .arrow{display:flex; align-items:center; color:var(--neon); font-size:20px;}
+  @media(max-width:760px){ .flow .arrow{transform:rotate(90deg);} }
+
+  /* Definition grid */
+  .deflist{display:grid; grid-template-columns:auto 1fr; gap:6px 16px; margin:12px 0; font-size:13.5px;}
+  .deflist dt{color:var(--neon-3); font-family:var(--mono);}
+  .deflist dd{margin:0; color:var(--ink-dim);}
+
+  footer{ text-align:center; padding:40px 16px 10px; color:var(--ink-dim); font-size:12px; letter-spacing:1px; }
+  footer .pl{color:var(--neon); font-family:var(--pixel); letter-spacing:2px;}
+  hr.div{border:none; border-top:1px solid var(--line); margin:24px 0;}
+
+  /* Back-to-top */
+  #toTop{
+    position:fixed; right:18px; bottom:18px; z-index:60; display:none;
+    font-family:var(--mono); font-size:11px; letter-spacing:1px;
+    cursor:pointer; color:var(--bg); background:var(--neon);
+    border:none; border-radius:4px; padding:9px 12px; text-transform:uppercase;
+    box-shadow:0 0 16px rgba(22,242,200,0.45);
+  }
+
+  @media print{
+    .controls,#toTop,.crt-overlay,.copy-btn{display:none !important;}
+    section,section.collapsed .sec-body{display:block !important;}
+    section{break-inside:avoid; box-shadow:none;}
+    body{background:#fff; color:#111;}
+  }
+  @media(max-width:680px){
+    nav.toc ol{columns:1;}
+    h1.sec{font-size:19px;}
+    .frame{padding:0 14px 80px;}
+  }
+</style>
+</head>
+<body>
+<div class="crt-overlay"></div>
+<button id="toTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">▲ Top</button>
+
+<div class="frame">
+
+  <!-- ===================== MARQUEE ===================== -->
+  <header class="marquee">
+    <div class="brand-kicker">Playology Entertainment Presents</div>
+    <div class="logo"><span class="play">PLAY</span><span class="tools">TOOLS</span></div>
+    <div class="subtitle">The Rig Asset Pipeline · End-to-End Build Guide</div>
+    <div class="doc-meta">
+      <span class="chip gold">Version 1.0</span>
+      <span class="chip">For: anyone — zero experience assumed</span>
+      <span class="chip live">● Production Pipeline</span>
+      <span class="chip">DD/Rig_Asset_Pipeline.html</span>
+    </div>
+    <div class="insert-coin">▶ FROM ZERO TO A LIVE RIG ITEM ◀</div>
+  </header>
+
+  <!-- ===================== CONTROLS ===================== -->
+  <div class="controls">
+    <div class="score-strip">PIPELINE · <b>CATALOG</b> → <b>3D MODEL</b> → <b>PLACEMENT</b> → <b>ECONOMY</b> → <b>SHIP</b></div>
+    <div class="ctl-group">
+      <button class="btn" onclick="expandAll(true)">Expand all</button>
+      <button class="btn" onclick="expandAll(false)">Collapse all</button>
+      <button class="btn" onclick="window.print()">Print / PDF</button>
+      <button class="btn" id="crtBtn" onclick="toggleCRT()">CRT: ON</button>
+    </div>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>▌ Map of this Guide</h2>
+    <ol>
+      <li><a href="#s0">What you'll build &amp; how it fits together</a></li>
+      <li><a href="#s1">Prerequisites &amp; environment setup</a></li>
+      <li><a href="#s2">The mental model (4 places, 1 item)</a></li>
+      <li><a href="#s3">Step A — Add the NetStore item (the catalog row)</a></li>
+      <li><a href="#s4">Step B — Get a 3D model (source <em>or</em> create)</a></li>
+      <li><a href="#s5">Step C — Place &amp; adjust it in the 3D scene</a></li>
+      <li><a href="#s6">Step D — Tune the economy balance</a></li>
+      <li><a href="#s7">Step E — Preview the whole thing in the app</a></li>
+      <li><a href="#s8">Step F — Bundle, commit &amp; deploy to production</a></li>
+      <li><a href="#s9">Full worked example — add a "Lava Lamp" from scratch</a></li>
+      <li><a href="#s10">Field reference (catalog + manifest)</a></li>
+      <li><a href="#s11">Troubleshooting &amp; FAQ</a></li>
+      <li><a href="#s12">Command &amp; file cheat-sheet</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============================================================ S0 ============================================================ -->
+  <section id="s0">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">00</span> What you'll build &amp; how it fits together <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Read this first · 4-minute orientation</span>
+
+    <p class="lead">PlayTools has a meta-game called <strong>The Rig</strong> — a persistent "NetCoin mining
+    rig" / gaming battlestation that the player builds out over weeks. Players earn <strong>NetCoin</strong>
+    (an in-app currency) and spend it in the <strong>NetStore</strong> on <strong>Rig Items</strong>: GPUs, chairs,
+    monitors, posters, RGB kits, and so on. Every purchasable item both changes the player's
+    <strong>economy</strong> (mining rate, storage cap, Rig Score) <em>and</em> appears as a real
+    <strong>3D model</strong> in a live Three.js battlestation scene.</p>
+
+    <p>This guide takes a <strong>completely uninformed person</strong> from a fresh checkout all the way
+    to a new Rig Item live in production. You do not need to know JavaScript, 3D modelling, or
+    game economics — every step is spelled out, with copy-paste commands and a full worked example
+    at the end (<a class="inline" href="#s9">§9</a>).</p>
+
+    <div class="callout note"><b>The one-sentence summary.</b> A Rig Item is one <em>catalog row</em>
+    (price + economy stats, in <code>PlayTools.html</code>) plus one <em>3D model</em> (a <code>.glb</code> file
+    placed via <code>rig_manifest.json</code>). Add the row, drop in the model, position it, tune the price,
+    preview, ship.</p>
+
+    <h2 class="sub">The pipeline at a glance</h2>
+    <div class="flow">
+      <div class="node code"><div class="nt">① Catalog row</div><div class="nd"><code>PlayTools.html</code> — id, name, price, mining stats</div></div>
+      <div class="arrow">→</div>
+      <div class="node art"><div class="nt">② 3D model</div><div class="nd">a <code>.glb</code> in <code>assets/rig/models/</code></div></div>
+      <div class="arrow">→</div>
+      <div class="node art"><div class="nt">③ Placement</div><div class="nd"><code>rig_manifest.json</code> — position / rotate / scale</div></div>
+      <div class="arrow">→</div>
+      <div class="node econ"><div class="nt">④ Balance</div><div class="nd"><code>Rig_Economy_Tuner.html</code> — sanity-check the price</div></div>
+      <div class="arrow">→</div>
+      <div class="node ship"><div class="nt">⑤ Ship</div><div class="nd">bundle → commit → auto-deploy</div></div>
+    </div>
+
+    <p class="muted">Colour key for the rest of the guide:
+      <span class="tag code">CODE</span> editing <code>PlayTools.html</code> ·
+      <span class="tag art">3D</span> models &amp; the manifest ·
+      <span class="tag econ">ECON</span> the economy tuner ·
+      <span class="tag ship">SHIP</span> bundling &amp; deploy.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ S1 ============================================================ -->
+  <section id="s1">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">01</span> Prerequisites &amp; environment setup <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Do this once · ~15 minutes</span>
+
+    <p>You need three things on your computer: <strong>Git</strong> (to get and save the code),
+    <strong>Node.js</strong> (to run the preview/editor tools), and a <strong>text editor</strong>
+    (to edit the catalog). A modern <strong>web browser</strong> (Chrome/Edge/Firefox) is used for the
+    3D editor and preview.</p>
+
+    <h2 class="sub">1.1 Install the tools</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>Tool</th><th>Why</th><th>Get it</th><th>Verify</th></tr>
+      <tr><td><strong>Git</strong></td><td>Download the repo, save &amp; ship your changes.</td><td><code>git-scm.com/downloads</code></td><td><code>git --version</code></td></tr>
+      <tr><td><strong>Node.js LTS</strong> (v18+)</td><td>Runs the rig editor, preview, bundler &amp; local server.</td><td><code>nodejs.org</code> — pick the <em>LTS</em> button. This also installs <code>npm</code>.</td><td><code>node --version</code><br><code>npm --version</code></td></tr>
+      <tr><td><strong>Text editor</strong></td><td>Edit <code>PlayTools.html</code> &amp; the manifest. <strong>VS Code</strong> (free) recommended.</td><td><code>code.visualstudio.com</code></td><td>—</td></tr>
+      <tr><td><strong>Browser</strong></td><td>The 3D layout editor &amp; in-app preview run in a browser.</td><td>Chrome, Edge, or Firefox (needs WebGL2 — all modern browsers have it).</td><td>—</td></tr>
+      <tr><td><strong>Blender</strong> <span class="tag opt">OPTIONAL</span></td><td>Only if you'll <em>create/convert</em> 3D models yourself (<a class="inline" href="#s4">§4</a>).</td><td><code>blender.org</code> (free)</td><td>—</td></tr>
+    </table></div>
+
+    <h2 class="sub">1.2 Get the code &amp; install dependencies</h2>
+    <p>Open a terminal (on Windows: "Git Bash" or PowerShell; on macOS/Linux: Terminal) and run:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-com"># 1. Clone the repository (only the first time)</span>
+<span class="c-cmd">git clone</span> https://github.com/PlayologyEntertainment/PlayTools.git
+<span class="c-cmd">cd</span> PlayTools
+
+<span class="c-com"># 2. Make your own working branch (never edit 'main' directly)</span>
+<span class="c-cmd">git checkout</span> -b my-new-rig-item
+
+<span class="c-com"># 3. Install the dev tools the rig pipeline needs (three.js, playwright, etc.)</span>
+<span class="c-cmd">npm install</span></pre></div>
+
+    <div class="callout"><b>What <code>npm install</code> pulls in.</b> The repo's <code>package.json</code> lists the
+    pipeline's dev dependencies: <code>three</code> (the 3D engine), <code>playwright</code> (drives the headless
+    preview screenshots), <code>@gltf-transform/cli</code> (model compression), <code>esbuild</code> (bundles the
+    in-app viewer), and <code>@sparticuz/chromium</code> (a fallback browser for preview). You do not call these
+    directly — the <code>npm run …</code> scripts do.</p></div>
+
+    <h2 class="sub">1.3 The scripts you'll use</h2>
+    <p>Everything is wired as an <code>npm run</code> shortcut so you never type long commands:</p>
+    <div class="tbl-scroll"><table>
+      <tr><th>Command</th><th>What it does</th><th>Used in</th></tr>
+      <tr><td><code>npm run rig:edit</code></td><td>Opens the <strong>interactive 3D layout editor</strong> at <code>http://127.0.0.1:8132</code> — drag a part around, then export the manifest.</td><td><a class="inline" href="#s5">§5</a></td></tr>
+      <tr><td><code>npm run rig:preview</code></td><td>Renders the current scene to a PNG (<code>tools/output/rig.png</code>) headlessly — a quick "does it look right" check.</td><td><a class="inline" href="#s5">§5</a></td></tr>
+      <tr><td><code>npm run serve</code></td><td>Serves the real app at <code>http://127.0.0.1:8133/PlayTools.html</code> so The Rig renders in <strong>true 3D</strong>.</td><td><a class="inline" href="#s7">§7</a></td></tr>
+      <tr><td><code>npm run rig:bundle</code></td><td>Re-builds the in-app 3D viewer bundle (only needed if you changed the <em>builder/manifest</em> wiring).</td><td><a class="inline" href="#s8">§8</a></td></tr>
+    </table></div>
+
+    <div class="callout warn"><b>Remote / web-session note.</b> If you're working in a managed cloud session
+    (Claude Code on the web, a CI runner, etc.), outbound network access may be restricted by the
+    environment's network policy. <code>npm install</code> and the headless preview both need network/binary
+    downloads, so run those where the policy allows package installs, or pre-install dependencies in your
+    setup script. The catalog &amp; manifest edits themselves need no network.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ S2 ============================================================ -->
+  <section id="s2">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">02</span> The mental model — 4 places, 1 item <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Understand this and the rest is mechanical</span>
+
+    <p>A single Rig Item is described in up to <strong>four files</strong>. Each owns a different concern.
+    Keep them straight and you'll never get lost:</p>
+
+    <div class="tbl-scroll"><table>
+      <tr><th>File</th><th>Owns</th><th>You edit it to…</th></tr>
+      <tr><td><span class="tag code">CODE</span> <code>PlayTools.html</code></td><td>The <strong>catalog</strong>: the item's id, name, price, mining-rate / cap / Rig-Score effect, and store blurb. Also the global economy constants.</td><td>Add the new item &amp; set its economy stats.</td></tr>
+      <tr><td><span class="tag art">3D</span> <code>assets/rig/models/&lt;id&gt;.glb</code></td><td>The actual <strong>3D model</strong> file for the item.</td><td>Drop the sourced/created model here.</td></tr>
+      <tr><td><span class="tag art">3D</span> <code>assets/rig/rig_manifest.json</code></td><td>The <strong>placement</strong>: where the model sits, how it's rotated &amp; scaled in the scene.</td><td>Add a <code>parts</code> entry &amp; tune its <code>transform</code>.</td></tr>
+      <tr><td><span class="tag econ">ECON</span> <code>DD/Rig_Economy_Tuner.html</code></td><td>A <strong>balancing sandbox</strong> — simulates player wealth so you can sanity-check a price before shipping. Mirrors the catalog.</td><td>Test pricing; export ready-to-paste rows.</td></tr>
+    </table></div>
+
+    <h2 class="sub">2.1 How an id ties it all together</h2>
+    <p>The magic glue is the item's <strong><code>id</code></strong> — one short lowercase string (e.g.
+    <code>desktoy</code>, <code>gpu2</code>, <code>monitor</code>). The same id is used everywhere:</p>
+    <div class="formula">catalog row <code>id:'lavalamp'</code> &nbsp;⟷&nbsp; model file <code>models/lavalamp.glb</code> &nbsp;⟷&nbsp; manifest key <code>"lavalamp": {…}</code> &nbsp;⟷&nbsp; the 3D-ownership set <code>RIG3D_PARTS</code></div>
+    <p>If those four don't agree on the id, the item won't render. Pick the id once, use it
+    consistently, and you're safe.</p>
+
+    <h2 class="sub">2.2 The three catalog buckets</h2>
+    <p>Inside <code>PlayTools.html</code> the store is three arrays. <strong>Which array you add to depends on
+    what the item is:</strong></p>
+    <div class="tbl-scroll"><table>
+      <tr><th>Array</th><th>For</th><th>Examples</th></tr>
+      <tr><td><code>PARTS</code></td><td><strong>Functional hardware</strong> — internal PC parts that raise the mining rate or storage cap.</td><td>GPU, CPU, RAM, Cooling, PSU</td></tr>
+      <tr><td><code>COSMETICS</code></td><td><strong>Peripherals &amp; cosmetics</strong> — the visible battlestation items. Some peripherals carry a small mining bump; pure cosmetics are flex-only.</td><td>Monitor, chair, keyboard, mouse, headset, posters, RGB, desk toys, books</td></tr>
+      <tr><td><code>SURFACES</code></td><td><strong>Floor &amp; wall</strong> tiers — only one floor and one wall are <em>equipped</em> at a time (not additive).</td><td>Hardwood floor, brick wall, synthwave mural</td></tr>
+    </table></div>
+    <p class="muted">Most new items you'll add are <strong>cosmetics/peripherals</strong> (they have a visible
+    model), so this guide's worked example targets <code>COSMETICS</code>. The mechanics are identical for
+    <code>PARTS</code>; <code>SURFACES</code> are noted where they differ.</p>
+
+    <div class="callout note"><b>File map.</b> Here's where everything lives:</div>
+    <pre class="tree">PlayTools/
+├── <b>PlayTools.html</b>                  <span class="ann">← the whole app: PARTS / COSMETICS / SURFACES catalog + economy constants</span>
+├── assets/rig/
+│   ├── <b>rig_manifest.json</b>           <span class="ann">← model placement (transforms)</span>
+│   ├── README.md                     <span class="ann">← short asset how-to</span>
+│   └── models/
+│       ├── <b>&lt;id&gt;.glb</b>                <span class="ann">← one model per item</span>
+│       └── ferndale_studio_04_512.hdr <span class="ann">← scene lighting (HDRI)</span>
+├── tools/
+│   ├── rig-edit.mjs / rig-editor.html <span class="ann">← interactive layout editor (npm run rig:edit)</span>
+│   ├── rig-preview.mjs                <span class="ann">← headless PNG preview (npm run rig:preview)</span>
+│   ├── rig-build.mjs                  <span class="ann">← shared scene builder (editor + preview + app all use it)</span>
+│   ├── rig-inapp.mjs                  <span class="ann">← in-app 3D mount; rig-inapp.bundle.js is its built output</span>
+│   └── serve.mjs                      <span class="ann">← local app server (npm run serve)</span>
+├── DD/
+│   ├── Rig_DD.md                      <span class="ann">← the design spec (economy rules &amp; rationale)</span>
+│   ├── Rig_3D_Asset_Spec.md           <span class="ann">← 3D format conventions &amp; shopping list</span>
+│   ├── Rig_Economy_Tuner.html         <span class="ann">← the balancing sandbox</span>
+│   └── <b>Rig_Asset_Pipeline.html</b>       <span class="ann">← (this guide)</span>
+└── .github/workflows/deploy.yml       <span class="ann">← auto-deploy to production on push to main</span></pre>
+    </div>
+  </section>
+
+  <!-- ============================================================ S3 ============================================================ -->
+  <section id="s3">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">03</span> Step A — Add the NetStore item <span class="tag code">CODE</span> <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Edit the catalog in PlayTools.html</span>
+
+    <p>This is the heart of it: one new line in an array. Open <code>PlayTools.html</code> in your editor and
+    search (<code>Ctrl/Cmd-F</code>) for <code>const COSMETICS</code> (around line&nbsp;2913) — or
+    <code>const PARTS</code> for hardware (around line&nbsp;2892).</p>
+
+    <h2 class="sub">3.1 The shape of a catalog row</h2>
+    <p>Every row is a plain object. Here's a real one from the shipped catalog, annotated:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code">{ <span class="c-key">id</span>:<span class="c-str">'desktoy'</span>, <span class="c-key">cat</span>:<span class="c-str">'Cosmetic'</span>, <span class="c-key">name</span>:<span class="c-str">'Desk Toy'</span>, <span class="c-key">cost</span>:<span class="c-num">60</span>, <span class="c-key">rate</span>:<span class="c-num">0</span>, <span class="c-key">cap</span>:<span class="c-num">0</span>, <span class="c-key">score</span>:<span class="c-num">3</span>, <span class="c-key">blurb</span>:<span class="c-str">'A little kinetic figurine. Pure desk charm.'</span> }</pre></div>
+
+    <div class="deflist">
+      <dt>id</dt><dd>Unique lowercase key — the glue from <a class="inline" href="#s2">§2.1</a>. No spaces. This becomes <code>models/&lt;id&gt;.glb</code> and the manifest key. <strong>Choose carefully — it's hard to change later.</strong></dd>
+      <dt>cat</dt><dd>A display category label (e.g. <code>Cosmetic</code>, <code>Peripheral</code>, <code>Lighting</code>, <code>GPU</code>). Groups items in the store UI.</dd>
+      <dt>name</dt><dd>The human-readable store name.</dd>
+      <dt>cost</dt><dd>Price in NetCoin. The single most important balance lever — see <a class="inline" href="#s6">§6</a>.</dd>
+      <dt>rate</dt><dd>How much this <strong>adds to the mining-rate multiplier</strong> (base is 1.0). <code>0.1</code> = +10% rate. Pure cosmetics use <code>0</code>.</dd>
+      <dt>cap</dt><dd>How many <strong>hours it adds to the offline storage cap</strong> (base 12h). Usually <code>0</code> except RAM-type parts.</dd>
+      <dt>score</dt><dd>How much it adds to the <strong>Rig Score</strong> (the "how decked-out is my setup" flex number).</dd>
+      <dt>needs <span class="tag opt">optional</span></dt><dd>An id this item is gated behind (e.g. a top GPU <code>needs:'psu'</code>). The player must own that first.</dd>
+      <dt>blurb</dt><dd>The one-line store description.</dd>
+    </div>
+
+    <div class="callout note"><b>Honesty guardrail (from the design spec).</b> NetCoin and Rig stats are an
+    <em>economy</em> only — they never touch the player's skill rating ("Gamer Score" / GamerDNA). You can make
+    an item rich-and-cool, never "better-aimed." Keep <code>rate</code>/<code>cap</code> modest for cosmetics.</p></div>
+
+    <h2 class="sub">3.2 Add your row</h2>
+    <ol class="steps">
+      <li><span class="st-title">Pick the right array.</span> Visible peripheral/cosmetic → <code>COSMETICS</code>. Internal hardware that boosts mining → <code>PARTS</code>. Floor/wall → <code>SURFACES</code> (see <a class="inline" href="#s3">§3.4</a>).</li>
+      <li><span class="st-title">Insert a new row.</span> Add it on its own line, keeping the array roughly <strong>sorted by ascending <code>cost</code></strong> (the store displays in array order, and the tuner expects a price ramp).</li>
+      <li><span class="st-title">Fill the fields.</span> Copy a neighbouring row, change <code>id</code>, <code>name</code>, <code>cost</code>, <code>blurb</code>, and the stats. Leave a trailing comma correct (every row except the last needs a comma after it).</li>
+      <li><span class="st-title">Save.</span> That's the catalog done — the item is now buyable in the store.</li>
+    </ol>
+
+    <div class="callout warn"><b>JavaScript-syntax safety net.</b> The catalog is real code, so a stray comma
+    breaks the whole app (a blank page). Three rules cover 99% of mistakes: <b>(1)</b> strings use straight
+    quotes <code>'…'</code>, not curly "smart quotes"; <b>(2)</b> every field is separated by a comma; <b>(3)</b>
+    every row except the very last in the array ends with a comma. After editing, open <code>PlayTools.html</code>
+    in a browser — if it loads and the store shows your item, your syntax is fine.</p></div>
+
+    <h2 class="sub">3.3 Make the model render in-app (the <code>RIG3D_PARTS</code> set)</h2>
+    <p>One extra wiring step the casual reader misses: the in-app 3D viewer only shows models for ids it's
+    told are "3D parts." Search <code>PlayTools.html</code> for <code>RIG3D_PARTS</code> (around line&nbsp;17539):</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-key">const</span> RIG3D_PARTS = <span class="c-key">new</span> Set([<span class="c-str">'chair'</span>,<span class="c-str">'monitor'</span>,<span class="c-str">'keyboard'</span>,<span class="c-str">'headset'</span>,<span class="c-str">'rgb'</span>,<span class="c-str">'poster'</span>,<span class="c-str">'desktoy'</span>,
+    <span class="c-str">'books'</span>,<span class="c-str">'poster_a'</span>,<span class="c-str">'poster_b'</span>,<span class="c-str">'poster_c'</span>,<span class="c-str">'poster_d'</span>,<span class="c-str">'poster_base'</span>]);</pre></div>
+    <p>If your new item has a 3D model that should appear when owned, <strong>add its <code>id</code> to this
+    set</strong>. (Pure economy items with no model — e.g. an internal RAM stick that isn't visible — can be
+    left out.)</p>
+
+    <h2 class="sub">3.4 Special case — floor &amp; wall (<code>SURFACES</code>)</h2>
+    <p>Floors and walls work a little differently: only one of each is <em>equipped</em> at a time, and tier&nbsp;1
+    is free/pre-owned. A surface row adds a <code>kind</code> (<code>'floor'</code> or <code>'wall'</code>) and a
+    <code>tier</code> (1–3). They don't use <code>.glb</code> models — they're built procedurally in
+    <code>tools/rig-build.mjs</code> (<code>buildFloor</code>/<code>buildWall</code>), so adding a brand-new surface
+    variant also means adding a builder branch there. For your first item, stick to <code>COSMETICS</code>/<code>PARTS</code>.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ S4 ============================================================ -->
+  <section id="s4">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">04</span> Step B — Get a 3D model <span class="tag art">3D</span> <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Source a ready model OR create one — no 3D background needed</span>
+
+    <p>The item needs a model file: <strong>glTF 2.0 binary (<code>.glb</code>)</strong>. A <code>.glb</code> is a
+    single self-contained file that packs the geometry <em>and</em> the textures together — ideal for the web.
+    You have three routes to one; pick whichever suits you.</p>
+
+    <h2 class="sub">4.1 The format rules (follow these and placement is painless)</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>Property</th><th>Requirement</th><th>Why</th></tr>
+      <tr><td>Format</td><td><strong><code>.glb</code></strong> (glTF 2.0 binary), textures embedded</td><td>One file, loads fast, no missing-texture issues.</td></tr>
+      <tr><td>Materials</td><td><strong>PBR metallic-roughness</strong> (baseColor + normal + roughness/metallic)</td><td>Reacts correctly to the scene's lighting. Avoid Blender-only/proprietary shaders.</td></tr>
+      <tr><td>Up axis</td><td><strong>Y-up</strong> (glTF default)</td><td>Sits the right way up automatically.</td></tr>
+      <tr><td>Forward</td><td>Faces <strong>−Z</strong> (toward camera). If not, fix with <code>rotY</code> in the manifest.</td><td>So it points at the viewer.</td></tr>
+      <tr><td>Scale</td><td><strong>Real-world metres</strong> (desk ≈ 0.75&nbsp;m tall, 27″ monitor ≈ 0.4&nbsp;m). If wrong, fix with a manifest <code>scale</code>.</td><td>Lands roughly life-size without fiddling.</td></tr>
+      <tr><td>Origin</td><td>Furniture/floor items: origin at <strong>footprint centre, on the floor</strong>. Desk-top items: origin at the <strong>base resting point</strong>.</td><td>Placing at <code>y:0</code> sits it on the ground; desk items sit on the desktop.</td></tr>
+      <tr><td>Budget</td><td><strong>&lt; ~50k triangles</strong> and <strong>≤ 2K textures</strong> per item</td><td>Web performance. Stylised low-poly is great (and tiny).</td></tr>
+      <tr><td>License</td><td>CC0 / CC-BY / purchased-with-redistribution. Note it in the manifest <code>credit</code> field.</td><td>Legal to ship.</td></tr>
+      <tr><td>Naming</td><td><code>models/&lt;id&gt;.glb</code> where <code>&lt;id&gt;</code> matches your catalog id.</td><td>The glue from <a class="inline" href="#s2">§2.1</a>.</td></tr>
+    </table></div>
+
+    <h2 class="sub">4.2 Route 1 — Download a ready-made model <span class="tag opt">easiest</span></h2>
+    <p>The fastest path. Free, good-quality sources:</p>
+    <ul>
+      <li><strong>Sketchfab</strong> (<code>sketchfab.com</code>) — filter <em>Downloadable</em> + <em>PBR</em>, and prefer <em>glTF</em> downloads. Huge library.</li>
+      <li><strong>Quaternius</strong> &amp; <strong>Kenney</strong> — CC0 (no attribution required), stylised low-poly, tiny files. Great for desk toys, props.</li>
+      <li><strong>Poly Pizza</strong> (<code>poly.pizza</code>) — CC0/CC-BY low-poly props.</li>
+      <li><strong>Quixel Megascans</strong> — photoreal (heavier).</li>
+      <li><strong>CGTrader / TurboSquid</strong> — paid; check the license allows redistribution.</li>
+    </ul>
+    <p>If the download is already a <code>.glb</code>, you're done — skip to <a class="inline" href="#s4">§4.5</a>.
+    If it's <code>.gltf</code>+folder, <code>.fbx</code>, or <code>.obj</code>, convert it (<a class="inline" href="#s4">§4.4</a>).</p>
+
+    <h2 class="sub">4.3 Route 2 — Generate from an image (AI image-to-3D) <span class="tag opt">no modelling</span></h2>
+    <p>Have a reference picture but no model? Image-to-3D tools turn a photo into a <code>.glb</code>:</p>
+    <ul>
+      <li><strong>Meshy</strong> (<code>meshy.ai</code>), <strong>Tripo</strong> (<code>tripo3d.ai</code>), <strong>Rodin</strong> — upload an image (or type a prompt), download the result as <code>.glb</code>.</li>
+    </ul>
+    <p>Results vary; pick a clean, well-lit reference and you'll often get a usable prop in minutes. Then run it
+    through the optimise step (<a class="inline" href="#s4">§4.5</a>) to shrink it.</p>
+
+    <h2 class="sub">4.4 Route 3 — Make/convert it in Blender (free) <span class="tag opt">most control</span></h2>
+    <p>Blender (<code>blender.org</code>) both <em>creates</em> models and <em>converts</em> other formats to
+    <code>.glb</code>. Minimum viable workflow for a beginner:</p>
+    <ol class="steps">
+      <li><span class="st-title">Open or import.</span> <code>File → Import</code> your <code>.fbx</code>/<code>.obj</code> (or model something simple — a cube with bevels goes a long way for stylised props).</li>
+      <li><span class="st-title">Check scale &amp; orientation.</span> Set units to <strong>Metric/metres</strong>. Make the object roughly its real size (press <code>N</code> for the dimensions panel). Point its front toward <strong>−Y in Blender</strong> (Blender is Z-up; the glTF exporter rotates Z-up→Y-up for you, and "Blender −Y" becomes "glTF −Z front").</li>
+      <li><span class="st-title">Set the origin.</span> <code>Object → Set Origin → Origin to Geometry</code>, then for floor items move the object so its base sits at <code>Z=0</code> and re-set origin there (origin = footprint centre on the floor).</li>
+      <li><span class="st-title">Give it a PBR material.</span> In the Shading tab, use a <strong>Principled BSDF</strong> material (that's the PBR metallic-roughness shader glTF expects).</li>
+      <li><span class="st-title">Export.</span> <code>File → Export → glTF 2.0 (.glb/.gltf)</code>. Choose format <strong>glTF Binary (.glb)</strong>, tick <strong>+Y Up</strong>, and under Geometry enable <strong>Apply Modifiers</strong> &amp; <strong>UVs/Normals</strong>. Save as <code>&lt;id&gt;.glb</code>.</li>
+    </ol>
+
+    <h3 class="subsub">Converting without modelling</h3>
+    <p>If you only need to convert a format (not edit), the bundled CLI does it headlessly — no Blender:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-com"># gltf-transform ships with the repo (via npm install). Convert + inspect:</span>
+<span class="c-cmd">npx gltf-transform</span> copy input.gltf output.glb
+<span class="c-cmd">npx gltf-transform</span> inspect output.glb     <span class="c-com"># prints tris, textures, size</span></pre></div>
+
+    <h2 class="sub">4.5 Optimise &amp; compress (always do this before shipping)</h2>
+    <p>Web users download these models, so size matters. The repo's chosen recipe (it took the whole model set
+    from ~58&nbsp;MB down to ~5&nbsp;MB) compresses geometry with <em>meshopt</em> and textures to <em>WebP</em>:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">npx gltf-transform</span> optimize raw.glb assets/rig/models/&lt;id&gt;.glb \
+  --compress meshopt --texture-compress webp</pre></div>
+    <p>The runtime already bundles the meshopt decoder, so compressed models load with no extra setup. Aim for a
+    final file in the low hundreds of KB where possible.</p>
+
+    <h2 class="sub">4.6 Drop it in place</h2>
+    <p>Put the finished file at <strong><code>assets/rig/models/&lt;id&gt;.glb</code></strong> — the filename's
+    <code>&lt;id&gt;</code> must exactly match your catalog id. That's the model installed; next we position it.</p>
+
+    <div class="callout note"><b>No model yet? You're not blocked.</b> Two items render <em>procedurally</em>
+    (in code, no <code>.glb</code>): the RGB Light Kit (<code>"proc":"rgb"</code>) and a fallback poster. And the
+    whole app has an SVG fallback when WebGL/3D isn't available. So you can ship the catalog row first and add
+    the model later — the item just won't have a 3D mesh until you do.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ S5 ============================================================ -->
+  <section id="s5">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">05</span> Step C — Place &amp; adjust it in the scene <span class="tag art">3D</span> <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">The manifest + the interactive editor</span>
+
+    <p>Now we tell the scene <strong>where</strong> your model goes. This is the <code>rig_manifest.json</code>
+    file. You can hand-edit the numbers, but the easy way is the <strong>interactive layout editor</strong> —
+    drag sliders in a browser and export the result.</p>
+
+    <h2 class="sub">5.1 Add a manifest entry</h2>
+    <p>Open <code>assets/rig/rig_manifest.json</code>. Under the <code>"parts"</code> object, add an entry keyed by
+    your id:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-str">"lavalamp"</span>: {
+  <span class="c-key">"model"</span>: <span class="c-str">"models/lavalamp.glb"</span>,
+  <span class="c-key">"on"</span>: <span class="c-str">"desk"</span>,                       <span class="c-com">// sits on the desktop (y auto-rests on the desk)</span>
+  <span class="c-key">"transform"</span>: { <span class="c-key">"pos"</span>: [<span class="c-num">-0.45</span>, <span class="c-num">0</span>, <span class="c-num">-0.30</span>], <span class="c-key">"rotY"</span>: <span class="c-num">0</span>, <span class="c-key">"scale"</span>: <span class="c-num">1</span> },
+  <span class="c-key">"credit"</span>: <span class="c-str">"Author Name / CC-BY"</span>
+}</pre></div>
+
+    <h3 class="subsub">The transform fields (how you "move things around")</h3>
+    <div class="deflist">
+      <dt>pos [x,y,z]</dt><dd>Position in <strong>metres</strong>. <code>x</code> = left(−)/right(+), <code>y</code> = down/up, <code>z</code> = toward camera(+)/into scene(−). With <code>"on":"desk"</code> the <code>y</code> is handled for you (it rests on the desktop).</dd>
+      <dt>rotY / rotX</dt><dd>Rotation in <strong>degrees</strong> (yaw / pitch). Use <code>rotY</code> to spin a model to face the room.</dd>
+      <dt>scale</dt><dd>A single number (uniform) or <code>[x,y,z]</code>. Use if the model imported too big/small.</dd>
+      <dt>fitHeight</dt><dd>Auto-scale the model so it's exactly this many metres tall (handy when you don't know the source scale).</dd>
+      <dt>on:"desk"</dt><dd>Rest the item on the desktop surface instead of the floor.</dd>
+      <dt>replaces</dt><dd>A base item this <em>swaps out</em> when owned (e.g. the upgrade monitor <code>replaces:"monitor_base"</code>).</dd>
+      <dt>screen</dt><dd>For monitors — which procedural screen image to show (e.g. <code>"synthwave"</code>).</dd>
+      <dt>glow</dt><dd>Self-illuminate from the model's own colour (0–1) so flat art (posters) reads in the dark scene.</dd>
+      <dt>credit</dt><dd>License/attribution string — fill this in for every sourced model.</dd>
+      <dt>proc</dt><dd>Use instead of <code>model</code> for a code-built part (e.g. <code>"proc":"rgb"</code>) — no <code>.glb</code> needed.</dd>
+    </div>
+
+    <h2 class="sub">5.2 Position it visually with the editor</h2>
+    <p>Hand-guessing coordinates is tedious. Instead:</p>
+    <ol class="steps">
+      <li><span class="st-title">Launch the editor.</span> Run <code>npm run rig:edit</code> and open <strong><code>http://127.0.0.1:8132</code></strong> in your browser.</li>
+      <li><span class="st-title">Frame the camera.</span> Drag to orbit, scroll to zoom — set up the hero angle.</li>
+      <li><span class="st-title">Select your part &amp; drag its sliders.</span> Pick the item, then live-drag its X/Y/Z, rotation, and scale until it sits right. Toggle other parts on/off to check for overlap. Tune bloom/FOV if needed.</li>
+      <li><span class="st-title">Export.</span> Hit <strong>Export manifest JSON</strong> (copy or download) and paste the result back into <code>assets/rig/rig_manifest.json</code>, replacing the old contents.</li>
+    </ol>
+    <div class="callout note"><b>Why the editor is trustworthy.</b> The editor, the headless preview, and the
+    real in-app viewer all share one scene builder (<code>tools/rig-build.mjs</code>). What you position in the
+    editor is <em>exactly</em> what renders in the app — no surprises.</p></div>
+
+    <h2 class="sub">5.3 Quick visual check (headless)</h2>
+    <p>To sanity-check without a browser, render a PNG:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">npm run rig:preview</span>                       <span class="c-com"># → tools/output/rig.png (all modelled parts)</span>
+<span class="c-cmd">node</span> tools/rig-preview.mjs --own=lavalamp,chair,monitor   <span class="c-com"># a specific owned-set</span>
+<span class="c-cmd">node</span> tools/rig-preview.mjs --contact          <span class="c-com"># a grid of every model (an "asset sheet")</span></pre></div>
+    <p>Open the PNG, confirm your item sits correctly, tweak the transform, repeat. When it reads well, you're
+    done with placement.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ S6 ============================================================ -->
+  <section id="s6">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">06</span> Step D — Tune the economy balance <span class="tag econ">ECON</span> <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Price it so it feels fair — using the tuner sandbox</span>
+
+    <p>An item's <strong><code>cost</code></strong> (and its <code>rate</code>/<code>cap</code>) decide how it
+    fits the multi-week earning curve. To avoid guesswork, the repo ships a live balancing sandbox:
+    <strong><code>DD/Rig_Economy_Tuner.html</code></strong>. Just open it in a browser — it's self-contained,
+    no server needed.</p>
+
+    <h2 class="sub">6.1 What the tuner does</h2>
+    <p>It mirrors the live catalog and simulates three player archetypes auto-reinvesting their NetCoin:</p>
+    <ul>
+      <li><strong>Grinder</strong> — returns daily <em>and</em> uses tools (gets the overclock bonus).</li>
+      <li><strong>Regular</strong> — returns daily, claims the payout, doesn't grind tools.</li>
+      <li><strong>Casual</strong> — every other day, so the streak keeps resetting.</li>
+    </ul>
+    <p>Edit any parameter or catalog row and the summary, graphs, and an <strong>affordability table</strong>
+    (which archetype can afford what, and on which day) all recompute instantly. That tells you whether your new
+    item lands where you intend on the timeline.</p>
+
+    <h2 class="sub">6.2 Add &amp; price your item in the tuner</h2>
+    <ol class="steps">
+      <li><span class="st-title">Open the tuner.</span> Double-click <code>DD/Rig_Economy_Tuner.html</code> (or open it in your browser).</li>
+      <li><span class="st-title">Add a row.</span> In the catalog table, add a row and fill <strong>id, name, description, cost, category, rate/cap/score, needs</strong>, and the <strong>model</strong> id (the <code>rig_manifest.json</code> key for its <code>.glb</code>; leave blank for procedural/no-model items).</li>
+      <li><span class="st-title">Watch the impact.</span> The simulation updates — check the affordability day and the income-mix graphs. Nudge <code>cost</code> until the item lands at the intended point in the curve (e.g. an early cosmetic affordable in session 1; a flagship part at ~8 weeks).</li>
+      <li><span class="st-title">Export for NetStore.</span> Click <strong>⤓ Export for NetStore</strong>. It emits three ready-to-paste blocks: a <code>PARTS</code> row, a <code>COSMETICS</code> row (it splits by category exactly like the app), and a <code>rig_manifest.json</code> model stub.</li>
+      <li><span class="st-title">Paste them home.</span> Drop the catalog row into <code>PlayTools.html</code> and the manifest stub into <code>rig_manifest.json</code> (then position it with <code>rig:edit</code> per <a class="inline" href="#s5">§5</a>).</li>
+    </ol>
+    <div class="callout note"><b>Tuner ⇄ catalog: keep them mirrored.</b> The tuner carries its own copy of the
+    catalog (so it can run standalone). If you change a price in one place, change it in the other so the
+    sandbox keeps telling the truth. The <em>Export</em> button is the clean way to keep them in sync.</p></div>
+
+    <h2 class="sub">6.3 The global economy knobs</h2>
+    <p>Beyond per-item pricing, the whole economy is governed by a handful of named constants near the top of the
+    <code>Rig</code> module in <code>PlayTools.html</code> (≈ line&nbsp;2878). These are the same "baseline" values
+    the design spec signed off, kept named so they're trivial to retune:</p>
+    <div class="tbl-scroll"><table>
+      <tr><th>Constant</th><th>Default</th><th>Meaning</th></tr>
+      <tr><td><code>BASE_RATE</code></td><td>10</td><td>NetCoin/hour at rig multiplier 1.0 (before any parts).</td></tr>
+      <tr><td><code>BASE_CAP_H</code></td><td>12</td><td>Offline accrual cap in hours before parts add storage.</td></tr>
+      <tr><td><code>DAILY_BASE</code></td><td>100</td><td>Day-1 streak payout.</td></tr>
+      <tr><td><code>STEP_PCT</code></td><td>15</td><td>+% of base added per consecutive day.</td></tr>
+      <tr><td><code>CAP_PCT</code></td><td>150</td><td>Streak-bonus cap (+150% → 2.5× around day 11).</td></tr>
+      <tr><td><code>OC_THRESH</code></td><td>3</td><td>Distinct applets/day needed to "overclock."</td></tr>
+      <tr><td><code>OC_BONUS</code></td><td>25</td><td>+% mining rate while overclocked.</td></tr>
+      <tr><td><code>MS_WEEKLY</code></td><td>750</td><td>Lump bonus at streak day 7 / 14 / 21 …</td></tr>
+      <tr><td><code>MS_MONTHLY</code></td><td>5000</td><td>Lump bonus at streak day 30 / 60 / 90 …</td></tr>
+    </table></div>
+    <div class="callout warn"><b>Change global knobs sparingly.</b> Per-item <code>cost</code> tunes one item;
+    these constants reshape the <em>entire</em> curve for every player. Adjust them only with a deliberate
+    rebalance, and re-run the tuner afterwards.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ S7 ============================================================ -->
+  <section id="s7">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">07</span> Step E — Preview it in the real app <span class="tag art">3D</span> <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">See the item in The Rig, in true 3D, exactly as players will</span>
+
+    <p>The headless PNG (<a class="inline" href="#s5">§5.3</a>) checks placement, but to see the item <em>in the
+    actual store and battlestation</em> you serve the app:</p>
+    <ol class="steps">
+      <li><span class="st-title">Start the server.</span> Run <code>npm run serve</code>, then open <strong><code>http://127.0.0.1:8133/PlayTools.html</code></strong>.</li>
+      <li><span class="st-title">Go to The Rig.</span> In the app nav, open <strong>The Rig</strong> (route <code>#/rig</code>). Served this way, the battlestation renders in real 3D (lazy-loaded), bound to the parts you own.</li>
+      <li><span class="st-title">Buy your item.</span> Open the <strong>NetStore</strong> (<code>#/rig/store</code>) and purchase it. (Need NetCoin to test? The store/economy is local; you can grant yourself coins via the app's dev affordances or just let idle/daily accrue.) Confirm it appears in the store with the right name/price/blurb and renders in the scene once owned.</li>
+    </ol>
+    <div class="callout"><b>Why serve instead of double-clicking?</b> Opened directly from disk
+    (<code>file://</code>), the app can't fetch the model assets, so it falls back to the procedural SVG
+    battlestation. The <code>serve</code> script wires up <code>three.js</code> and the <code>assets/rig</code>
+    paths so the real 3D viewer loads. No WebGL → it still gracefully falls back to SVG.</p></div>
+
+    <h2 class="sub">7.1 Pre-flight checklist</h2>
+    <p>Tick these off before you ship (click to mark done — saved in your browser):</p>
+    <ul class="check" data-key="preflight">
+      <li><span class="box"></span><span class="lbl">Catalog row added to the correct array (<code>PARTS</code>/<code>COSMETICS</code>/<code>SURFACES</code>), syntax valid (app loads).</span></li>
+      <li><span class="lbl">Item shows in the NetStore with correct name, price &amp; blurb.</span><span class="box"></span></li>
+      <li><span class="box"></span><span class="lbl">Model file at <code>assets/rig/models/&lt;id&gt;.glb</code>, optimised/compressed.</span></li>
+      <li><span class="box"></span><span class="lbl">Manifest <code>parts</code> entry added; transform tuned in <code>rig:edit</code>.</span></li>
+      <li><span class="box"></span><span class="lbl">Id added to <code>RIG3D_PARTS</code> (if it has a visible model).</span></li>
+      <li><span class="box"></span><span class="lbl">Price sanity-checked in the economy tuner.</span></li>
+      <li><span class="box"></span><span class="lbl">Verified in-app via <code>npm run serve</code>: buys correctly &amp; renders in the scene.</span></li>
+      <li><span class="box"></span><span class="lbl"><code>credit</code>/license noted in the manifest entry.</span></li>
+    </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ S8 ============================================================ -->
+  <section id="s8">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">08</span> Step F — Bundle, commit &amp; deploy <span class="tag ship">SHIP</span> <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">From your branch to the live site</span>
+
+    <h2 class="sub">8.1 Do you need to re-bundle?</h2>
+    <p>The in-app 3D viewer is shipped as a pre-built bundle, <code>tools/rig-inapp.bundle.js</code> (three.js
+    inlined, so the browser doesn't fetch it at runtime). <strong>Most item additions do NOT need a re-bundle</strong> —
+    the bundle reads the manifest &amp; models at runtime, so new catalog rows, new models, and manifest edits
+    work without rebuilding.</p>
+    <p>You only re-bundle if you changed the <strong>viewer/builder code itself</strong>
+    (<code>tools/rig-inapp.mjs</code> or <code>tools/rig-build.mjs</code> — e.g. you added a new
+    <code>"proc"</code> builder or a new <code>SURFACES</code> variant). In that case:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">npm run rig:bundle</span>     <span class="c-com"># → rebuilds tools/rig-inapp.bundle.js</span></pre></div>
+
+    <h2 class="sub">8.2 Commit your changes</h2>
+    <p>Stage everything you touched and commit with a clear message:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">git add</span> PlayTools.html assets/rig/rig_manifest.json assets/rig/models/&lt;id&gt;.glb
+<span class="c-com"># (also DD/Rig_Economy_Tuner.html if you re-priced there, and the bundle if you rebuilt it)</span>
+<span class="c-cmd">git commit</span> -m <span class="c-str">"Add &lt;Item Name&gt; to the NetStore (catalog + 3D model + placement)"</span>
+<span class="c-cmd">git push</span> -u origin my-new-rig-item</pre></div>
+    <p>Then open a <strong>pull request</strong> against <code>main</code> for review.</p>
+
+    <h2 class="sub">8.3 How production deploy works</h2>
+    <p>Deployment is automatic. The workflow <code>.github/workflows/deploy.yml</code> runs <strong>when changes
+    land on <code>main</code></strong> (via your merged PR) that touch any of these paths:</p>
+    <pre class="code">PlayTools.html
+tools/rig-inapp.bundle.js
+assets/rig/**</pre>
+    <p>On a qualifying push it FTPs the app + viewer bundle + the whole <code>assets/rig/</code> tree (manifest and
+    all models) to the Hostinger host, preserving relative paths so the app's <code>./tools</code> and
+    <code>../assets</code> URLs resolve in production. Because your new model lives under <code>assets/rig/models/</code>
+    and your catalog edit is in <code>PlayTools.html</code>, both are picked up automatically — no manual upload.</p>
+
+    <div class="tbl-scroll"><table>
+      <tr><th>What you changed</th><th>Gets deployed because…</th></tr>
+      <tr><td>Catalog row, <code>RIG3D_PARTS</code>, economy constants</td><td>they're in <code>PlayTools.html</code> (a watched path).</td></tr>
+      <tr><td>New <code>.glb</code> model</td><td>it's under <code>assets/rig/**</code> (watched); the deploy loops over <code>assets/rig/models/*</code>.</td></tr>
+      <tr><td>Manifest placement</td><td><code>assets/rig/rig_manifest.json</code> is under <code>assets/rig/**</code>.</td></tr>
+      <tr><td>Viewer/builder code</td><td>you re-bundled, and <code>tools/rig-inapp.bundle.js</code> is a watched path.</td></tr>
+    </table></div>
+
+    <div class="callout warn"><b>The economy tuner does not deploy.</b> <code>DD/Rig_Economy_Tuner.html</code>
+    is a design/dev sandbox, not part of the watched deploy paths — it lives in the repo for the team, not on the
+    live site. That's expected: the <em>app</em> ships, the tuner stays internal.</p></div>
+
+    <div class="callout danger"><b>Manual deploy.</b> The workflow also supports
+    <code>workflow_dispatch</code> (a "Run workflow" button in GitHub Actions) if you ever need to re-push without a
+    new commit. Use it only when you know the FTP credentials/secrets are configured.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ S9 ============================================================ -->
+  <section id="s9">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">09</span> Full worked example — add a "Lava Lamp" <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Every step, start to finish, nothing skipped</span>
+
+    <p>Goal: add a cheap, charming desk cosmetic — a <strong>Lava Lamp</strong> — that's a pure flex item
+    (no mining bump) affordable in the player's first session.</p>
+
+    <h3 class="subsub">① Decide the item</h3>
+    <div class="deflist">
+      <dt>id</dt><dd><code>lavalamp</code></dd>
+      <dt>name</dt><dd>Lava Lamp</dd>
+      <dt>type</dt><dd>desk cosmetic → goes in <code>COSMETICS</code></dd>
+      <dt>price</dt><dd>~75 NetCoin (early, session-1 affordable)</dd>
+      <dt>stats</dt><dd>rate 0, cap 0, score 3 (pure flex)</dd>
+    </div>
+
+    <h3 class="subsub">② Add the catalog row <span class="tag code">CODE</span></h3>
+    <p>In <code>PlayTools.html</code>, find <code>const COSMETICS</code> and add (kept in ascending-cost order,
+    near the other cheap cosmetics):</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code">{ <span class="c-key">id</span>:<span class="c-str">'lavalamp'</span>, <span class="c-key">cat</span>:<span class="c-str">'Cosmetic'</span>, <span class="c-key">name</span>:<span class="c-str">'Lava Lamp'</span>, <span class="c-key">cost</span>:<span class="c-num">75</span>, <span class="c-key">rate</span>:<span class="c-num">0</span>, <span class="c-key">cap</span>:<span class="c-num">0</span>, <span class="c-key">score</span>:<span class="c-num">3</span>, <span class="c-key">blurb</span>:<span class="c-str">'A slow-bubbling retro glow for the desk. Pure vibe.'</span> },</pre></div>
+
+    <h3 class="subsub">③ Register it for 3D <span class="tag code">CODE</span></h3>
+    <p>Find <code>RIG3D_PARTS</code> and add <code>'lavalamp'</code> to the set so the in-app viewer shows the
+    model when owned:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-key">const</span> RIG3D_PARTS = <span class="c-key">new</span> Set([<span class="c-str">'chair'</span>,<span class="c-str">'monitor'</span>,<span class="c-str">'keyboard'</span>,<span class="c-str">'headset'</span>,<span class="c-str">'rgb'</span>,<span class="c-str">'poster'</span>,<span class="c-str">'desktoy'</span>,
+    <span class="c-str">'books'</span>,<span class="c-str">'poster_a'</span>,<span class="c-str">'poster_b'</span>,<span class="c-str">'poster_c'</span>,<span class="c-str">'poster_d'</span>,<span class="c-str">'poster_base'</span>,<span class="c-str">'lavalamp'</span>]);</pre></div>
+
+    <h3 class="subsub">④ Get the model <span class="tag art">3D</span></h3>
+    <p>Grab a CC0 lava-lamp from Poly Pizza / Sketchfab (or generate one with Meshy from a reference photo).
+    Optimise &amp; save it:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">npx gltf-transform</span> optimize lavalamp-raw.glb assets/rig/models/lavalamp.glb \
+  --compress meshopt --texture-compress webp</pre></div>
+
+    <h3 class="subsub">⑤ Place it <span class="tag art">3D</span></h3>
+    <p>Add a manifest entry under <code>"parts"</code> in <code>rig_manifest.json</code>, then refine with
+    <code>npm run rig:edit</code>:</p>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-str">"lavalamp"</span>: {
+  <span class="c-key">"model"</span>: <span class="c-str">"models/lavalamp.glb"</span>,
+  <span class="c-key">"on"</span>: <span class="c-str">"desk"</span>,
+  <span class="c-key">"transform"</span>: { <span class="c-key">"pos"</span>: [<span class="c-num">-0.5</span>, <span class="c-num">0</span>, <span class="c-num">-0.45</span>], <span class="c-key">"rotY"</span>: <span class="c-num">12</span>, <span class="c-key">"fitHeight"</span>: <span class="c-num">0.22</span> },
+  <span class="c-key">"glow"</span>: <span class="c-num">0.4</span>,
+  <span class="c-key">"credit"</span>: <span class="c-str">"Author Name / CC0"</span>
+}</pre></div>
+    <p class="muted">(A lamp glows, so a little <code>glow</code> makes it read in the dark scene. <code>fitHeight</code>
+    locks it to 22&nbsp;cm tall regardless of the source model's scale.)</p>
+
+    <h3 class="subsub">⑥ Balance-check <span class="tag econ">ECON</span></h3>
+    <p>Open <code>DD/Rig_Economy_Tuner.html</code>, add the same row (model id <code>lavalamp</code>), confirm a
+    session-1 player can afford 75 NetCoin early, and <em>Export for NetStore</em> to double-check your pasted
+    rows match.</p>
+
+    <h3 class="subsub">⑦ Preview <span class="tag art">3D</span></h3>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">npm run rig:preview</span>                          <span class="c-com"># quick PNG</span>
+<span class="c-cmd">npm run serve</span>                                <span class="c-com"># then open #/rig, buy the Lava Lamp, see it glow on the desk</span></pre></div>
+
+    <h3 class="subsub">⑧ Ship <span class="tag ship">SHIP</span></h3>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">git add</span> PlayTools.html assets/rig/rig_manifest.json assets/rig/models/lavalamp.glb
+<span class="c-cmd">git commit</span> -m <span class="c-str">"Add Lava Lamp desk cosmetic to the NetStore"</span>
+<span class="c-cmd">git push</span> -u origin my-new-rig-item
+<span class="c-com"># open a PR → merge to main → deploy.yml FTPs it live automatically</span></pre></div>
+
+    <div class="callout note"><b>That's a complete item.</b> No re-bundle was needed (no viewer-code change),
+    and the deploy picks up both the <code>PlayTools.html</code> edit and the new model under
+    <code>assets/rig/**</code> on merge to <code>main</code>.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ S10 ============================================================ -->
+  <section id="s10">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">10</span> Field reference — catalog &amp; manifest <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Every field, one place</span>
+
+    <h2 class="sub">10.1 Catalog row (<code>PARTS</code> / <code>COSMETICS</code> / <code>SURFACES</code>)</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+      <tr><td><code>id</code></td><td>string</td><td>yes</td><td>Unique lowercase key; also the model filename &amp; manifest key.</td></tr>
+      <tr><td><code>cat</code></td><td>string</td><td>yes</td><td>Display category (GPU, RAM, Cosmetic, Peripheral, Lighting, Floor, Wall…).</td></tr>
+      <tr><td><code>name</code></td><td>string</td><td>yes</td><td>Store display name.</td></tr>
+      <tr><td><code>cost</code></td><td>number</td><td>yes</td><td>Price in NetCoin (0 for free tier-1 surfaces).</td></tr>
+      <tr><td><code>rate</code></td><td>number</td><td>yes</td><td>Added mining-rate multiplier (0 = none).</td></tr>
+      <tr><td><code>cap</code></td><td>number</td><td>yes</td><td>Added offline-cap hours (0 = none).</td></tr>
+      <tr><td><code>score</code></td><td>number</td><td>yes</td><td>Added Rig Score.</td></tr>
+      <tr><td><code>blurb</code></td><td>string</td><td>yes</td><td>One-line store description.</td></tr>
+      <tr><td><code>needs</code></td><td>string</td><td>no</td><td>Prerequisite item id (gating).</td></tr>
+      <tr><td><code>kind</code></td><td>string</td><td>surfaces</td><td><code>'floor'</code> or <code>'wall'</code> (SURFACES only).</td></tr>
+      <tr><td><code>tier</code></td><td>number</td><td>surfaces</td><td>1–3; tier 1 is free/pre-owned (SURFACES only).</td></tr>
+    </table></div>
+
+    <h2 class="sub">10.2 Manifest <code>parts</code> entry</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>Field</th><th>Notes</th></tr>
+      <tr><td><code>model</code></td><td>Path under <code>assets/rig/</code>, e.g. <code>"models/&lt;id&gt;.glb"</code>. Omit if using <code>proc</code>.</td></tr>
+      <tr><td><code>proc</code></td><td>Procedural builder type (e.g. <code>"rgb"</code>) instead of a model file.</td></tr>
+      <tr><td><code>transform.pos</code></td><td><code>[x,y,z]</code> in metres.</td></tr>
+      <tr><td><code>transform.rotY</code> / <code>rotX</code></td><td>Rotation in degrees.</td></tr>
+      <tr><td><code>transform.scale</code></td><td>Number (uniform) or <code>[x,y,z]</code>.</td></tr>
+      <tr><td><code>transform.fitHeight</code></td><td>Auto-scale to this height in metres.</td></tr>
+      <tr><td><code>on</code></td><td><code>"desk"</code> rests the item on the desktop.</td></tr>
+      <tr><td><code>replaces</code></td><td>A base id this swaps out when owned.</td></tr>
+      <tr><td><code>screen</code></td><td>Monitor screen image id (e.g. <code>"synthwave"</code>).</td></tr>
+      <tr><td><code>glow</code></td><td>Self-illuminate 0–1 (for flat art / lights).</td></tr>
+      <tr><td><code>default:false</code></td><td>Alternate that "show everything" preview skips (renders only when explicitly owned).</td></tr>
+      <tr><td><code>credit</code></td><td>License/attribution — always fill for sourced models.</td></tr>
+    </table></div>
+
+    <h2 class="sub">10.3 Scene block (top of the manifest)</h2>
+    <p class="muted">You rarely touch these, but for completeness: <code>scene.hdri</code> (lighting environment),
+    <code>scene.camera</code> (pos/target/fov + orbit limits), <code>scene.bloom</code> (glow post-process),
+    and <code>scene.wall</code> (the dark back wall posters hang on). Tune them in <code>rig:edit</code> and
+    export.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ S11 ============================================================ -->
+  <section id="s11">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">11</span> Troubleshooting &amp; FAQ <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">When something doesn't show up</span>
+
+    <div class="tbl-scroll"><table>
+      <tr><th>Symptom</th><th>Likely cause &amp; fix</th></tr>
+      <tr><td><strong>The whole app is blank / white.</strong></td><td>A JavaScript syntax slip in the catalog — a smart-quote, a missing/extra comma. Re-check your row (<a class="inline" href="#s3">§3.2</a>). Open the browser console (F12) for the line number.</td></tr>
+      <tr><td><strong>Item shows in the store but no 3D model.</strong></td><td>(a) Id missing from <code>RIG3D_PARTS</code> (<a class="inline" href="#s3">§3.3</a>); (b) no manifest <code>parts</code> entry; (c) the <code>model</code> path / filename doesn't match the id; (d) you opened the app from <code>file://</code> — use <code>npm run serve</code>.</td></tr>
+      <tr><td><strong>Model appears but is huge / tiny / sideways / sunk into the desk.</strong></td><td>Transform issue — fix <code>scale</code>/<code>fitHeight</code>, <code>rotY</code>, and <code>pos</code> in <code>rig:edit</code>. For "sunk", check the model's origin (<a class="inline" href="#s4">§4.1</a>) or add <code>"on":"desk"</code>.</td></tr>
+      <tr><td><strong>Model is dark / unlit / wrong colour.</strong></td><td>Not a PBR metallic-roughness material. Re-export with a Principled BSDF (<a class="inline" href="#s4">§4.4</a>). For flat art, add a <code>glow</code> value.</td></tr>
+      <tr><td><strong>Model loads slowly / huge file.</strong></td><td>Skip the optimise step? Run the <code>gltf-transform optimize … --compress meshopt --texture-compress webp</code> recipe (<a class="inline" href="#s4">§4.5</a>).</td></tr>
+      <tr><td><strong><code>npm run rig:preview</code> errors / blank PNG.</strong></td><td>Headless Chromium/WebGL hiccup or a model failed to load. Re-run; check the console output it prints (it lists scene errors and per-model sizes). Ensure <code>npm install</code> completed.</td></tr>
+      <tr><td><strong>Editor/preview show it, but the live site doesn't.</strong></td><td>The deploy only runs on push to <code>main</code> touching watched paths. Confirm your PR merged and the Action ran (<a class="inline" href="#s8">§8.3</a>).</td></tr>
+      <tr><td><strong>Price feels off in the curve.</strong></td><td>Re-tune <code>cost</code> in the economy tuner and re-export (<a class="inline" href="#s6">§6</a>).</td></tr>
+    </table></div>
+
+    <h2 class="sub">FAQ</h2>
+    <h3 class="subsub">Do I have to provide a 3D model?</h3>
+    <p>No — you can ship the catalog row first; the item just won't have a mesh until you add one. The RGB kit and
+    a fallback poster are even fully procedural (no <code>.glb</code>).</p>
+    <h3 class="subsub">Can I change an item's id later?</h3>
+    <p>Avoid it. The id is the glue across the catalog, the model filename, the manifest, and player save data.
+    Changing it orphans existing owners' saved purchases. Pick a good id up front.</p>
+    <h3 class="subsub">Will adding an item break existing players' saves?</h3>
+    <p>No — saves are keyed by owned ids in <code>localStorage</code>. New items simply appear as not-yet-owned.</p>
+    <h3 class="subsub">Do I ever edit the bundle by hand?</h3>
+    <p>Never. <code>tools/rig-inapp.bundle.js</code> is generated by <code>npm run rig:bundle</code>. Hand edits are
+    overwritten on the next build.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ S12 ============================================================ -->
+  <section id="s12">
+    <h1 class="sec" onclick="toggleSec(this)"><span class="num">12</span> Command &amp; file cheat-sheet <span class="caret">▾</span></h1>
+    <div class="sec-body">
+    <span class="sec-tag">Pin this tab</span>
+
+    <h2 class="sub">Commands</h2>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre class="code"><span class="c-cmd">npm install</span>            <span class="c-com"># one-time: install pipeline dev tools</span>
+<span class="c-cmd">npm run rig:edit</span>       <span class="c-com"># interactive 3D layout editor   → http://127.0.0.1:8132</span>
+<span class="c-cmd">npm run rig:preview</span>    <span class="c-com"># headless PNG of the scene      → tools/output/rig.png</span>
+<span class="c-cmd">npm run serve</span>          <span class="c-com"># run the real app in 3D         → http://127.0.0.1:8133/PlayTools.html</span>
+<span class="c-cmd">npm run rig:bundle</span>     <span class="c-com"># rebuild in-app viewer (only if you changed viewer/builder code)</span>
+<span class="c-cmd">npx gltf-transform optimize in.glb out.glb --compress meshopt --texture-compress webp</span></pre></div>
+
+    <h2 class="sub">Where each thing lives</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>To change…</th><th>Edit…</th></tr>
+      <tr><td>Item name / price / mining stats / blurb</td><td><code>PlayTools.html</code> → <code>PARTS</code> / <code>COSMETICS</code> / <code>SURFACES</code></td></tr>
+      <tr><td>Whether an item renders a model in-app</td><td><code>PlayTools.html</code> → <code>RIG3D_PARTS</code></td></tr>
+      <tr><td>Global economy curve (rates, daily, milestones)</td><td><code>PlayTools.html</code> → <code>BASE_RATE</code>, <code>DAILY_BASE</code>, … (≈ line 2878)</td></tr>
+      <tr><td>The model file</td><td><code>assets/rig/models/&lt;id&gt;.glb</code></td></tr>
+      <tr><td>Where a model sits / rotation / scale</td><td><code>assets/rig/rig_manifest.json</code> → <code>parts.&lt;id&gt;.transform</code></td></tr>
+      <tr><td>Camera, lighting, bloom, back wall</td><td><code>assets/rig/rig_manifest.json</code> → <code>scene</code> (via <code>rig:edit</code>)</td></tr>
+      <tr><td>Balance-test a price</td><td><code>DD/Rig_Economy_Tuner.html</code></td></tr>
+      <tr><td>Deploy behaviour</td><td><code>.github/workflows/deploy.yml</code></td></tr>
+    </table></div>
+
+    <h2 class="sub">The 6-step loop, memorised</h2>
+    <div class="formula">A. catalog row &nbsp;→&nbsp; B. get <code>.glb</code> &nbsp;→&nbsp; C. place in manifest (<code>rig:edit</code>) &nbsp;→&nbsp; D. price in tuner &nbsp;→&nbsp; E. preview (<code>serve</code>) &nbsp;→&nbsp; F. commit → PR → auto-deploy</div>
+
+    <div class="callout note"><b>Further reading in this repo.</b>
+    <code>DD/Rig_DD.md</code> (the economy design rationale) ·
+    <code>DD/Rig_3D_Asset_Spec.md</code> (full 3D format spec &amp; shopping list) ·
+    <code>assets/rig/README.md</code> (short asset how-to) ·
+    <code>DD/Rig_Economy_Tuner.html</code> (the live balancing sandbox).</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <hr class="div">
+    <p><span class="pl">PLAYTOOLS</span> · The Rig Asset Pipeline · Playology Entertainment</p>
+    <p class="muted">A standalone guide. Open in any browser. No build step, no external assets.</p>
+  </footer>
+
+</div><!-- /frame -->
+
+<script>
+  // ---- collapsible sections -------------------------------------------------
+  function toggleSec(h){ h.closest('section').classList.toggle('collapsed'); }
+  function expandAll(open){
+    document.querySelectorAll('section').forEach(s=>{
+      s.classList.toggle('collapsed', !open);
+    });
+  }
+
+  // ---- CRT toggle -----------------------------------------------------------
+  function toggleCRT(){
+    document.body.classList.toggle('no-crt');
+    const on = !document.body.classList.contains('no-crt');
+    document.getElementById('crtBtn').textContent = 'CRT: ' + (on ? 'ON' : 'OFF');
+  }
+
+  // ---- copy-to-clipboard for code blocks ------------------------------------
+  document.querySelectorAll('.copy-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const pre = btn.parentElement.querySelector('pre');
+      const text = pre.innerText;
+      const done = ()=>{ btn.textContent='Copied ✓'; btn.classList.add('copied');
+        setTimeout(()=>{ btn.textContent='Copy'; btn.classList.remove('copied'); }, 1400); };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
+      } else { fallback(); }
+      function fallback(){
+        const ta=document.createElement('textarea'); ta.value=text;
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); done(); }catch(e){}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  // ---- interactive checklists (persisted in localStorage) -------------------
+  document.querySelectorAll('ul.check').forEach(list=>{
+    const key = 'rigpipe-check-' + (list.dataset.key||'');
+    let saved = {};
+    try{ saved = JSON.parse(localStorage.getItem(key)||'{}'); }catch(e){}
+    [...list.children].forEach((li,i)=>{
+      // normalise: ensure a .box exists and sits first
+      let box = li.querySelector('.box');
+      if(box && li.firstElementChild!==box){ li.insertBefore(box, li.firstChild); }
+      if(saved[i]){ li.classList.add('done'); if(box) box.textContent='✓'; }
+      li.addEventListener('click', ()=>{
+        li.classList.toggle('done');
+        const on = li.classList.contains('done');
+        if(box) box.textContent = on ? '✓' : '';
+        saved[i] = on;
+        try{ localStorage.setItem(key, JSON.stringify(saved)); }catch(e){}
+      });
+    });
+  });
+
+  // ---- back-to-top ----------------------------------------------------------
+  const toTop = document.getElementById('toTop');
+  window.addEventListener('scroll', ()=>{ toTop.style.display = window.scrollY>600 ? 'block':'none'; });
+
+  // ---- expand the section a TOC link points at -----------------------------
+  document.querySelectorAll('nav.toc a').forEach(a=>{
+    a.addEventListener('click', ()=>{
+      const id = a.getAttribute('href').slice(1);
+      const sec = document.getElementById(id);
+      if(sec) sec.classList.remove('collapsed');
+    });
+  });
+</script>
+</body>
+</html>
