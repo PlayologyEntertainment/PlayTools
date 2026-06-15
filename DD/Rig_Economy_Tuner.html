@@ -607,7 +607,34 @@ function partRow(pt){
 function buildParts(list){
   const body=document.getElementById('partsBody'); body.innerHTML='';
   list.forEach(pt=>body.appendChild(partRow(pt)));
-  readParts();
+  readParts(); sizeFields();
+}
+
+/* ---------- Auto-fit the wide text columns ----------
+   The Part (name) and Description columns size to whatever value is currently
+   the longest, so neither ever clips its text — the table just scrolls
+   horizontally for the extra width. Text width is measured precisely with a
+   canvas (proportional font), so this holds for any data, not a char estimate. */
+function colWidth(sel, floorPx){
+  const inputs=[...document.querySelectorAll('#partsBody '+sel)];
+  if(!inputs.length) return floorPx;
+  const cs=getComputedStyle(inputs[0]);
+  const ctx=colWidth._c||(colWidth._c=document.createElement('canvas').getContext('2d'));
+  ctx.font=`${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  let max=0;
+  inputs.forEach(i=>{ const w=ctx.measureText(i.value||i.placeholder||'').width; if(w>max) max=w; });
+  // box-sizing is border-box, so add the input's own padding + border, plus a
+  // little slack for the caret and a comfortable trailing gap.
+  const chrome=parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight)
+              +parseFloat(cs.borderLeftWidth)+parseFloat(cs.borderRightWidth);
+  return Math.max(floorPx, Math.ceil(max+chrome+12));
+}
+function sizeFields(){
+  if(!document.querySelector('#partsBody tr')) return;
+  const nameW=colWidth('.p-name',120)+'px';
+  const descW=colWidth('.p-desc',240)+'px';
+  document.querySelectorAll('#partsBody .p-name').forEach(i=>i.style.width=nameW);
+  document.querySelectorAll('#partsBody .p-desc').forEach(i=>i.style.width=descW);
 }
 
 /* ---------- Export to NetStore (catalog entries + manifest stub) ---------- */
@@ -661,10 +688,10 @@ function init(){
   refreshIdList();
 
   PARAM_IDS.forEach(id=>document.getElementById(id).addEventListener('input',render));
-  document.getElementById('partsBody').addEventListener('input',()=>{ readParts(); refreshIdList(); render(); });
+  document.getElementById('partsBody').addEventListener('input',()=>{ readParts(); refreshIdList(); sizeFields(); render(); });
   document.getElementById('addRow').onclick=()=>{
     document.getElementById('partsBody').appendChild(partRow({id:'new_part',name:'New Part',cat:'Cosmetic',cost:100,rate:0,cap:0,score:5,needs:'',model:'',blurb:''}));
-    readParts(); refreshIdList(); render();
+    readParts(); refreshIdList(); sizeFields(); render();
   };
   document.getElementById('resetBtn').onclick=()=>{ setParams(BASE); buildParts(BASE_PARTS.map(p=>({...p}))); refreshIdList(); render(); };
 
