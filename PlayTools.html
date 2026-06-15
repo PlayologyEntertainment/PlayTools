@@ -275,6 +275,9 @@
   .score-strip b{color:var(--neon); font-family:var(--pixel);}
   .score-strip b#ssScore{color:var(--neon-3);}
   .score-strip .sep{opacity:0.4; margin:0 4px;}
+  /* Each RANK/CLASS/SCORE/NetCoin metric is an unbreakable unit, so when the
+     strip wraps on a narrow viewport a label never splits from its value. */
+  .score-strip .seg{display:inline-block; white-space:nowrap;}
   .controls-actions{display:flex; gap:8px; flex-wrap:wrap;}
   .btn{
     font-family:var(--mono); font-size:12px; letter-spacing:1px; cursor:pointer;
@@ -716,13 +719,18 @@
   .controls-row{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0;}
 
   /* ---- The Rig — NetCoin meta-progression (Rig_DD.md) ---- */
-  .score-strip .coin-ic{display:inline-block; vertical-align:-3px; margin:0 2px 0 0;}
+  .score-strip .coin-ic{display:inline-block; vertical-align:-0.18em; margin:0 2px 0 0;}
+  /* Size the coin to the text so it scales with the responsive font clamp and
+     never juts past the strip on small screens (overrides the SVG's px attrs). */
+  .score-strip .coin-ic svg{width:1.15em; height:1.15em; display:block;}
   .score-strip b#ssCoin{color:var(--neon-3);}
   .rig-block{background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:16px; margin:14px 0;}
   .rig-block h2.sub{margin-top:0;}
   .rig-wallet{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
-  .rig-wallet .bal{display:flex; align-items:center; gap:10px;}
-  .rig-wallet .bal .n{font-family:var(--pixel); font-size:34px; font-weight:800; color:var(--neon-3); text-shadow:0 0 16px rgba(255,210,61,0.35); line-height:1;}
+  /* Let the coin + balance wrap (number drops under the coin) and the digits
+     scale down on narrow screens, so a large balance stays inside the panel. */
+  .rig-wallet .bal{display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; min-width:0; max-width:100%;}
+  .rig-wallet .bal .n{font-family:var(--pixel); font-size:clamp(24px, 8vw, 34px); font-weight:800; color:var(--neon-3); text-shadow:0 0 16px rgba(255,210,61,0.35); line-height:1; min-width:0; overflow-wrap:anywhere;}
   .rig-wallet .sub-stat{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim);}
   .rig-gauge{height:18px; border:1px solid var(--line); border-radius:10px; background:var(--bg-2); overflow:hidden; margin:8px 0;}
   .rig-gauge .fill{height:100%; width:0; background:linear-gradient(90deg,var(--neon),var(--neon-3)); transition:width .4s ease;}
@@ -1477,10 +1485,12 @@
        both rows are centred (DD UX pass). */
     .controls{ flex-direction:column; align-items:center; gap:10px; flex-wrap:nowrap; }
     .controls-actions{ order:-1; justify-content:center; width:100%; }
-    /* Keep RANK · CLASS · SCORE on a single, non-wrapping line — scale the
-       type down with the viewport so it always fits. */
+    /* Scale RANK · CLASS · SCORE · NetCoin down with the viewport; if it still
+       can't fit one line (e.g. a large NetCoin balance on a very narrow phone),
+       let whole metric segments wrap to a second line rather than spilling out
+       of the strip's box. */
     .score-strip{
-      order:0; width:100%; text-align:center; white-space:nowrap;
+      order:0; width:100%; text-align:center; white-space:normal;
       font-size:clamp(9px, 3vw, 12px); letter-spacing:0;
     }
     .score-strip .sep{ margin:0 3px; }
@@ -1663,10 +1673,10 @@
   <!-- ===================== STATUS STRIP ===================== -->
   <div class="controls">
     <div class="score-strip" id="scoreStrip">
-      RANK <b id="ssRank">NEWBIE</b>
-      <span class="sep">·</span> CLASS <b id="ssClass">UNRANKED</b>
-      <span class="sep">·</span> SCORE <b id="ssScore">0</b>
-      <span class="sep">·</span><span id="ssCoinIc" class="coin-ic" aria-hidden="true"></span><b id="ssCoin" title="NetCoin — your spendable economy (separate from Gamer Score)">0</b>
+      <span class="seg">RANK <b id="ssRank">NEWBIE</b></span>
+      <span class="sep">·</span> <span class="seg">CLASS <b id="ssClass">UNRANKED</b></span>
+      <span class="sep">·</span> <span class="seg">SCORE <b id="ssScore">0</b></span>
+      <span class="sep">·</span> <span class="seg"><span id="ssCoinIc" class="coin-ic" aria-hidden="true"></span><b id="ssCoin" title="NetCoin — your spendable economy (separate from Gamer Score)">0</b></span>
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
