@@ -3140,11 +3140,13 @@ function confirmRerun(opts){
    CABINET REGISTRY — declares labs + cabinets (drives rail + home + router)
    ============================================================================ */
 const CABINETS = [
-  { id:'dna',        lab:'Gamer DNA', name:'Gamer DNA Hub', icon:'🧬', tag:'mvp', route:'#/dna',
+  { id:'dna',        lab:'The MetaGame', name:'Gamer DNA Hub', icon:'🧬', tag:'mvp', route:'#/dna',
     desc:'Your profile, 7 attributes, class & rank.' },
-  { id:'friends',    lab:'Gamer DNA', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
+  { id:'rig',        lab:'The MetaGame', name:'The Rig', railName:'The Rig', icon:RIG_ICON, tag:'mvp', route:'#/rig',
+    desc:'Mine NetCoin, build your battlestation & climb your Rig Score.', dna:'Idle · NetCoin · Rig Score' },
+  { id:'friends',    lab:'The MetaGame', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
-  { id:'platforms',  lab:'Gamer DNA', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
+  { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
     desc:'Link your Steam, Epic, Nintendo, Discord & Twitch profiles — paste or enter by hand.', dna:'Paste import · Manual KPIs' },
 
   { id:'calibration',lab:'Reflex', name:'Latency Calibration', railName:'Latency', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
@@ -3324,7 +3326,7 @@ const Views = {};
    monitor bezel, glare and section header read as a separate "shelf" of
    cabinets. Falls back to the primary neon for any future, unmapped lab. */
 const LAB_CRT = {
-  'Gamer DNA':'#16f2c8',   // cyan
+  'The MetaGame':'#16f2c8',   // cyan
   'Reflex'   :'#f7c59f',   // peach
   'Hardware' :'#679436',   // green
   'Setup'    :'#FFD166',   // yellow
@@ -3337,7 +3339,7 @@ function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
 /* Representative glyph for each lab — used by the sidebar category filters so the
    rail reads as a colourful set of shelves rather than a flat word list. */
 const LAB_ICON = {
-  'Gamer DNA':'🧬', 'Reflex':'⚡', 'Hardware':'🖱️', 'Setup':'🛠️',
+  'The MetaGame':'🧬', 'Reflex':'⚡', 'Hardware':'🖱️', 'Setup':'🛠️',
   'Fun':'🎭', 'RPG':'🎲', 'Arcade':'👾'
 };
 function labIcon(lab){ return LAB_ICON[lab] || '🎮'; }
@@ -3346,7 +3348,7 @@ function labIcon(lab){ return LAB_ICON[lab] || '🎮'; }
    pitches the kind of applets it holds instead of a generic "showing one
    category" line. Retro-arcade voice to match the rest of the lobby. */
 const LAB_DESC = {
-  'Gamer DNA':'Your player identity, decoded. Sequence your Gamer DNA across seven attributes, line up your stats against friends, and link your gaming profiles into one card.',
+  'The MetaGame':'Your player identity, decoded. Sequence your Gamer DNA across seven attributes, build out The Rig, line up your stats against friends, and link your gaming profiles into one card.',
   'Reflex'   :'Pure twitch territory. Reaction time, clicks-per-second, aim, flicks and tracking — the millisecond drills that separate the quick from the clicked.',
   'Hardware' :'Put your gear under the microscope. Benchmark your mouse’s polling rate, sensor tracking, lift-off, jitter and drag-click — raw input, no excuses.',
   'Setup'    :'Dial in your battlestation. Crunch eDPI, convert sensitivity between games, and calculate FOV, aspect ratio, refresh rate and a balanced play schedule.',
@@ -3587,13 +3589,15 @@ Views.dna = function(c){
   const next = Attr.nextRank(score);
   const klass = Attr.classFor(d);
 
+  const rigScore = (d.rig && d.rig.rigScore) || 0;
   const stats = el('div',{class:'stat-cards'});
   stats.innerHTML = `
     <div class="stat-card"><div class="k">Gamer Score</div><div class="v gold">${score.toLocaleString()}</div></div>
     <div class="stat-card"><div class="k">Rank</div><div class="v" style="color:${rank.color}">${rank.name}</div></div>
     <div class="stat-card"><div class="k">Class</div><div class="v">${klass}</div></div>
     <div class="stat-card"><div class="k">Tools Done</div><div class="v">${d.toolsCompleted}</div></div>
-    <div class="stat-card"><div class="k">Achievements</div><div class="v">${d.achievements.length}/${Ach.DEFS.length}</div></div>`;
+    <div class="stat-card"><div class="k">Achievements</div><div class="v">${d.achievements.length}/${Ach.DEFS.length}</div></div>
+    <div class="stat-card"><div class="k">Rig Score</div><div class="v">${rigScore.toLocaleString()}</div></div>`;
   panel.append(stats);
   if(next){
     const need = next.min - score;
@@ -3822,6 +3826,7 @@ const ProfileIO = (function(){
       score,
       rankName: Attr.rankFor(score).name,
       klass: Attr.classFor(d),
+      rigScore: (d.rig && d.rig.rigScore) || 0,
       achievements: (d.achievements||[]).slice(),
       toolsCompleted: d.toolsCompleted||0,
       runs: d.runs||0
@@ -3839,6 +3844,7 @@ const ProfileIO = (function(){
       score: p.score|0,
       rankName: p.rankName || 'Newbie',
       klass: p.klass || 'Unranked',
+      rigScore: p.rigScore|0,
       achievements: Array.isArray(p.achievements) ? p.achievements : [],
       toolsCompleted: p.toolsCompleted|0,
       runs: p.runs|0,
@@ -3965,7 +3971,7 @@ body{margin:0;background:${T.page.bg};color:${T.page.ink};font-family:${dnaFam(T
       brand: ()=> T.brand.show ? `<div class="brand">${esc(T.brand.text)}</div>` : '',
       tag: ()=> T.tag.show ? `<div class="tag">${esc(T.tag.prefix)}${esc(payload.tag)}</div>` : '',
       meta: ()=>{ if(!T.meta.show) return ''; const l=T.meta.showLocation?loc:''; return `<div class="meta">${esc(payload.klass)} · ${esc(payload.rankName)}${l?' · '+esc(l):''}</div>`; },
-      chips: ()=>{ if(!T.chips.show) return ''; let h=''; if(T.chips.score)h+=`<span class="chip">SCORE <b>${(payload.score||0).toLocaleString()}</b></span>`; if(T.chips.tools)h+=`<span class="chip">TOOLS <b>${payload.toolsCompleted||0}</b></span>`; if(T.chips.achievements)h+=`<span class="chip">ACHIEVEMENTS <b>${(payload.achievements||[]).length}</b></span>`; return `<div class="chips">${h}</div>`; },
+      chips: ()=>{ if(!T.chips.show) return ''; let h=''; if(T.chips.score)h+=`<span class="chip">SCORE <b>${(payload.score||0).toLocaleString()}</b></span>`; if(T.chips.tools)h+=`<span class="chip">TOOLS <b>${payload.toolsCompleted||0}</b></span>`; if(T.chips.achievements)h+=`<span class="chip">ACHIEVEMENTS <b>${(payload.achievements||[]).length}</b></span>`; h+=`<span class="chip">RIG SCORE <b>${(payload.rigScore||0).toLocaleString()}</b></span>`; return `<div class="chips">${h}</div>`; },
       radar: ()=> T.radar.show ? `<div class="radarwrap">${dnaRadarSVG(attrs,T,accent)}</div>` : '',
       bars: ()=> T.bars.show ? Store.ATTRS.map(k=>{ const v=Math.round(attrs[k]||0); return `<div class="row"><span class="lbl">${k}</span><span class="track"><span class="fill" style="width:${v}%"></span></span><span class="val">${v}</span></div>`; }).join('') : '',
       achievements: ()=>{
@@ -4018,6 +4024,7 @@ ${body}
 My class: ${payload.klass}
 My rank:  ${payload.rankName}
 Gamer Score: ${(payload.score||0).toLocaleString()}
+Rig Score:   ${(payload.rigScore||0).toLocaleString()}
 
 HOW TO ACCEPT:
 1. Download my attached PlayTools DNA file.
@@ -4337,6 +4344,7 @@ function friendCard(f){
      </div>
      <div class="fc-chips">
        <span class="fc-chip">SCORE <b>${(f.score||0).toLocaleString()}</b></span>
+       <span class="fc-chip">RIG <b>${(f.rigScore||0).toLocaleString()}</b></span>
        <span class="fc-chip">TOOLS <b>${f.toolsCompleted||0}</b></span>
        <span class="fc-chip">ACH <b>${(f.achievements||[]).length}</b></span>
      </div>
@@ -4389,6 +4397,11 @@ function openCompare(friend){
     const cls = d>0?'win':(d<0?'lose':'');
     rows += `<tr><td>${k}</td><td>${mv}</td><td>${fv}</td><td class="${cls}">${d>0?'+':''}${d}</td></tr>`;
   });
+  // Rig Score sits outside the 7 skill vectors (it's the economy/flex number), but
+  // it's a fun head-to-head brag so it gets its own comparison row.
+  const myRig = (me.rig && me.rig.rigScore)|0, frRig = friend.rigScore|0, rd = myRig-frRig;
+  const rcls = rd>0?'win':(rd<0?'lose':'');
+  rows += `<tr><td>Rig Score</td><td>${myRig.toLocaleString()}</td><td>${frRig.toLocaleString()}</td><td class="${rcls}">${rd>0?'+':''}${rd.toLocaleString()}</td></tr>`;
   tbl.innerHTML = rows;
 
   const actions = el('div',{class:'modal-actions'});
@@ -15394,10 +15407,10 @@ Views.dnaReport = function(c){
   panel.append(bars);
 
   // share card
-  const top = strengths[0];
+  const rigScore = (d.rig && d.rig.rigScore) || 0;
   const cardData = { lab:'Fun Lab', tool:'DNA Report', glyph:'📊', grade:grade,
     metric:[ {k:'Gamer Score', v:score.toLocaleString()}, {k:'Rank', v:rank.name},
-             {k:'Top Vector', v:`${top} ${Math.round(a[top]||0)}`} ],
+             {k:'Rig Score', v:rigScore.toLocaleString()} ],
     designation:klass, badge: d.profile.archetype ? d.profile.archetype.name : 'Gamer DNA' };
   panel.append(shareRow(cardData));
 };
@@ -15729,7 +15742,7 @@ const UI = (function(){
   function buildRail(){
     rail.innerHTML='';
     // Standing destinations (no category header). Friends & Platforms used to
-    // live under a "Gamer DNA" heading — that heading is gone now. The Gamer DNA
+    // live under a "The MetaGame" heading — that heading is gone now. The Gamer DNA
     // Hub itself stays reachable from the header button.
     rail.append(railLink({ href:'#/',               icon:'🏠', label:'Lobby' }));
     // The Rig — top-level meta-progression, directly under the Lobby (Rig_DD §9).
@@ -15742,11 +15755,11 @@ const UI = (function(){
     rail.append(railLink({ href:'#/favorites',      icon:'⭐', label:'Favorites',
       count: Store.favoriteCount() || null }));
 
-    // Categories — every lab except Gamer DNA (its items are surfaced above).
+    // Categories — every lab except The MetaGame (its items are surfaced above).
     // Each carries a tally of its available (shipped) applets, tinted to the lab's accent.
     rail.append(el('h3',{text:'Categories'}));
     const labs=[];
-    CABINETS.forEach(cab=>{ if(cab.lab!=='Gamer DNA' && !labs.includes(cab.lab)) labs.push(cab.lab); });
+    CABINETS.forEach(cab=>{ if(cab.lab!=='The MetaGame' && !labs.includes(cab.lab)) labs.push(cab.lab); });
     labs.forEach(lab=> rail.append(railLink({
       href:'#/lobby/'+encodeURIComponent(lab), icon:labIcon(lab), label:lab, color:labColor(lab),
       count: railLabCount(lab) || null, countColor: labColor(lab)
@@ -15756,7 +15769,7 @@ const UI = (function(){
     // Exact match for filter routes; when inside an applet page, light up the
     // category it belongs to so the rail still shows where you are.
     const cab = CABINETS.find(x=> x.route===hash);
-    const catHash = (cab && cab.lab!=='Gamer DNA') ? '#/lobby/'+encodeURIComponent(cab.lab) : null;
+    const catHash = (cab && cab.lab!=='The MetaGame') ? '#/lobby/'+encodeURIComponent(cab.lab) : null;
     rail.querySelectorAll('a').forEach(a=>{
       const r = a.getAttribute('data-route');
       a.classList.toggle('active', r===hash || (catHash!=null && r===catHash));
@@ -17893,10 +17906,10 @@ Views.rigStore = function(c){
    ============================================================================ */
 Router.add('#/', Views.home);
 Router.add('#/favorites', Views.favorites);
-// One filtered-lobby route per category (every lab except Gamer DNA).
+// One filtered-lobby route per category (every lab except The MetaGame).
 (function(){
   const labs=[];
-  CABINETS.forEach(cab=>{ if(cab.lab!=='Gamer DNA' && !labs.includes(cab.lab)) labs.push(cab.lab); });
+  CABINETS.forEach(cab=>{ if(cab.lab!=='The MetaGame' && !labs.includes(cab.lab)) labs.push(cab.lab); });
   labs.forEach(lab=> Router.add('#/lobby/'+encodeURIComponent(lab), lobbyView({type:'lab',lab})));
 })();
 Router.add('#/rig', Views.rig);
