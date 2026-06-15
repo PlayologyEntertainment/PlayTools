@@ -85,14 +85,40 @@
   .note{color:var(--muted); font-size:12px; background:var(--panel-2); border:1px solid var(--line);
         border-radius:10px; padding:12px 14px; margin-top:10px;}
   .pcatbadge{font-size:10px; padding:1px 6px; border-radius:20px; border:1px solid var(--line);}
+
+  /* wide catalog table scrolls horizontally rather than squashing the inputs */
+  .tbl-wrap{overflow-x:auto;}
+  td .p-id{width:74px;} td .p-score{width:60px;} td .p-needs,td .p-model{width:96px;}
+  td .p-desc{min-width:240px;}
+  td input{font-size:12.5px;}
+
+  /* export modal */
+  .modal{position:fixed; inset:0; background:rgba(2,6,5,0.72); display:none;
+         align-items:flex-start; justify-content:center; padding:36px 16px; overflow:auto; z-index:50;}
+  .modal.open{display:flex;}
+  .modal .box{background:var(--panel); border:1px solid var(--neon); border-radius:14px;
+              max-width:780px; width:100%; padding:18px 20px;}
+  .modal h3{margin:0 0 2px; color:var(--neon-3); font-size:16px; text-transform:none; letter-spacing:0; border:0; padding:0;}
+  .modal .sub{margin:2px 0 10px;}
+  .modal pre{background:#06100e; border:1px solid var(--line); border-radius:8px; padding:12px;
+             overflow:auto; max-height:280px; font-family:var(--mono); font-size:12px; color:var(--ink); white-space:pre; margin:0;}
+  .modal .seg{margin-top:14px;}
+  .modal .seg .hd{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;}
+  .modal .seg .hd h4{margin:0; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--neon);}
+  .modal .seg .hd .path{font-family:var(--mono); font-size:11px; color:var(--muted);}
+  .modal .foot{display:flex; justify-content:flex-end; margin-top:16px;}
 </style>
 </head>
 <body>
 
 <h1><span class="play">The Rig</span> — NetCoin Economy <span class="tools">Tuner</span></h1>
 <p class="sub">
-  Editable balance tool for <a href="./Rig_DD.md">Rig_DD.md</a> §4–§7. Tweak any number or part below —
-  the summary, graphs, and affordability table recompute live. All values are a <em>proposed baseline</em>; nothing here is final.
+  Balance tool <em>and</em> NetStore item authoring for <a href="./Rig_DD.md">Rig_DD.md</a> §4–§7. Tweak any number or part below —
+  the summary, graphs, and affordability table recompute live. The parts catalog mirrors the live store in
+  <code>PlayTools.html</code> (the <code>PARTS</code> + <code>COSMETICS</code> arrays); edit a row or add a new item — name,
+  description, price, category, economy effects and a 3D model id — then <b>Export</b> ready-to-paste catalog entries and a
+  <code>rig_manifest.json</code> stub. Wire the model's placement afterwards with <code>npm&nbsp;run&nbsp;rig:edit</code>.
+  All values are a <em>proposed baseline</em>; nothing here is final.
 </p>
 
 <div class="toolbar">
@@ -208,14 +234,25 @@
 </div>
 
 <h2>4 · Parts catalog &amp; NetStore</h2>
-<p class="sub" style="margin-top:-2px">Edit costs/effects, add or remove rows. <b>Rate +</b> is added to the rig multiplier (starts 1.0); <b>Cap +</b> adds offline-cap hours.</p>
+<p class="sub" style="margin-top:-2px">
+  Edit any field, add or remove rows. <b>ID</b> is the unique store/save key; <b>Rate +</b> adds to the rig multiplier (starts 1.0);
+  <b>Cap +h</b> adds offline-cap hours; <b>Score</b> feeds the Rig Score; <b>Needs</b> gates the item behind another part's ID (e.g.
+  a GPU that <em>needs</em> <code>psu</code>); <b>Model</b> is the <code>rig_manifest.json</code> id for its <code>.glb</code> (leave
+  blank for procedural/no-model items). <b>Description</b> is the store blurb. Rate/Cap/Needs drive the live simulation below.
+</p>
+<div class="tbl-wrap">
 <table id="partsTable">
   <thead>
-    <tr><th>Part</th><th>Category</th><th class="num">Cost <span class="coin-h"></span></th><th class="num">Rate +</th><th class="num">Cap +h</th><th></th></tr>
+    <tr><th>ID</th><th>Part</th><th>Category</th><th class="num">Cost <span class="coin-h"></span></th><th class="num">Rate +</th><th class="num">Cap +h</th><th class="num">Score</th><th>Needs</th><th>Model</th><th>Description</th><th></th></tr>
   </thead>
   <tbody id="partsBody"></tbody>
 </table>
-<div class="toolbar" style="margin-top:10px"><button id="addRow">+ Add part</button></div>
+</div>
+<div class="toolbar" style="margin-top:10px">
+  <button id="addRow">+ Add part</button>
+  <button class="primary" id="exportBtn">⤓ Export for NetStore</button>
+  <span style="color:var(--muted);font-size:12px;">Emits catalog entries (paste into <code>PlayTools.html</code>) + a manifest stub (paste into <code>rig_manifest.json</code>, then place via <code>rig:edit</code>).</span>
+</div>
 
 <h2>5 · First-affordable day (with reinvestment)</h2>
 <p class="sub" style="margin-top:-2px">The simulated day each archetype can buy each part, buying cheapest-first as income allows.</p>
@@ -225,6 +262,29 @@
 </table>
 
 <div class="note" id="readout"></div>
+
+<!-- Export modal: catalog entries + manifest stub -->
+<div class="modal" id="exportModal">
+  <div class="box">
+    <button class="danger" id="exportClose" style="float:right">✕ Close</button>
+    <h3>Export for the NetStore</h3>
+    <p class="sub">Copy each block into its home, then run <code>npm run rig:edit</code> to position any new 3D models. Items are split by category the same way the app does (functional Hardware → <code>PARTS</code>, everything else → <code>COSMETICS</code>).</p>
+
+    <div class="seg">
+      <div class="hd"><h4>Hardware → <code>PARTS</code></h4><span class="path">PlayTools.html</span><button id="copyParts">Copy</button></div>
+      <pre id="outParts"></pre>
+    </div>
+    <div class="seg">
+      <div class="hd"><h4>Battlestation → <code>COSMETICS</code></h4><span class="path">PlayTools.html</span><button id="copyCos">Copy</button></div>
+      <pre id="outCos"></pre>
+    </div>
+    <div class="seg">
+      <div class="hd"><h4>3D model stub</h4><span class="path">assets/rig/rig_manifest.json → "parts"</span><button id="copyMan">Copy</button></div>
+      <pre id="outMan"></pre>
+    </div>
+    <div class="foot"><button class="primary" id="exportDone">Done</button></div>
+  </div>
+</div>
 
 <script>
 /* ---------- NetCoin coin icon (ornate, logo palette) ---------- */
@@ -256,24 +316,50 @@ const BASE = {
 };
 const PARAM_IDS = Object.keys(BASE);
 
+// Mirrors the live NetStore catalog in PlayTools.html (the `PARTS` + `COSMETICS`
+// arrays). Each item carries the full store shape so it can be edited here and
+// exported straight back: id, cat, name, cost, rate, cap, score, needs (prereq
+// id), blurb (store description) and model (rig_manifest.json id for its .glb;
+// '' = procedural / no model). Keep this in sync when the shipped catalog moves.
 const BASE_PARTS = [
-  {name:'GPU — Mk I',          cat:'Hardware',   cost:80,    rate:0.4, cap:0},
-  {name:'RGB Light Kit',       cat:'Cosmetic',   cost:120,   rate:0,   cap:0},
-  {name:'Gaming Mouse',        cat:'Peripheral', cost:150,   rate:0.1, cap:0},
-  {name:'RAM — 16 GB',         cat:'Hardware',   cost:300,   rate:0,   cap:4},
-  {name:'Mechanical Keyboard', cat:'Peripheral', cost:450,   rate:0.1, cap:0},
-  {name:'CPU — Mk I',          cat:'Hardware',   cost:800,   rate:0.3, cap:0},
-  {name:'Cooling — Air',       cat:'Hardware',   cost:1400,  rate:0.25,cap:0},
-  {name:'Gaming Chair',        cat:'Peripheral', cost:2200,  rate:0.15,cap:0},
-  {name:'PSU — 850W',          cat:'Hardware',   cost:3500,  rate:0,   cap:2},
-  {name:'Ultrawide Monitor',   cat:'Peripheral', cost:5500,  rate:0.25,cap:0},
-  {name:'GPU — Mk II',         cat:'Hardware',   cost:7000,  rate:0.8, cap:0},
-  {name:'RAM — 32 GB',         cat:'Hardware',   cost:11000, rate:0,   cap:6},
-  {name:'Cooling — Liquid',    cat:'Hardware',   cost:16000, rate:0.7, cap:2},
-  {name:'GPU — Mk III',        cat:'Hardware',   cost:30000, rate:1.5, cap:0}
+  // Hardware (functional parts → PlayTools.html `PARTS`)
+  {id:'gpu1',  cat:'GPU',     name:'GPU — Mk I',          cost:80,    rate:0.4, cap:0, score:10,  needs:'',     model:'',                  blurb:'The hashing workhorse — your first real mining lever.'},
+  {id:'ram16', cat:'RAM',     name:'RAM — 16 GB',         cost:300,   rate:0,   cap:4, score:14,  needs:'',     model:'',                  blurb:'More storage between visits — raises the offline cap.'},
+  {id:'cpu1',  cat:'CPU',     name:'CPU — Mk I',          cost:800,   rate:0.3, cap:0, score:20,  needs:'',     model:'',                  blurb:'Base compute — a steady bump to the mining rate.'},
+  {id:'coolA', cat:'Cooling', name:'Cooling — Air',       cost:1400,  rate:0.25,cap:0, score:26,  needs:'',     model:'',                  blurb:'Keeps the tiers stable and the rate sustained.'},
+  {id:'psu',   cat:'PSU',     name:'PSU — 850W',          cost:3500,  rate:0,   cap:2, score:34,  needs:'',     model:'',                  blurb:'Headroom that unlocks the top-end hardware tiers.'},
+  {id:'gpu2',  cat:'GPU',     name:'GPU — Mk II',         cost:7000,  rate:0.8, cap:0, score:48,  needs:'psu',  model:'',                  blurb:'A serious hash boost. Requires the 850W PSU.'},
+  {id:'ram32', cat:'RAM',     name:'RAM — 32 GB',         cost:11000, rate:0,   cap:6, score:60,  needs:'',     model:'',                  blurb:'Bank far more NetCoin while you are away.'},
+  {id:'coolL', cat:'Cooling', name:'Cooling — Liquid',    cost:16000, rate:0.7, cap:2, score:74,  needs:'psu',  model:'',                  blurb:'Liquid loop — sustains the highest rates. Requires the 850W PSU.'},
+  {id:'cpu2',  cat:'CPU',     name:'CPU — Mk II',         cost:18000, rate:0.6, cap:0, score:70,  needs:'psu',  model:'',                  blurb:'Second-gen compute — a big steady rate gain. Requires the 850W PSU.'},
+  {id:'ram64', cat:'RAM',     name:'RAM — 64 GB',         cost:24000, rate:0,   cap:8, score:90,  needs:'',     model:'',                  blurb:'Marathon storage — bank a huge offline haul between visits.'},
+  {id:'gpu3',  cat:'GPU',     name:'GPU — Mk III',        cost:30000, rate:1.5, cap:0, score:100, needs:'psu',  model:'',                  blurb:'The flagship. The biggest single lever in the rig. Requires the 850W PSU.'},
+  {id:'psu2',  cat:'PSU',     name:'PSU — 1200W',         cost:40000, rate:0,   cap:3, score:110, needs:'',     model:'',                  blurb:'Titanium-grade headroom — unlocks the halo GPU tier.'},
+  {id:'gpu4',  cat:'GPU',     name:'GPU — Mk IV "Titan"', cost:60000, rate:2.2, cap:0, score:150, needs:'psu2', model:'',                  blurb:'The halo card. A monstrous hash rate. Requires the 1200W PSU.'},
+  // Battlestation (peripherals & cosmetics → PlayTools.html `COSMETICS`)
+  {id:'desktoy',    cat:'Cosmetic',   name:'Desk Toy',           cost:60,   rate:0,    cap:0, score:3,  needs:'', model:'toy1',             blurb:'A little kinetic figurine. Pure desk charm.'},
+  {id:'poster',     cat:'Cosmetic',   name:'Wall Poster',        cost:90,   rate:0,    cap:0, score:4,  needs:'', model:'poster01',         blurb:'Retro arcade art for the back wall.'},
+  {id:'rgb',        cat:'Lighting',   name:'RGB Light Kit',      cost:120,  rate:0,    cap:0, score:6,  needs:'', model:'',                 blurb:'Underglow that paints the whole setup. Mandatory.'},
+  {id:'books',      cat:'Cosmetic',   name:'Book Stack',         cost:140,  rate:0,    cap:0, score:4,  needs:'', model:'books',            blurb:'A lean of well-thumbed strategy guides for the desk.'},
+  {id:'mouse',      cat:'Peripheral', name:'Gaming Mouse',       cost:150,  rate:0.1,  cap:0, score:8,  needs:'', model:'mouse_base',       blurb:'A featherweight flick machine. +0.1 mining rate.'},
+  {id:'poster_a',   cat:'Cosmetic',   name:'Neon Grid Print',    cost:220,  rate:0,    cap:0, score:5,  needs:'', model:'poster02',         blurb:'A glowing perspective-grid print for the left wall.'},
+  {id:'poster_d',   cat:'Cosmetic',   name:'Arcade Flyer',       cost:320,  rate:0,    cap:0, score:5,  needs:'', model:'poster04',         blurb:'A vintage cabinet flyer, centre-left of the wall.'},
+  {id:'poster_b',   cat:'Cosmetic',   name:'Synthwave Banner',   cost:420,  rate:0,    cap:0, score:5,  needs:'', model:'poster03',         blurb:'A wide synthwave banner mounted up high.'},
+  {id:'keyboard',   cat:'Peripheral', name:'Mechanical Keyboard',cost:450,  rate:0.1,  cap:0, score:12, needs:'', model:'keyboard_upgrade', blurb:'Thocky switches and macro keys. +0.1 mining rate.'},
+  {id:'poster_c',   cat:'Cosmetic',   name:'Vaporwave Banner',   cost:560,  rate:0,    cap:0, score:5,  needs:'', model:'poster05',         blurb:'A wide vaporwave banner for the upper-left.'},
+  {id:'headset',    cat:'Peripheral', name:'Surround Headset',   cost:700,  rate:0,    cap:0, score:14, needs:'', model:'headphone_headset',blurb:'Positional audio for the deep dives.'},
+  {id:'poster_base',cat:'Cosmetic',   name:'Backdrop Mural',     cost:1200, rate:0,    cap:0, score:6,  needs:'', model:'poster_base',      blurb:'A floor-to-rail backdrop mural for the far wall.'},
+  {id:'desk',       cat:'Cosmetic',   name:'Sit/Stand Desk',     cost:1800, rate:0,    cap:0, score:18, needs:'', model:'',                 blurb:'A proper battlestation deck.'},
+  {id:'chair',      cat:'Peripheral', name:'Gaming Chair',       cost:2200, rate:0.15, cap:0, score:30, needs:'', model:'chair',            blurb:'Ergonomic throne. Comfort is uptime. +0.15 mining rate.'},
+  {id:'monitor',    cat:'Peripheral', name:'Ultrawide Monitor',  cost:5500, rate:0.25, cap:0, score:50, needs:'', model:'monitor',          blurb:'A wall of pixels. +0.25 mining rate.'}
 ];
 
-const CATCOLOR = {Hardware:'var(--neon)', Peripheral:'var(--neon-4)', Cosmetic:'var(--neon-2)'};
+// Functional hardware categories route to the app's `PARTS` array on export;
+// everything else (Peripheral / Cosmetic / Lighting) routes to `COSMETICS`.
+const HARDWARE_CATS = new Set(['GPU','RAM','CPU','Cooling','PSU','Hardware']);
+
+const CATCOLOR = {Hardware:'var(--neon)', GPU:'var(--neon)', RAM:'var(--neon)', CPU:'var(--neon)',
+  Cooling:'var(--neon)', PSU:'var(--neon)', Peripheral:'var(--neon-4)', Cosmetic:'var(--neon-2)', Lighting:'var(--neon-3)'};
 
 /* ---------- State ---------- */
 let parts = [];
@@ -318,13 +404,18 @@ function simulate(p, arch){
     balance += inc; gross += inc;
     totals.idle+=idle; totals.daily+=daily; totals.ms+=ms; totals.ach+=ach;
 
-    // reinvest: buy cheapest unowned affordable part(s), cheapest-first
+    // reinvest: buy cheapest unowned affordable part(s), cheapest-first. A part
+    // with a `needs` prereq can't be bought until that part id is owned (matches
+    // the live store's canAfford gate), so e.g. GPU — Mk II waits on the PSU.
     let bought=true;
     while(bought){
       bought=false;
+      const ownedIds=new Set();
+      for(let k=0;k<parts.length;k++){ if(owned[k] && parts[k].id) ownedIds.add(parts[k].id); }
       let bestIdx=-1, bestCost=Infinity;
       for(let i=0;i<parts.length;i++){
-        if(!owned[i] && parts[i].cost<=balance && parts[i].cost<bestCost){ bestCost=parts[i].cost; bestIdx=i; }
+        const gated = parts[i].needs && !ownedIds.has(parts[i].needs);
+        if(!owned[i] && !gated && parts[i].cost<=balance && parts[i].cost<bestCost){ bestCost=parts[i].cost; bestIdx=i; }
       }
       if(bestIdx>=0){
         owned[bestIdx]=true; balance-=parts[bestIdx].cost;
@@ -479,23 +570,36 @@ function render(){
 }
 
 /* ---------- Parts table UI ---------- */
+// HTML-escape for safe interpolation into value="" / text content.
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 function readParts(){
   parts=[...document.querySelectorAll('#partsBody tr')].map(tr=>({
-    name: tr.querySelector('.p-name').value,
-    cat:  tr.querySelector('.p-cat').value,
-    cost: parseFloat(tr.querySelector('.p-cost').value)||0,
-    rate: parseFloat(tr.querySelector('.p-rate').value)||0,
-    cap:  parseFloat(tr.querySelector('.p-cap').value)||0
+    id:    tr.querySelector('.p-id').value.trim(),
+    name:  tr.querySelector('.p-name').value,
+    cat:   tr.querySelector('.p-cat').value,
+    cost:  parseFloat(tr.querySelector('.p-cost').value)||0,
+    rate:  parseFloat(tr.querySelector('.p-rate').value)||0,
+    cap:   parseFloat(tr.querySelector('.p-cap').value)||0,
+    score: parseFloat(tr.querySelector('.p-score').value)||0,
+    needs: tr.querySelector('.p-needs').value.trim(),
+    model: tr.querySelector('.p-model').value.trim(),
+    blurb: tr.querySelector('.p-desc').value
   }));
 }
 function partRow(pt){
   const tr=document.createElement('tr');
   tr.innerHTML=`
-    <td><input class="p-name" value="${pt.name}"></td>
-    <td><input class="p-cat" value="${pt.cat}" list="cats" style="width:110px"></td>
+    <td><input class="p-id" value="${esc(pt.id)}" placeholder="unique_id"></td>
+    <td><input class="p-name" value="${esc(pt.name)}"></td>
+    <td><input class="p-cat" value="${esc(pt.cat)}" list="cats" style="width:110px"></td>
     <td class="num"><input type="number" class="p-cost" value="${pt.cost}" step="10"></td>
     <td class="num"><input type="number" class="p-rate" value="${pt.rate}" step="0.05"></td>
     <td class="num"><input type="number" class="p-cap"  value="${pt.cap}"  step="1"></td>
+    <td class="num"><input type="number" class="p-score" value="${pt.score||0}" step="1"></td>
+    <td><input class="p-needs" value="${esc(pt.needs)}" list="ids" placeholder="prereq id"></td>
+    <td><input class="p-model" value="${esc(pt.model)}" placeholder="manifest id"></td>
+    <td><input class="p-desc" value="${esc(pt.blurb)}" placeholder="Store description…"></td>
     <td class="center"><button class="danger del">✕</button></td>`;
   tr.querySelector('.del').onclick=()=>{ tr.remove(); readParts(); render(); };
   return tr;
@@ -506,26 +610,76 @@ function buildParts(list){
   readParts();
 }
 
+/* ---------- Export to NetStore (catalog entries + manifest stub) ---------- */
+// Single-quoted JS string literal for the catalog (matches PlayTools.html style).
+function jsStr(s){ return "'"+String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"'"; }
+function catalogLine(pt){
+  let s=`    { id:${jsStr(pt.id)}, cat:${jsStr(pt.cat)}, name:${jsStr(pt.name)}, cost:${pt.cost}, rate:${pt.rate}, cap:${pt.cap}, score:${pt.score||0},`;
+  if(pt.needs) s+=` needs:${jsStr(pt.needs)},`;
+  s+=` blurb:${jsStr(pt.blurb)} },`;
+  return s;
+}
+function buildExport(){
+  readParts();
+  const hw=parts.filter(p=>HARDWARE_CATS.has(p.cat));
+  const cos=parts.filter(p=>!HARDWARE_CATS.has(p.cat));
+  document.getElementById('outParts').textContent =
+    hw.length ? hw.map(catalogLine).join('\n') : '// (no Hardware-category items)';
+  document.getElementById('outCos').textContent =
+    cos.length ? cos.map(catalogLine).join('\n') : '// (no Battlestation items)';
+  // Manifest stub: one entry per item that names a 3D model. Placement is a
+  // neutral origin transform — refine each via `npm run rig:edit`.
+  const withModel=parts.filter(p=>p.model);
+  const man={};
+  withModel.forEach(p=>{ man[p.model]={ model:`models/${p.model}.glb`, transform:{ pos:[0,0,0] }, credit:'user-supplied' }; });
+  document.getElementById('outMan').textContent =
+    withModel.length ? JSON.stringify(man,null,2) : '// (no items reference a 3D model)';
+}
+function copyText(elId,btn){
+  const t=document.getElementById(elId).textContent;
+  navigator.clipboard?.writeText(t).then(()=>{ const o=btn.textContent; btn.textContent='Copied ✓'; setTimeout(()=>btn.textContent=o,1200); })
+    .catch(()=>{ const o=btn.textContent; btn.textContent='Copy failed'; setTimeout(()=>btn.textContent=o,1200); });
+}
+
 /* ---------- Init / events ---------- */
 function setParams(o){ PARAM_IDS.forEach(id=>document.getElementById(id).value=o[id]); }
+function refreshIdList(){
+  const dl=document.getElementById('ids'); if(!dl) return;
+  dl.innerHTML=parts.filter(p=>p.id).map(p=>`<option value="${esc(p.id)}">`).join('');
+}
 function init(){
   // coin icons in headings
   document.querySelectorAll('.coin-h').forEach(e=>e.innerHTML=coinSVG(13));
-  // datalist for categories
+  // datalists: categories, and part ids (for the Needs prereq field)
   const dl=document.createElement('datalist'); dl.id='cats';
-  dl.innerHTML=['Hardware','Peripheral','Cosmetic'].map(c=>`<option value="${c}">`).join('');
+  dl.innerHTML=['GPU','RAM','CPU','Cooling','PSU','Hardware','Peripheral','Cosmetic','Lighting'].map(c=>`<option value="${c}">`).join('');
   document.body.appendChild(dl);
+  const dlIds=document.createElement('datalist'); dlIds.id='ids'; document.body.appendChild(dlIds);
 
   setParams(BASE);
   buildParts(BASE_PARTS.map(p=>({...p})));
+  refreshIdList();
 
   PARAM_IDS.forEach(id=>document.getElementById(id).addEventListener('input',render));
-  document.getElementById('partsBody').addEventListener('input',()=>{ readParts(); render(); });
+  document.getElementById('partsBody').addEventListener('input',()=>{ readParts(); refreshIdList(); render(); });
   document.getElementById('addRow').onclick=()=>{
-    document.getElementById('partsBody').appendChild(partRow({name:'New Part',cat:'Hardware',cost:100,rate:0.1,cap:0}));
-    readParts(); render();
+    document.getElementById('partsBody').appendChild(partRow({id:'new_part',name:'New Part',cat:'Cosmetic',cost:100,rate:0,cap:0,score:5,needs:'',model:'',blurb:''}));
+    readParts(); refreshIdList(); render();
   };
-  document.getElementById('resetBtn').onclick=()=>{ setParams(BASE); buildParts(BASE_PARTS.map(p=>({...p}))); render(); };
+  document.getElementById('resetBtn').onclick=()=>{ setParams(BASE); buildParts(BASE_PARTS.map(p=>({...p}))); refreshIdList(); render(); };
+
+  // export modal
+  const modal=document.getElementById('exportModal');
+  const openModal=()=>{ buildExport(); modal.classList.add('open'); };
+  const closeModal=()=>modal.classList.remove('open');
+  document.getElementById('exportBtn').onclick=openModal;
+  document.getElementById('exportClose').onclick=closeModal;
+  document.getElementById('exportDone').onclick=closeModal;
+  modal.addEventListener('click',e=>{ if(e.target===modal) closeModal(); });
+  document.getElementById('copyParts').onclick=e=>copyText('outParts',e.currentTarget);
+  document.getElementById('copyCos').onclick=e=>copyText('outCos',e.currentTarget);
+  document.getElementById('copyMan').onclick=e=>copyText('outMan',e.currentTarget);
+
   window.addEventListener('resize',render);
   render();
 }
