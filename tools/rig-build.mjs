@@ -51,18 +51,80 @@ export function stuccoTex(){
     x.beginPath(); x.arc(Math.random()*512,Math.random()*512,Math.random()*2.4+0.5,0,7); x.fill(); }
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
 }
-export function buildFloor(scene){
-  const tex=carpetTex(); tex.repeat.set(24,24); const bump=carpetTex(); bump.repeat.set(24,24);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:1,metalness:0}));
+// Procedural dark hardwood — warm planks with a subtle lengthwise grain (Floor Tier 2).
+export function hardwoodTex(){
+  const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d');
+  const plankH=512/8;                                   // 8 planks per tile
+  for(let p=0;p<8;p++){ const y=p*plankH; const base=24+((Math.random()*10)|0);
+    x.fillStyle=`rgb(${base+14},${base+6},${base})`; x.fillRect(0,y,512,plankH);
+    for(let i=0;i<70;i++){ const gy=y+Math.random()*plankH; const sh=(Math.random()*16-4)|0;
+      x.strokeStyle=`rgba(${base+14+sh},${base+6+sh},${base+sh},${Math.random()*0.4+0.1})`;
+      x.lineWidth=Math.random()*1.4+0.3; x.beginPath(); x.moveTo(0,gy); x.lineTo(512,gy+(Math.random()*4-2)); x.stroke(); }
+    x.strokeStyle='rgba(0,0,0,0.55)'; x.lineWidth=2; x.beginPath(); x.moveTo(0,y); x.lineTo(512,y); x.stroke(); // seam
+    const off=(p%2)*256; x.beginPath(); x.moveTo(off,y); x.lineTo(off,y+plankH); x.stroke(); }      // staggered butt-joints
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+// Procedural neon floor tiles — dark glossy squares ruled by glowing seams. `glow`
+// returns the emissive-only mask (black tiles, bright seams) so ONLY the seams light
+// up; otherwise the full albedo (dark tile + lit seam). Floor Tier 3.
+export function neonTileTex(glow){
+  const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d');
+  x.fillStyle = glow ? '#000000' : '#0a0e1e'; x.fillRect(0,0,512,512);
+  const seam=x.createLinearGradient(0,0,512,512); seam.addColorStop(0,'#16f2c8'); seam.addColorStop(0.5,'#7c5cff'); seam.addColorStop(1,'#ff3df0');
+  x.strokeStyle=seam; x.lineWidth=6; x.shadowColor='#16f2c8'; x.shadowBlur=glow?10:6;
+  for(let i=0;i<=4;i++){ const p=i*128; x.beginPath(); x.moveTo(p,0); x.lineTo(p,512); x.stroke(); x.beginPath(); x.moveTo(0,p); x.lineTo(512,p); x.stroke(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+// Procedural exposed brick — staggered warm bricks over dark mortar (Wall Tier 2).
+export function brickTex(){
+  const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d');
+  x.fillStyle='#2a211d'; x.fillRect(0,0,512,512);                 // mortar
+  const rows=8, bh=512/rows, bw=512/4;
+  for(let r=0;r<rows;r++){ const y=r*bh, off=(r%2)?-bw/2:0;
+    for(let b=-1;b<5;b++){ const bx=off+b*bw; const sh=(Math.random()*30-12)|0;
+      x.fillStyle=`rgb(${120+sh},${58+sh},${44+sh})`; x.fillRect(bx+3,y+3,bw-6,bh-6);
+      for(let i=0;i<26;i++){ const sp=(Math.random()*24-12)|0;                       // speckle / weathering
+        x.fillStyle=`rgba(${120+sp},${58+sp},${44+sp},0.5)`; x.fillRect(bx+3+Math.random()*(bw-6),y+3+Math.random()*(bh-6),2,2); } } }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+// Floor variants: 'floor_t1' shag carpet (default) · 'floor_t2' dark hardwood ·
+// 'floor_t3' neon glass tiles. Unknown/absent → tier 1, so the editor/preview and
+// older callers keep the original carpet.
+export function buildFloor(scene, variant){
+  variant = variant||'floor_t1'; let mat;
+  if(variant==='floor_t2'){
+    const tex=hardwoodTex(); tex.repeat.set(7,7); const bump=hardwoodTex(); bump.repeat.set(7,7);
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.02,roughness:0.55,metalness:0});
+  } else if(variant==='floor_t3'){
+    const tex=neonTileTex(false); tex.repeat.set(14,14); const em=neonTileTex(true); em.repeat.set(14,14);
+    mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:em,emissiveIntensity:1.6,roughness:0.16,metalness:0.65});
+  } else {
+    const tex=carpetTex(); tex.repeat.set(24,24); const bump=carpetTex(); bump.repeat.set(24,24);
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:1,metalness:0});
+  }
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), mat);
   floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor); return floor;
 }
-export function buildWall(scene, wc){
+// Wall variants: 'wall_t1' beige stucco (default) · 'wall_t2' exposed brick ·
+// 'wall_t3' glowing synthwave mural. Unknown/absent → tier 1.
+export function buildWall(scene, wc, variant){
   if(!wc) return null;
-  const w=wc.w??16, h=wc.h??5;
-  const tex=stuccoTex(); tex.repeat.set(Math.max(1,Math.round(w/2.5)), Math.max(1,Math.round(h/2.5)));
-  const bump=stuccoTex(); bump.repeat.copy(tex.repeat);
-  // textured beige stucco: the map carries the colour, so don't tint with wc.color
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.015,roughness:0.95,metalness:0}));
+  variant = variant||'wall_t1';
+  const w=wc.w??16, h=wc.h??5; let mat;
+  if(variant==='wall_t2'){
+    const tex=brickTex(); tex.repeat.set(Math.max(1,Math.round(w/2.4)), Math.max(1,Math.round(h/1.6)));
+    const bump=brickTex(); bump.repeat.copy(tex.repeat);
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:0.9,metalness:0});
+  } else if(variant==='wall_t3'){
+    const tex=synthwaveTex();                                  // one mural across the wall (no tiling)
+    mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:0.7,roughness:0.6,metalness:0});
+  } else {
+    const tex=stuccoTex(); tex.repeat.set(Math.max(1,Math.round(w/2.5)), Math.max(1,Math.round(h/2.5)));
+    const bump=stuccoTex(); bump.repeat.copy(tex.repeat);
+    // textured beige stucco: the map carries the colour, so don't tint with wc.color
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.015,roughness:0.95,metalness:0});
+  }
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
   wall.position.set(wc.x??0,h/2, wc.z??-2.3); wall.receiveShadow = true; scene.add(wall); return wall;
 }
 
@@ -162,8 +224,8 @@ export function resolveOwned(man, ownParam){
 
 // Load + place the whole scene from a manifest. Returns placed records so callers
 // (the editor) can keep live handles. `dbg` (optional) collects per-item sizes.
-export async function buildScene(scene, renderer, loader, man, { ownParam=null, dbg=null }={}){
-  buildWall(scene, man.scene?.wall);
+export async function buildScene(scene, renderer, loader, man, { ownParam=null, dbg=null, wall=null }={}){
+  buildWall(scene, man.scene?.wall, wall);
   await setupEnv(scene, renderer, man.scene?.hdri);
 
   const parts = man.parts||{};
