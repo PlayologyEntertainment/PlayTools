@@ -17,7 +17,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { A, buildLights, buildFloor, buildScene, makeLoader } from './rig-build.mjs';
 
 // ownIds: array of owned manifest part ids (null = show the full default scene).
-export async function mount(container, { ownIds=null }={}){
+// floor / wall: equipped surface variant ids (e.g. 'floor_t2', 'wall_t3'); null = tier 1.
+export async function mount(container, { ownIds=null, floor=null, wall=null }={}){
   const hostW = ()=> container.clientWidth || 640;
   const hostH = ()=> container.clientHeight || Math.round(hostW()*0.62);
 
@@ -31,7 +32,7 @@ export async function mount(container, { ownIds=null }={}){
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#0b0816');
-  buildLights(scene); buildFloor(scene);
+  buildLights(scene); buildFloor(scene, floor);
   const loader = makeLoader();
 
   const man = await (await fetch(A+'rig_manifest.json')).json();
@@ -40,10 +41,17 @@ export async function mount(container, { ownIds=null }={}){
   cam.position.set(...(cm.pos||[1.43,1.65,1.76]));
   const controls = new OrbitControls(cam, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08; controls.enablePan = false;
-  controls.minDistance = 1.2; controls.maxDistance = 7; controls.maxPolarAngle = Math.PI*0.52;
+  // Keep the camera in a front three-quarter window so players can't orbit around
+  // to the unfinished sides/back of the room. Tunable from the manifest camera block
+  // (all angles in radians); defaults frame the desk + back wall only.
+  controls.minDistance = cm.minDist ?? 1.4; controls.maxDistance = cm.maxDist ?? 4.2;
+  controls.minPolarAngle = cm.minPolar ?? Math.PI*0.18;   // can't drop fully top-down
+  controls.maxPolarAngle = cm.maxPolar ?? Math.PI*0.5;    // can't dip below eye level (under the floor)
+  controls.minAzimuthAngle = cm.minAz ?? -0.45;           // ~ -26°  (front-left limit)
+  controls.maxAzimuthAngle = cm.maxAz ?? 1.5;             // ~  86°  (front-right limit)
   controls.target.set(...(cm.target||[0.14,1.19,-0.5]));
 
-  await buildScene(scene, renderer, loader, man, { ownParam: ownIds==null? null : ownIds.join(','), dbg:null });
+  await buildScene(scene, renderer, loader, man, { ownParam: ownIds==null? null : ownIds.join(','), dbg:null, wall });
 
   const composer = new EffectComposer(renderer); composer.setSize(hostW(), hostH());
   composer.addPass(new RenderPass(scene, cam));

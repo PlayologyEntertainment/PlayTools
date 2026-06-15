@@ -736,11 +736,23 @@
   .rig-streak .d{font-family:var(--pixel); font-size:30px; font-weight:800; color:var(--neon);}
   .rig-scene{border:1px solid var(--line); border-radius:8px; background:linear-gradient(180deg,#0a0e22,#070912); padding:10px; margin:14px 0; text-align:center;}
   .rig-scene svg{width:100%; max-width:440px; height:auto;}
+  /* Inside the CRT bezel the screen IS the frame, so drop the scene's own chrome. */
+  .crt-wrap .rig-scene{border:0; background:transparent; padding:0; margin:0; width:100%;}
+  .crt-wrap .rig-scene svg{max-width:none;}
+  .crt-wrap .rig-3d{border-radius:4px;}
+  /* Floor / wall surface picker under the battlestation render. */
+  .rig-surfaces{display:flex; flex-direction:column; gap:8px; margin:6px auto 2px; max-width:432px;}
+  .rig-surf-row{display:flex; align-items:center; gap:10px;}
+  .rig-surf-label{flex:0 0 64px; font-size:12px; color:var(--muted); white-space:nowrap;}
+  .rig-surf-seg{flex:1 1 auto;}
+  .rig-surf-seg button.locked{opacity:0.6;}
   /* 3D battlestation viewer (mounts over the SVG on #/rig when WebGL + assets are available) */
   .rig-3d{position:relative; width:100%; aspect-ratio:16/10; min-height:260px; border-radius:8px; overflow:hidden; background:#0b0816; cursor:grab;}
   .rig-3d:active{cursor:grabbing;}
   .rig-3d canvas{display:block; width:100%; height:100%;}
   .rig-3d .hint{position:absolute; left:10px; bottom:8px; font-size:11px; color:#9aa6d8; background:rgba(7,11,24,.5); padding:2px 7px; border-radius:6px; pointer-events:none;}
+  .rig-store-head{margin:18px 0 10px; font-size:14px; font-weight:700; color:var(--ink);}
+  .rig-store-head .sub-stat{font-weight:400;}
   .rig-store-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 13px; border:1px solid var(--line); border-radius:8px; margin-bottom:9px; background:var(--panel-2);}
   .rig-store-row .info{min-width:0;}
   .rig-store-row .nm{font-family:var(--pixel); color:var(--ink);}
@@ -1740,6 +1752,8 @@ const Store = (function(){
         netcoin: 0,            // spendable balance
         totalEarned: 0,        // lifetime NetCoin earned (Share Card brag)
         parts: {},             // owned functional part ids -> true
+        floor: 'floor_t1',     // equipped floor surface variant (tier 1 = free default)
+        wall:  'wall_t1',      // equipped back-wall surface variant (tier 1 = free default)
         rigScore: 0,           // weighted sum of owned part tiers (the flex number)
         lastMineTs: Date.now(),// idle-tank clock: when idle was last collected
         streak: 0,             // current consecutive-day claim streak
@@ -2881,11 +2895,38 @@ const Rig = (function(){
     { id:'monitor',    cat:'Peripheral', name:'Ultrawide Monitor',  cost:5500, rate:0.25, cap:0, score:50, blurb:'A wall of pixels. +0.25 mining rate.' }
   ];
 
-  const ALL = PARTS.concat(COSMETICS);
+  // ---- Battlestation surfaces (§6.2): the floor & the back wall. Unlike the
+  // additive cosmetics above, only ONE floor and ONE wall render at a time, so
+  // these are EQUIPPED (rig.floor / rig.wall) rather than just owned. Three tiers
+  // of ascending "cool factor" each: tier 1 is the free pre-owned default, tiers
+  // 2–3 cost NetCoin. Owning a tier still adds Rig Score (you bought the look).
+  // The variant ids map 1:1 onto the 3D builder (tools/rig-build.mjs buildFloor/
+  // buildWall) and the SVG fallback. ----
+  const SURFACES = [
+    { id:'floor_t1', kind:'floor', tier:1, cat:'Floor', name:'Shag Carpet',      cost:0,   rate:0, cap:0, score:0,  blurb:'The cozy warm shag carpet. Your default floor.' },
+    { id:'floor_t2', kind:'floor', tier:2, cat:'Floor', name:'Dark Hardwood',    cost:300, rate:0, cap:0, score:8,  blurb:'Matte dark wood planks with a subtle grain. A clean step up.' },
+    { id:'floor_t3', kind:'floor', tier:3, cat:'Floor', name:'Neon Glass Tiles', cost:900, rate:0, cap:0, score:20, blurb:'Glossy dark tiles veined with glowing teal/magenta seams. Reflects the whole rig.' },
+    { id:'wall_t1',  kind:'wall',  tier:1, cat:'Wall',  name:'Beige Stucco',     cost:0,   rate:0, cap:0, score:0,  blurb:'Plain plaster. Your default back wall.' },
+    { id:'wall_t2',  kind:'wall',  tier:2, cat:'Wall',  name:'Exposed Brick',    cost:300, rate:0, cap:0, score:8,  blurb:'Warm exposed brick with mortar relief. Industrial-loft energy.' },
+    { id:'wall_t3',  kind:'wall',  tier:3, cat:'Wall',  name:'Synthwave Mural',  cost:900, rate:0, cap:0, score:20, blurb:'A glowing synthwave sun-and-grid mural across the whole wall.' }
+  ];
+
+  const ALL = PARTS.concat(COSMETICS).concat(SURFACES);
   const partById = id => ALL.find(p=>p.id===id);
+  const surfaceById = id => SURFACES.find(s=>s.id===id);
 
   function rig(){ return Store.get().rig; }
   function owns(id){ return !!rig().parts[id]; }
+
+  // ---- battlestation surfaces (floor + wall) ----
+  // Tier 1 is always owned (the free default); tiers 2–3 follow the normal parts map.
+  function ownsSurface(id){ const s=surfaceById(id); return !!s && (s.tier===1 || owns(id)); }
+  function surfacesByKind(kind){ return SURFACES.filter(s=>s.kind===kind); }
+  // The equipped variant, validated against ownership so a wiped/legacy save falls back to tier 1.
+  function equippedFloor(){ const f=rig().floor; return ownsSurface(f)? f : 'floor_t1'; }
+  function equippedWall(){ const w=rig().wall;  return ownsSurface(w)? w : 'wall_t1'; }
+  function equipSurface(id){ const s=surfaceById(id); if(!s || !ownsSurface(id)) return false;
+    Store.update(st=>{ st.rig[s.kind]=id; }); return true; }
 
   // ---- derived rig stats (hardware + peripherals both count) ----
   function rigMultiplier(){ let m=1; ALL.forEach(p=>{ if(owns(p.id)) m+=p.rate; }); return m; }
@@ -2958,7 +2999,9 @@ const Rig = (function(){
   function buy(id){
     const p = partById(id);
     if(!p || owns(id) || rig().netcoin<p.cost || (p.needs && !owns(p.needs))) return false;
-    Store.update(s=>{ const g=s.rig; g.netcoin-=p.cost; g.parts[id]=true; g.rigScore=computeRigScore(); });
+    Store.update(s=>{ const g=s.rig; g.netcoin-=p.cost; g.parts[id]=true; g.rigScore=computeRigScore();
+      if(p.kind==='floor' || p.kind==='wall') g[p.kind]=id;   // a fresh floor/wall auto-equips
+    });
     Ach.evaluate({ rig:true });   // First Build / Maxed Out / Tycoon / Decked Out
     return true;
   }
@@ -3027,7 +3070,8 @@ const Rig = (function(){
     Store.update(s=>{ s.rig.netcoin+=n; s.rig.totalEarned+=n; }); return n; }
 
   return {
-    PARTS, COSMETICS, partById, owns, init, noteTool, payAchievements, grant,
+    PARTS, COSMETICS, SURFACES, partById, surfaceById, owns, init, noteTool, payAchievements, grant,
+    ownsSurface, surfacesByKind, equippedFloor, equippedWall, equipSurface,
     rate, rigMultiplier, capHours, computeRigScore,
     pending, tankFrac, tankFull, collectIdle,
     overclocked, ocTools,
@@ -17451,10 +17495,13 @@ Views.rig = function(c){
   function rig3DOwned(){ const p = Store.get().rig.parts||{}; return Object.keys(p).filter(k=>RIG3D_PARTS.has(k)).sort(); }
   function webglOK(){ try { return !!document.createElement('canvas').getContext('webgl2'); } catch(e){ return false; } }
   // Mount (or re-attach) the 3D viewer into `host`, hiding the SVG fallback on success.
+  // The signature folds in the equipped floor/wall so changing a surface forces a
+  // rebuild (the carpet/wall are baked at mount time) while a plain Collect re-uses.
   function mount3D(host){
     if(location.protocol==='file:') return;      // can't fetch assets off file:// → keep the SVG
     if(!webglOK()) return;                        // no WebGL → keep the SVG
-    const owned = rig3DOwned(), sig = owned.join(',');
+    const owned = rig3DOwned(), floor = Rig.equippedFloor(), wall = Rig.equippedWall();
+    const sig = owned.join(',')+'|'+floor+'|'+wall;
     const box = el('div',{class:'rig-3d'});
     box.append(el('div',{class:'hint', html:'drag to orbit · scroll to zoom'}));
     host.append(box);
@@ -17462,7 +17509,7 @@ Views.rig = function(c){
     if(rig3D && rig3DCanvas && sig===rig3DSig){ box.prepend(rig3DCanvas); showCanvas(); return; } // reuse (e.g. after Collect)
     if(rig3D){ rig3D.dispose(); rig3D=null; rig3DCanvas=null; }
     import('./tools/rig-inapp.bundle.js')
-      .then(m=> m.mount(box, { ownIds: owned }))
+      .then(m=> m.mount(box, { ownIds: owned, floor, wall }))
       .then(api=>{ rig3D=api; rig3DCanvas=api.canvas; rig3DSig=sig; showCanvas(); })
       .catch(err=>{ box.remove(); console.warn('Rig 3D viewer unavailable; using SVG fallback:', err&&err.message||err); });
   }
@@ -17566,11 +17613,40 @@ Views.rig = function(c){
     }
     panel.append(dailyB);
 
+    // Floor / wall selector: one segmented control per surface. Owned tiers equip
+    // on tap (re-rendering the scene live); locked tiers deep-link to the NetStore.
+    function surfacePicker(){
+      const wrap = el('div',{class:'rig-surfaces'});
+      [['floor','🟫 Floor', Rig.equippedFloor()], ['wall','🧱 Wall', Rig.equippedWall()]].forEach(([kind,label,equipped])=>{
+        const row = el('div',{class:'rig-surf-row'});
+        row.append(el('span',{class:'rig-surf-label', html:label}));
+        const seg = el('div',{class:'seg rig-surf-seg'});
+        Rig.surfacesByKind(kind).forEach(s=>{
+          const ownedS = Rig.ownsSurface(s.id);
+          const b = el('button',{html: ownedS ? s.name : '🔒 '+s.name});
+          if(s.id===equipped) b.classList.add('on');
+          if(!ownedS){
+            b.classList.add('locked'); b.title = `Buy in the NetStore — ${s.cost.toLocaleString()} NetCoin`;
+            b.onclick = ()=>{ rigStoreTab='battlestation'; Router.go('#/rig/store'); };
+          } else {
+            b.onclick = ()=>{ if(s.id!==equipped && Rig.equipSurface(s.id)){ UI.toast('Equipped', s.name); paint(); } };
+          }
+          seg.append(b);
+        });
+        row.append(seg); wrap.append(row);
+      });
+      return wrap;
+    }
+
     // ---- battlestation render ----
     const sceneB = el('div',{class:'rig-block'});
     sceneB.append(el('h2',{class:'sub', html:`Battlestation <span class="sub-stat" style="margin-left:8px;">${rigTitle(r.rigScore)} · Rig Score ${r.rigScore}</span>`}));
     const scene = el('div',{class:'rig-scene'}); scene.innerHTML = rigSceneSVG();
-    sceneB.append(scene);
+    // House the live render (or its SVG fallback) in the same CRT-TV bezel the
+    // arcade cabinets use — keeps the battlestation on-brand with the rest of PlayTools.
+    const sceneTV = crtWrapTV(scene, { accent:'#16f2c8', jitter:false, wide:true });
+    sceneB.append(sceneTV);
+    sceneB.append(surfacePicker());   // tap to swap the owned floor / wall and re-render live
     panel.append(sceneB);
     mount3D(scene);   // upgrade the SVG to the live 3D battlestation when available
 
@@ -17658,11 +17734,43 @@ Views.rigStore = function(c){
       return row;
     }
 
+    // Surface (floor/wall) row: tier 1 is the free pre-owned default; owned tiers
+    // show Equip / Equipped, the rest show a Buy button (buying auto-equips).
+    function surfaceRow(s){
+      const ownedS = Rig.ownsSurface(s.id);
+      const equipped = (s.kind==='floor'? Rig.equippedFloor() : Rig.equippedWall()) === s.id;
+      const row = el('div',{class:'rig-store-row'+(ownedS?' owned':'')});
+      const info = el('div',{class:'info'});
+      const tierTag = s.tier===1 ? 'Default' : 'Tier '+s.tier;
+      const eff = s.score>0 ? ` <span style="color:var(--ink)">+${s.score} Rig Score</span>` : '';
+      info.innerHTML = `<div class="nm"><span class="cat">${s.cat}</span>${s.name} <span class="sub-stat">${tierTag}</span></div>`+
+        `<div class="meta">${s.blurb}${eff}</div>`;
+      const buyWrap = el('div',{class:'buy'});
+      if(ownedS){
+        if(equipped){ buyWrap.innerHTML = `<span class="own-tag">✓ Equipped</span>`; }
+        else { const btn = el('button',{class:'btn', html:'Equip'});
+          btn.onclick = ()=>{ if(Rig.equipSurface(s.id)){ UI.toast('Equipped', s.name); paint(); } };
+          buyWrap.append(btn); }
+      } else {
+        const cost = el('span',{class:'rig-cost', html:`${netcoinSVG(16)}${s.cost.toLocaleString()}`});
+        const btn = el('button',{class:'btn primary', html:'Buy'});
+        if(!Rig.canAfford(s.id)) btn.disabled=true;
+        btn.onclick = ()=>{ if(Rig.buy(s.id)){ UI.toast('Installed', s.name+' equipped'); paint(); } };
+        buyWrap.append(cost, btn);
+      }
+      row.append(info, buyWrap);
+      return row;
+    }
+
     if(rigStoreTab==='hardware'){
       Rig.PARTS.forEach(p=> panel.append(partRow(p)));
     } else if(rigStoreTab==='battlestation'){
       panel.append(el('p',{class:'muted', style:'margin:0 0 12px;', html:'Peripherals & cosmetics — pure flex, except the four peripherals tagged with a rate bump.'}));
       Rig.COSMETICS.forEach(p=> panel.append(partRow(p)));
+      panel.append(el('h3',{class:'rig-store-head', html:'🟫 Floors <span class="sub-stat">— one equipped at a time</span>'}));
+      Rig.surfacesByKind('floor').forEach(s=> panel.append(surfaceRow(s)));
+      panel.append(el('h3',{class:'rig-store-head', html:'🧱 Walls <span class="sub-stat">— one equipped at a time</span>'}));
+      Rig.surfacesByKind('wall').forEach(s=> panel.append(surfaceRow(s)));
     } else {
       // Credits tab — one-way NetCoin → Jack-In bankroll sink (§7 Phase 2).
       panel.append(el('p',{class:'muted', style:'margin:0 0 12px;',

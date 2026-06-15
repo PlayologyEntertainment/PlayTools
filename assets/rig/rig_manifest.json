@@ -12,7 +12,13 @@
         1.186,
         -0.5
       ],
-      "fov": 50
+      "fov": 50,
+      "minDist": 1.4,
+      "maxDist": 4.2,
+      "minPolar": 0.5655,
+      "maxPolar": 1.5708,
+      "minAz": -0.45,
+      "maxAz": 1.5
     },
     "bloom": {
       "strength": 0.06,
