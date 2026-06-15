@@ -74,6 +74,33 @@ export async function mount(container, { ownIds=null, floor=null, wall=null }={}
     canvas: renderer.domElement,
     // Render one fresh frame and return it as a PNG data URL — used by the Share Card.
     capture(){ composer.render(); return renderer.domElement.toDataURL('image/png'); },
+    // ---- camera debug hooks (dev-only UI in PlayTools.html, ?dev=1) ----
+    // Live spherical state of the camera relative to the orbit target, so a tester
+    // can drag the rig to a limit and read off the exact value to lock in.
+    getCamState(){
+      const t = controls.target;
+      return {
+        distance: controls.getDistance(),
+        polar:    controls.getPolarAngle(),
+        azimuth:  controls.getAzimuthalAngle(),
+        fov:      cam.fov,
+        target:   [t.x, t.y, t.z],
+        pos:      [cam.position.x, cam.position.y, cam.position.z]
+      };
+    },
+    // Apply OrbitControls limits live (all angles in radians, keys match the
+    // rig_manifest.json scene.camera block). Only touches the keys supplied.
+    setCamLimits(o={}){
+      if(o.minDist  != null) controls.minDistance    = o.minDist;
+      if(o.maxDist  != null) controls.maxDistance    = o.maxDist;
+      if(o.minPolar != null) controls.minPolarAngle  = o.minPolar;
+      if(o.maxPolar != null) controls.maxPolarAngle  = o.maxPolar;
+      if(o.minAz    != null) controls.minAzimuthAngle= o.minAz;
+      if(o.maxAz    != null) controls.maxAzimuthAngle= o.maxAz;
+      if(o.target)  { controls.target.set(o.target[0], o.target[1], o.target[2]); }
+      if(o.fov     != null) { cam.fov = o.fov; cam.updateProjectionMatrix(); }
+      controls.update();
+    },
     dispose(){ alive=false; controls.dispose();
       scene.traverse(o=>{ o.geometry?.dispose?.(); const m=o.material; if(m){ (Array.isArray(m)?m:[m]).forEach(x=>{ x.map?.dispose?.(); x.dispose?.(); }); } });
       renderer.dispose(); renderer.forceContextLoss?.(); renderer.domElement.remove(); }
