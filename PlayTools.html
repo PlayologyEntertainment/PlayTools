@@ -2641,7 +2641,9 @@ const ShareCard = (function(){
     // quadrant pads, or a text glyph. The image is cover-fit into a neon frame.
     const Gl=T.glyph;
     if(data.glyphImage && (data.glyphImage.width||data.glyphImage.naturalWidth)){
-      const img=data.glyphImage, fw=300, fh=150, fx=(Wc-fw)/2, fy=104, rad=10;
+      // fh leaves a deliberate gap below the frame (incl. its glow) before the
+      // first metric row at metrics.startYNoGrade (271) so they don't collide.
+      const img=data.glyphImage, fw=300, fh=128, fx=(Wc-fw)/2, fy=104, rad=10;
       const iw=img.width||img.naturalWidth, ih=img.height||img.naturalHeight;
       ctx.save(); roundRectPath(ctx,fx,fy,fw,fh,rad); ctx.clip();
       ctx.fillStyle='#0a1230'; ctx.fillRect(fx,fy,fw,fh);
