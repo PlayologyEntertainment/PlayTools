@@ -759,6 +759,8 @@
   .rig-cost{display:flex; align-items:center; gap:5px; font-family:var(--pixel); color:var(--neon-3); white-space:nowrap;}
   .rig-store-row.owned{border-color:rgba(255,210,61,0.4);}
   .rig-store-row.owned .own-tag{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--neon-3);}
+  /* "Equipped" reads neon green so it pops apart from the gold "Owned" tag. */
+  .rig-store-row.owned .own-tag.equipped{color:var(--neon-5); text-shadow:0 0 8px rgba(55,227,91,0.5);}
   .rig-store-row.locked{opacity:0.55;}
   nav.rail a .rail-dot{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--neon-3); box-shadow:0 0 8px var(--neon-3); animation:rigPulse 1.3s ease-in-out infinite;}
 
@@ -17633,8 +17635,8 @@ Views.rig = function(c){
 
       // Live limits, seeded from the current rig_manifest.json scene.camera block.
       // (Mirror this object when the manifest is re-tuned so the tool starts in sync.)
-      const cfg = { minDist:1.4, maxDist:4.2, minPolar:0.5655, maxPolar:1.5708,
-                    minAz:-0.45, maxAz:1.5, fov:50, target:[0.138,1.186,-0.5] };
+      const cfg = { minDist:0.7, maxDist:2.3, minPolar:0.4974, maxPolar:1.5708,
+                    minAz:-0.3403, maxAz:0.3403, fov:61, target:[0.26,1.18,-0.29] };
       const DEG = r=> r*180/Math.PI, RAD = d=> d*Math.PI/180;
       const cur = ()=> (rig3D && rig3D.getCamState) ? rig3D.getCamState() : null;
       const applyCam = ()=>{ if(rig3D && rig3D.setCamLimits) rig3D.setCamLimits(cfg); };
@@ -17693,7 +17695,7 @@ Views.rig = function(c){
       function manifestBlock(){
         const s = cur();
         return JSON.stringify({
-          pos:    (s ? s.pos : [1.432,1.651,1.756]).map(n=>+n.toFixed(3)),
+          pos:    (s ? s.pos : [1.027,1.253,1.877]).map(n=>+n.toFixed(3)),
           target: cfg.target.map(n=>+n.toFixed(3)),
           fov:    Math.round(cfg.fov),
           minDist:+cfg.minDist.toFixed(3), maxDist:+cfg.maxDist.toFixed(3),
@@ -17824,7 +17826,7 @@ Views.rigStore = function(c){
         `<div class="meta">${s.blurb}${eff}</div>`;
       const buyWrap = el('div',{class:'buy'});
       if(ownedS){
-        if(equipped){ buyWrap.innerHTML = `<span class="own-tag">✓ Equipped</span>`; }
+        if(equipped){ buyWrap.innerHTML = `<span class="own-tag equipped">✓ Equipped</span>`; }
         else { const btn = el('button',{class:'btn', html:'Equip'});
           btn.onclick = ()=>{ if(Rig.equipSurface(s.id)){ UI.toast('Equipped', s.name); paint(); } };
           buyWrap.append(btn); }

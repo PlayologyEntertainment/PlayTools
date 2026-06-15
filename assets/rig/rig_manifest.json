@@ -3,22 +3,22 @@
     "hdri": "models/ferndale_studio_04_512.hdr",
     "camera": {
       "pos": [
-        1.432,
-        1.651,
-        1.756
+        1.027,
+        1.253,
+        1.877
       ],
       "target": [
-        0.138,
-        1.186,
-        -0.5
+        0.26,
+        1.18,
+        -0.29
       ],
-      "fov": 50,
-      "minDist": 1.4,
-      "maxDist": 4.2,
-      "minPolar": 0.5655,
+      "fov": 61,
+      "minDist": 0.7,
+      "maxDist": 2.3,
+      "minPolar": 0.4974,
       "maxPolar": 1.5708,
-      "minAz": -0.45,
-      "maxAz": 1.5
+      "minAz": -0.3403,
+      "maxAz": 0.3403
     },
     "bloom": {
       "strength": 0.06,
