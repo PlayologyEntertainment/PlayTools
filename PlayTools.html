@@ -740,12 +740,9 @@
   .crt-wrap .rig-scene{border:0; background:transparent; padding:0; margin:0; width:100%;}
   .crt-wrap .rig-scene svg{max-width:none;}
   .crt-wrap .rig-3d{border-radius:4px;}
-  /* Floor / wall surface picker under the battlestation render. */
-  .rig-surfaces{display:flex; flex-direction:column; gap:8px; margin:6px auto 2px; max-width:432px;}
-  .rig-surf-row{display:flex; align-items:center; gap:10px;}
-  .rig-surf-label{flex:0 0 64px; font-size:12px; color:var(--muted); white-space:nowrap;}
-  .rig-surf-seg{flex:1 1 auto;}
-  .rig-surf-seg button.locked{opacity:0.6;}
+  /* NetStore tab bar: a standalone "Back to The Rig" button sits left of the
+     Hardware/Battlestation/Credits pill, deliberately outside the pill itself. */
+  .rig-store-tabs{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;}
   /* 3D battlestation viewer (mounts over the SVG on #/rig when WebGL + assets are available) */
   .rig-3d{position:relative; width:100%; aspect-ratio:16/10; min-height:260px; border-radius:8px; overflow:hidden; background:#0b0816; cursor:grab;}
   .rig-3d:active{cursor:grabbing;}
@@ -17486,7 +17483,7 @@ function rigSceneSVG(){
 }
 
 Views.rig = function(c){
-  let timer = null;
+  let timer = null, camDbgTimer = null;
   // 3D battlestation viewer state (persists across re-paints within this route visit)
   let rig3D = null, rig3DCanvas = null, rig3DSig = null;
   // manifest part ids that map to a purchasable NetStore item (drives ownership binding)
@@ -17515,6 +17512,7 @@ Views.rig = function(c){
   }
   function paint(){
     if(timer){ clearInterval(timer); timer=null; }
+    if(camDbgTimer){ clearInterval(camDbgTimer); camDbgTimer=null; }
     c.innerHTML='';
     const r = Store.get().rig;
     const panel = rigHead(c, RIG_ICON+' The Rig',
@@ -17613,31 +17611,6 @@ Views.rig = function(c){
     }
     panel.append(dailyB);
 
-    // Floor / wall selector: one segmented control per surface. Owned tiers equip
-    // on tap (re-rendering the scene live); locked tiers deep-link to the NetStore.
-    function surfacePicker(){
-      const wrap = el('div',{class:'rig-surfaces'});
-      [['floor','🟫 Floor', Rig.equippedFloor()], ['wall','🧱 Wall', Rig.equippedWall()]].forEach(([kind,label,equipped])=>{
-        const row = el('div',{class:'rig-surf-row'});
-        row.append(el('span',{class:'rig-surf-label', html:label}));
-        const seg = el('div',{class:'seg rig-surf-seg'});
-        Rig.surfacesByKind(kind).forEach(s=>{
-          const ownedS = Rig.ownsSurface(s.id);
-          const b = el('button',{html: ownedS ? s.name : '🔒 '+s.name});
-          if(s.id===equipped) b.classList.add('on');
-          if(!ownedS){
-            b.classList.add('locked'); b.title = `Buy in the NetStore — ${s.cost.toLocaleString()} NetCoin`;
-            b.onclick = ()=>{ rigStoreTab='battlestation'; Router.go('#/rig/store'); };
-          } else {
-            b.onclick = ()=>{ if(s.id!==equipped && Rig.equipSurface(s.id)){ UI.toast('Equipped', s.name); paint(); } };
-          }
-          seg.append(b);
-        });
-        row.append(seg); wrap.append(row);
-      });
-      return wrap;
-    }
-
     // ---- battlestation render ----
     const sceneB = el('div',{class:'rig-block'});
     sceneB.append(el('h2',{class:'sub', html:`Battlestation <span class="sub-stat" style="margin-left:8px;">${rigTitle(r.rigScore)} · Rig Score ${r.rigScore}</span>`}));
@@ -17646,9 +17619,108 @@ Views.rig = function(c){
     // arcade cabinets use — keeps the battlestation on-brand with the rest of PlayTools.
     const sceneTV = crtWrapTV(scene, { accent:'#16f2c8', jitter:false, wide:true });
     sceneB.append(sceneTV);
-    sceneB.append(surfacePicker());   // tap to swap the owned floor / wall and re-render live
     panel.append(sceneB);
     mount3D(scene);   // upgrade the SVG to the live 3D battlestation when available
+
+    // ---- dev-only camera debug (#/rig?dev=1) — tune the OrbitControls limits live
+    //      and read the current orbit values, so exact limits can be locked into
+    //      assets/rig/rig_manifest.json (scene.camera). Never reaches players. ----
+    if(Router.query().get('dev')==='1'){
+      const dbg = el('div',{class:'rig-block'});
+      dbg.append(el('h2',{class:'sub', text:'🎥 Camera Debug'}));
+      dbg.append(el('p',{class:'muted', style:'margin:0 0 10px;',
+        html:'Drag the battlestation to a limit and read the live values below. To find a new (wider) limit, hit <b>↔ open up</b>, orbit to the spot you want, then <b>snap</b> it to a min/max. <b>Copy camera block</b> for <code>assets/rig/rig_manifest.json</code> → <code>scene.camera</code>. Hidden unless the URL ends in <code>?dev=1</code>.'}));
+
+      // Live limits, seeded from the current rig_manifest.json scene.camera block.
+      // (Mirror this object when the manifest is re-tuned so the tool starts in sync.)
+      const cfg = { minDist:1.4, maxDist:4.2, minPolar:0.5655, maxPolar:1.5708,
+                    minAz:-0.45, maxAz:1.5, fov:50, target:[0.138,1.186,-0.5] };
+      const DEG = r=> r*180/Math.PI, RAD = d=> d*Math.PI/180;
+      const cur = ()=> (rig3D && rig3D.getCamState) ? rig3D.getCamState() : null;
+      const applyCam = ()=>{ if(rig3D && rig3D.setCamLimits) rig3D.setCamLimits(cfg); };
+
+      const read = el('div',{style:'font-family:monospace; font-size:12px; line-height:1.6; margin:0 0 10px; padding:8px; border:1px solid var(--line); border-radius:6px; color:var(--ink);'});
+      read.textContent = '(waiting for 3D viewer…)';
+      dbg.append(read);
+
+      // One labelled slider. `unit`: '°' (stored radians, shown degrees), 'm', or 'fov'.
+      const rows = [];
+      function slider(label, min, max, step, unit, get, set){
+        const row = el('div',{style:'display:flex; align-items:center; gap:8px; margin-bottom:6px;'});
+        const lab = el('span',{style:'flex:0 0 86px; font-size:12px; color:var(--muted);', text:label});
+        const inp = el('input',{type:'range', min:String(min), max:String(max), step:String(step), style:'flex:1 1 auto;'});
+        const val = el('span',{style:'flex:0 0 78px; font-family:monospace; font-size:12px; text-align:right; color:var(--ink);'});
+        const isAngle = unit==='°';
+        function show(){ const disp = isAngle ? DEG(get()) : get(); inp.value=String(disp);
+          val.textContent = isAngle ? disp.toFixed(1)+'°' : disp.toFixed(unit==='fov'?0:2); }
+        inp.oninput = ()=>{ set(isAngle ? RAD(+inp.value) : +inp.value); show(); applyCam(); };
+        show(); row.append(lab, inp, val); row._refresh = show; rows.push(row); return row;
+      }
+      const refresh = ()=> rows.forEach(rw=> rw._refresh());
+
+      dbg.append(
+        slider('Min dist', 0.3, 10, 0.05, 'm', ()=>cfg.minDist, v=>cfg.minDist=v),
+        slider('Max dist', 0.3, 10, 0.05, 'm', ()=>cfg.maxDist, v=>cfg.maxDist=v),
+        slider('Min polar', 0, 180, 0.5, '°', ()=>cfg.minPolar, v=>cfg.minPolar=v),
+        slider('Max polar', 0, 180, 0.5, '°', ()=>cfg.maxPolar, v=>cfg.maxPolar=v),
+        slider('Min azim', -180, 180, 0.5, '°', ()=>cfg.minAz, v=>cfg.minAz=v),
+        slider('Max azim', -180, 180, 0.5, '°', ()=>cfg.maxAz, v=>cfg.maxAz=v),
+        slider('Target X', -3, 3, 0.01, 'm', ()=>cfg.target[0], v=>cfg.target[0]=v),
+        slider('Target Y', 0, 3, 0.01, 'm', ()=>cfg.target[1], v=>cfg.target[1]=v),
+        slider('Target Z', -3, 3, 0.01, 'm', ()=>cfg.target[2], v=>cfg.target[2]=v),
+        slider('FOV', 20, 90, 1, 'fov', ()=>cfg.fov, v=>cfg.fov=v)
+      );
+
+      // Snap the live orbit value into a limit (tighten), plus an "open up" escape hatch.
+      const snapRow = el('div',{class:'controls-row', style:'flex-wrap:wrap; gap:6px;'});
+      function snap(label, fn){ const b=el('button',{class:'btn', style:'font-size:11px;', html:label});
+        b.onclick = ()=>{ const s=cur(); if(s){ fn(s); refresh(); applyCam(); } }; snapRow.append(b); }
+      snap('⇤ dist→min', s=> cfg.minDist=+s.distance.toFixed(3));
+      snap('dist→max ⇥', s=> cfg.maxDist=+s.distance.toFixed(3));
+      snap('⇤ polar→min', s=> cfg.minPolar=s.polar);
+      snap('polar→max ⇥', s=> cfg.maxPolar=s.polar);
+      snap('⇤ az→min', s=> cfg.minAz=s.azimuth);
+      snap('az→max ⇥', s=> cfg.maxAz=s.azimuth);
+      snap('target→here', s=> cfg.target=s.target.map(n=>+n.toFixed(3)));
+      const openUp = el('button',{class:'btn', style:'font-size:11px;', html:'↔ open up'});
+      openUp.onclick = ()=>{ cfg.minDist=0.3; cfg.maxDist=10; cfg.minPolar=0; cfg.maxPolar=Math.PI;
+        cfg.minAz=-Math.PI; cfg.maxAz=Math.PI; refresh(); applyCam(); };
+      snapRow.append(openUp);
+      dbg.append(snapRow);
+
+      // Manifest-ready JSON (scene.camera). pos comes from the live camera so a
+      // framing can be captured too; the rest mirror the slider values.
+      function manifestBlock(){
+        const s = cur();
+        return JSON.stringify({
+          pos:    (s ? s.pos : [1.432,1.651,1.756]).map(n=>+n.toFixed(3)),
+          target: cfg.target.map(n=>+n.toFixed(3)),
+          fov:    Math.round(cfg.fov),
+          minDist:+cfg.minDist.toFixed(3), maxDist:+cfg.maxDist.toFixed(3),
+          minPolar:+cfg.minPolar.toFixed(4), maxPolar:+cfg.maxPolar.toFixed(4),
+          minAz:+cfg.minAz.toFixed(4), maxAz:+cfg.maxAz.toFixed(4)
+        }, null, 2);
+      }
+      const out = el('textarea',{readonly:true, style:'width:100%; min-height:170px; box-sizing:border-box; font-family:monospace; font-size:11px; margin-top:8px; background:#0b1020; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:8px;'});
+      const copyRow = el('div',{class:'controls-row', style:'gap:8px;'});
+      const refreshOut = el('button',{class:'btn', html:'↻ Refresh JSON'});
+      refreshOut.onclick = ()=>{ out.value = manifestBlock(); };
+      const copyBtn = el('button',{class:'btn primary', html:'📋 Copy camera block'});
+      copyBtn.onclick = ()=>{ out.value = manifestBlock(); out.select();
+        try{ navigator.clipboard.writeText(out.value); UI.toast('Copied','Camera block → clipboard'); }
+        catch(e){ try{ document.execCommand('copy'); }catch(_){} } };
+      copyRow.append(refreshOut, copyBtn);
+      dbg.append(copyRow, out);
+      out.value = manifestBlock();
+
+      camDbgTimer = setInterval(()=>{
+        const s = cur();
+        if(!s){ read.textContent='(waiting for 3D viewer…)'; return; }
+        read.innerHTML = `dist <b>${s.distance.toFixed(2)}</b> · polar <b>${DEG(s.polar).toFixed(1)}°</b> · azim <b>${DEG(s.azimuth).toFixed(1)}°</b><br>`+
+          `target [${s.target.map(n=>n.toFixed(2)).join(', ')}] · pos [${s.pos.map(n=>n.toFixed(2)).join(', ')}] · fov ${Math.round(s.fov)}`;
+      }, 100);
+      panel.append(dbg);
+    }
 
     // ---- actions ----
     const actions = el('div',{class:'controls-row'});
@@ -17681,7 +17753,7 @@ Views.rig = function(c){
     return loadImg('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg));
   }
   paint();
-  return ()=>{ if(timer) clearInterval(timer); if(rig3D){ rig3D.dispose(); rig3D=null; } };
+  return ()=>{ if(timer) clearInterval(timer); if(camDbgTimer) clearInterval(camDbgTimer); if(rig3D){ rig3D.dispose(); rig3D=null; } };
 };
 
 // Which NetStore tab to open on mount — let the Jack-In cabinet deep-link to Credits.
@@ -17697,15 +17769,20 @@ Views.rigStore = function(c){
     bal.innerHTML = `<div class="bal">${netcoinSVG(34)}<span class="n">${r.netcoin.toLocaleString()}</span></div><div class="sub-stat">your balance</div>`;
     panel.append(bal);
 
-    // tab bar
-    const seg = el('div',{class:'seg', style:'margin-bottom:14px;'});
+    // tab bar — a standalone "Back to The Rig" button to the LEFT of the tab pill
+    // (mirrors the button at the foot of the page; kept outside the pill on purpose).
+    const tabRow = el('div',{class:'rig-store-tabs'});
+    const topBack = el('button',{class:'btn', html:'← Back to The Rig'});
+    topBack.onclick = ()=> Router.go('#/rig');
+    const seg = el('div',{class:'seg'});
     [['hardware','🖥️ Hardware'],['battlestation','🪑 Battlestation'],['credits','🪙 Credits']].forEach(([id,label])=>{
       const b = el('button',{html:label});
       if(rigStoreTab===id) b.classList.add('on');
       b.onclick = ()=>{ rigStoreTab=id; paint(); };
       seg.append(b);
     });
-    panel.append(seg);
+    tabRow.append(topBack, seg);
+    panel.append(tabRow);
 
     // shared part-row renderer for Hardware & Battlestation
     function partRow(p){
@@ -17763,6 +17840,7 @@ Views.rigStore = function(c){
     }
 
     if(rigStoreTab==='hardware'){
+      panel.append(el('p',{class:'muted', style:'margin:0 0 12px;', html:'Functional parts — each one raises your mining rate, your offline cap, or both, and adds to your Rig Score.'}));
       Rig.PARTS.forEach(p=> panel.append(partRow(p)));
     } else if(rigStoreTab==='battlestation'){
       panel.append(el('p',{class:'muted', style:'margin:0 0 12px;', html:'Peripherals & cosmetics — pure flex, except the four peripherals tagged with a rate bump.'}));
