@@ -759,6 +759,8 @@
   .rig-cost{display:flex; align-items:center; gap:5px; font-family:var(--pixel); color:var(--neon-3); white-space:nowrap;}
   .rig-store-row.owned{border-color:rgba(255,210,61,0.4);}
   .rig-store-row.owned .own-tag{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--neon-3);}
+  /* "Equipped" reads neon green so it pops apart from the gold "Owned" tag. */
+  .rig-store-row.owned .own-tag.equipped{color:var(--neon-5); text-shadow:0 0 8px rgba(55,227,91,0.5);}
   .rig-store-row.locked{opacity:0.55;}
   nav.rail a .rail-dot{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--neon-3); box-shadow:0 0 8px var(--neon-3); animation:rigPulse 1.3s ease-in-out infinite;}
 
@@ -17824,7 +17826,7 @@ Views.rigStore = function(c){
         `<div class="meta">${s.blurb}${eff}</div>`;
       const buyWrap = el('div',{class:'buy'});
       if(ownedS){
-        if(equipped){ buyWrap.innerHTML = `<span class="own-tag">✓ Equipped</span>`; }
+        if(equipped){ buyWrap.innerHTML = `<span class="own-tag equipped">✓ Equipped</span>`; }
         else { const btn = el('button',{class:'btn', html:'Equip'});
           btn.onclick = ()=>{ if(Rig.equipSurface(s.id)){ UI.toast('Equipped', s.name); paint(); } };
           buyWrap.append(btn); }
