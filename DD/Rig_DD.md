@@ -296,7 +296,17 @@ A live, editable balance tool ships alongside this doc:
 catalog row and the summary, graphs, and affordability table recompute. It
 simulates three archetypes (Grinder = daily + overclock, Regular = daily only,
 Casual = every other day → streak keeps resetting), each auto-reinvesting into
-parts so the rig compounds.
+parts (respecting `needs` prereqs) so the rig compounds.
+
+The catalog table mirrors the live NetStore in `PlayTools.html` (the `PARTS` +
+`COSMETICS` arrays) and carries the full store shape — `id`, name,
+`description`, `cost`, category, `rate`/`cap`/`score` and a `model` (the
+`rig_manifest.json` id for the item's `.glb`). To **add a NetStore item**: add a
+row, fill those fields, watch its balance impact, then **Export for NetStore** —
+it emits ready-to-paste catalog entries (split into `PARTS` / `COSMETICS` the
+same way the app does) plus a `rig_manifest.json` model stub. Drop the `.glb`
+into `assets/rig/models/<id>.glb` and position it with `npm run rig:edit`
+(the 3D layout editor owns placement; the tuner owns price/description/economy).
 
 **Proposed baseline (starting point, all tunable):**
 
