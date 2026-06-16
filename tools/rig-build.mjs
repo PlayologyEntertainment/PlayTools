@@ -112,7 +112,7 @@ export function buildFloor(scene, variant){
   if(variant==='floor_t2'){
     // Wood image is portrait (~512×900); tile fewer rows than columns so planks keep
     // their proportions on the square floor instead of being squished.
-    const tex=hardwoodTex(); tex.repeat.set(7,4); const bump=hardwoodTex(); bump.repeat.copy(tex.repeat);
+    const tex=hardwoodTex(); tex.repeat.set(14,8); const bump=hardwoodTex(); bump.repeat.copy(tex.repeat);
     swapAlbedo('Floor_T2.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.02,roughness:0.55,metalness:0});
   } else if(variant==='floor_t3'){
@@ -149,7 +149,7 @@ export function buildWall(scene, wc, variant){
     tex.repeat.set(Math.max(1,Math.round(w/1.4)), Math.max(1,Math.round(h/1.7)));
     const bump=synthwaveTex(); bump.wrapS=bump.wrapT=THREE.RepeatWrapping; bump.repeat.copy(tex.repeat);
     swapAlbedo('Wall_T3.jpg', tex, bump);
-    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.012,roughness:0.42,metalness:0.7});
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.012,roughness:0.42,metalness:0.35});
   } else {
     const tex=stuccoTex(); tex.repeat.set(Math.max(1,Math.round(w/2.5)), Math.max(1,Math.round(h/2.5)));
     const bump=stuccoTex(); bump.repeat.copy(tex.repeat);

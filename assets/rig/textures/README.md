@@ -8,7 +8,7 @@ one at a time and nothing breaks in between.
 | Surface              | Tier | Filename         | Tiling                   | Notes |
 |----------------------|------|------------------|--------------------------|-------|
 | Floor — shag carpet  | T1   | `Floor_T1.jpg`   | tiled 24×24 (seamless)   | warm light-brown shag |
-| Floor — hardwood     | T2   | `Floor_T2.jpg`   | tiled 7×4 (seamless)     | dark warm planks; portrait images keep their proportions |
+| Floor — hardwood     | T2   | `Floor_T2.jpg`   | tiled 14×8 (seamless)    | dark warm planks; portrait images keep their proportions |
 | Floor — polished stone | T3 | `Floor_T3.jpg`   | tiled 6×6 (seamless)     | glossy terrazzo/stone; catches neon lights as sheen (no self-glow) |
 | Wall — beige stucco  | T1   | `Wall_T1.jpg`    | tiled to wall (seamless) | the image carries the colour (no extra tint) |
 | Wall — exposed brick | T2   | `Wall_T2.jpg`    | tiled to wall (seamless) | staggered brick |
