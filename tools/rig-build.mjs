@@ -119,7 +119,7 @@ export function buildFloor(scene, variant){
     // Patterned woven rug — a matte fabric floor (no self-illumination). High roughness
     // kills any sheen so it reads as carpet; a little bump gives the weave relief. Tiled
     // tightly so the ornate motif reads small rather than as a few giant repeats.
-    const tex=neonTileTex(false); tex.repeat.set(30,30); const bump=neonTileTex(false); bump.repeat.copy(tex.repeat);
+    const tex=neonTileTex(false); tex.repeat.set(40,40); const bump=neonTileTex(false); bump.repeat.copy(tex.repeat);
     swapAlbedo('Floor_T3.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.03,roughness:0.95,metalness:0});
   } else {

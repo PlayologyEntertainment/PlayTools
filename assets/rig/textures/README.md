@@ -9,7 +9,7 @@ one at a time and nothing breaks in between.
 |----------------------|------|------------------|--------------------------|-------|
 | Floor — shag carpet  | T1   | `Floor_T1.jpg`   | tiled 24×24 (seamless)   | warm light-brown shag |
 | Floor — hardwood     | T2   | `Floor_T2.jpg`   | tiled 14×8 (seamless)    | dark warm planks; portrait images keep their proportions |
-| Floor — patterned rug | T3  | `Floor_T3.jpg`   | tiled 30×30 (seamless)   | matte woven carpet; ornate motif tiled small (no self-glow) |
+| Floor — patterned rug | T3  | `Floor_T3.jpg`   | tiled 40×40 (seamless)   | matte woven carpet; ornate motif tiled small (no self-glow) |
 | Wall — beige stucco  | T1   | `Wall_T1.jpg`    | tiled to wall (seamless) | the image carries the colour (no extra tint) |
 | Wall — exposed brick | T2   | `Wall_T2.jpg`    | tiled to wall (seamless) | staggered brick |
 | Wall — brushed metal | T3   | `Wall_T3.jpg`    | tiled to wall (seamless) | metallic panelling; reflects scene neon (no self-glow) |
