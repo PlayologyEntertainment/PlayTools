@@ -61,10 +61,14 @@ few are flagged `"default": false` to keep the hero shot uncluttered (toggle via
 
 **Procedural parts** (no `.glb`): the RGB Light Kit (`rgb`) is built in-engine via a
 `"proc": "<type>"` manifest entry; a procedural `poster` builder remains as a no-art
-fallback. Two base placeholders are also procedural until real models are sourced:
-`chair_base` (a plain 5-star office chair — replaced by the gaming chair upgrade) and
-`room` (L/R side-wall shell; the back wall still comes from `scene.wall`). An optional
-`scene.wall` gives posters something to hang on. Alternates (the flat monitor, the second
-toy, extra posters) are flagged `"default": false`. Still want real models: the
-GPU/internal hardware and the sit/stand desk upgrade, plus drop-in `.glb`s for `chair_base`
-and `room` to retire the placeholders. Field reference in the spec (§4).
+fallback. One base placeholder is also procedural until a real model is sourced:
+`chair_base` (a plain 5-star office chair — replaced by the gaming chair upgrade). The
+back wall comes from `scene.wall` (textured); the room is otherwise open-sided (no L/R
+side walls). An optional `scene.wall` gives posters something to hang on. Alternates (the
+flat monitor, the second toy, extra posters) are flagged `"default": false`. Still want
+real models: the GPU/internal hardware and the sit/stand desk upgrade, plus a drop-in
+`.glb` for `chair_base` to retire the placeholder. Field reference in the spec (§4).
+
+The `PROC.room` builder (two side-wall planes) is retained in `tools/rig-build.mjs` but is
+no longer referenced by the manifest, so the room renders open-sided. Re-add a
+`{"id":"room","proc":"room"}` entry to `base` to bring the side walls back.

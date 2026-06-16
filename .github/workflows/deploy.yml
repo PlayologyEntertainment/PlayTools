@@ -35,3 +35,4 @@ jobs:
           up tools/rig-inapp.bundle.js
           up assets/rig/rig_manifest.json
           for f in assets/rig/models/*; do up "$f"; done
+          for f in assets/rig/textures/*.jpg; do up "$f"; done
