@@ -4339,6 +4339,15 @@ function openHelp(){
   startSec.append(steps);
   modal.append(startSec);
 
+  // --- What else is in here? ---
+  const moreSec = el('div',{class:'help-section'});
+  moreSec.append(el('h4',{html:'What else is in here?'}));
+  const moreList = el('ul',{class:'help-steps', style:'list-style:none; padding-left:0;'});
+  moreList.append(el('li',{html:'<b>🕹️ The Arcade</b> — a whole wall of bite-size retro cabinets (Mac Pan, Brick Breaker, Defrag and a bunch more). Easy to pick up, hard to put down — and every hi-score feeds your Gamer DNA.'}));
+  moreList.append(el('li',{html:'<b>🖥️ The Rig</b> — show up, play, and watch your very own battlestation roar to life. There\'s a whole meta-game humming under the hood… jack in and find out. 😏'}));
+  moreSec.append(moreList);
+  modal.append(moreSec);
+
   // --- Actions ---
   modal.append(el('p',{style:'text-align:center; color:var(--neon); font-weight:600; margin:18px 0 0;', html:'Now Go and Have FUN!!!'}));
   const actions = el('div',{class:'modal-actions', style:'margin-top:14px;'});
