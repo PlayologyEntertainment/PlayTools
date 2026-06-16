@@ -6,8 +6,15 @@ Drop your sourced models and lighting here. Full spec + shopping list:
 ```
 models/   ← .glb models (glTF 2.0 binary, PBR, Y-up, metres). Name them models/<id>.glb
 hdri/     ← one .hdr or .exr environment map (lighting/reflections)
+textures/ ← Floor & Wall albedo images (drop-in, see textures/README.md)
 rig_manifest.json  ← maps NetStore part ids → model + placement
 ```
+
+**Floor / Wall textures:** the six surface tiers (carpet/hardwood/rug floors and
+stucco/brick/metal walls) render from procedural canvas textures by default. To upgrade
+any of them with a real image, drop an albedo file into `textures/` using the fixed name in
+[`textures/README.md`](textures/README.md) — it's picked up automatically with a procedural
+fallback, so no code change is needed.
 
 ## How to add an asset
 1. Put the `.glb` in `models/` (e.g. `models/chair_gaming.glb`).

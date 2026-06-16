@@ -58,6 +58,9 @@ page.on('response',r=>{ if(r.status()>=400) errs.push('HTTP'+r.status()+' '+r.ur
 let url = `http://127.0.0.1:8131/?w=${W}&h=${H}`;
 if (contact){ const files=fs.readdirSync(path.join(ROOT,'assets/rig/models')).filter(f=>/\.glb$/i.test(f)); url+=`&contact=1&models=${encodeURIComponent(files.join(','))}`; }
 if (own != null) url += `&own=${encodeURIComponent(own)}`;
+const floor = getf('floor', null), wall = getf('wall', null);
+if (floor != null) url += `&floor=${encodeURIComponent(floor)}`;
+if (wall  != null) url += `&wall=${encodeURIComponent(wall)}`;
 await page.goto(url, { waitUntil:'load' });
 let ready=false; try { await page.waitForFunction('window.__ready===true',null,{ timeout:300000 }); ready=true; } catch(e){}
 const sceneErr = await page.evaluate(()=>window.__err);

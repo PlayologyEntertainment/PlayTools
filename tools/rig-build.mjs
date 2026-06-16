@@ -87,26 +87,52 @@ export function brickTex(){
         x.fillStyle=`rgba(${120+sp},${58+sp},${44+sp},0.5)`; x.fillRect(bx+3+Math.random()*(bw-6),y+3+Math.random()*(bh-6),2,2); } } }
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
 }
+// Progressive enhancement for surfaces: a procedural texture is built immediately so
+// there's never a blank frame, then we try to load a real albedo image from
+// assets/rig/textures/<file>. If it loads, its pixels are swapped into the SAME
+// texture object(s) — preserving wrap/repeat/colorSpace — so any material referencing
+// them updates live. If the file is missing (or fails to load), the procedural look
+// stays. Pass every texture that should adopt the image (e.g. map + bumpMap, or
+// map + emissiveMap) so one albedo drives them all.
+export function swapAlbedo(file, ...textures){
+  new THREE.TextureLoader().load(
+    A + 'textures/' + file,
+    img => { for(const t of textures){ if(!t) continue; t.image = img.image; t.needsUpdate = true; } },
+    undefined,
+    () => {}                                   // missing/unreachable → keep procedural, silently
+  );
+}
 // Floor variants: 'floor_t1' shag carpet (default) · 'floor_t2' dark hardwood ·
-// 'floor_t3' neon glass tiles. Unknown/absent → tier 1, so the editor/preview and
-// older callers keep the original carpet.
+// 'floor_t3' patterned woven rug. Unknown/absent → tier 1, so the editor/preview
+// and older callers keep the original carpet. Each tier loads a real albedo image from
+// assets/rig/textures/Floor_T{1,2,3}.jpg when present (see that folder's README), else
+// stays procedural.
 export function buildFloor(scene, variant){
   variant = variant||'floor_t1'; let mat;
   if(variant==='floor_t2'){
-    const tex=hardwoodTex(); tex.repeat.set(7,7); const bump=hardwoodTex(); bump.repeat.set(7,7);
+    // Wood image is portrait (~512×900); tile fewer rows than columns so planks keep
+    // their proportions on the square floor instead of being squished.
+    const tex=hardwoodTex(); tex.repeat.set(14,8); const bump=hardwoodTex(); bump.repeat.copy(tex.repeat);
+    swapAlbedo('Floor_T2.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.02,roughness:0.55,metalness:0});
   } else if(variant==='floor_t3'){
-    const tex=neonTileTex(false); tex.repeat.set(14,14); const em=neonTileTex(true); em.repeat.set(14,14);
-    mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:em,emissiveIntensity:1.6,roughness:0.16,metalness:0.65});
+    // Patterned woven rug — a matte fabric floor (no self-illumination). High roughness
+    // kills any sheen so it reads as carpet; a little bump gives the weave relief. Tiled
+    // tightly so the ornate motif reads small rather than as a few giant repeats.
+    const tex=neonTileTex(false); tex.repeat.set(40,40); const bump=neonTileTex(false); bump.repeat.copy(tex.repeat);
+    swapAlbedo('Floor_T3.jpg', tex, bump);
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.03,roughness:0.95,metalness:0});
   } else {
     const tex=carpetTex(); tex.repeat.set(24,24); const bump=carpetTex(); bump.repeat.set(24,24);
+    swapAlbedo('Floor_T1.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:1,metalness:0});
   }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), mat);
   floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor); return floor;
 }
 // Wall variants: 'wall_t1' beige stucco (default) · 'wall_t2' exposed brick ·
-// 'wall_t3' glowing synthwave mural. Unknown/absent → tier 1.
+// 'wall_t3' brushed metal panelling. Unknown/absent → tier 1. Each tier loads a real
+// albedo image from assets/rig/textures/Wall_T{1,2,3}.jpg when present, else procedural.
 export function buildWall(scene, wc, variant){
   if(!wc) return null;
   variant = variant||'wall_t1';
@@ -114,13 +140,20 @@ export function buildWall(scene, wc, variant){
   if(variant==='wall_t2'){
     const tex=brickTex(); tex.repeat.set(Math.max(1,Math.round(w/2.4)), Math.max(1,Math.round(h/1.6)));
     const bump=brickTex(); bump.repeat.copy(tex.repeat);
+    swapAlbedo('Wall_T2.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:0.9,metalness:0});
   } else if(variant==='wall_t3'){
-    const tex=synthwaveTex();                                  // one mural across the wall (no tiling)
-    mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:0.7,roughness:0.6,metalness:0});
+    // Brushed-metal panels — tiled (not a stretched mural) and non-glowing. Metalness +
+    // low roughness let the panels catch the scene's neon point lights as coloured sheen.
+    const tex=synthwaveTex(); tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+    tex.repeat.set(Math.max(1,Math.round(w/1.4)), Math.max(1,Math.round(h/1.7)));
+    const bump=synthwaveTex(); bump.wrapS=bump.wrapT=THREE.RepeatWrapping; bump.repeat.copy(tex.repeat);
+    swapAlbedo('Wall_T3.jpg', tex, bump);
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.012,roughness:0.42,metalness:0.35});
   } else {
     const tex=stuccoTex(); tex.repeat.set(Math.max(1,Math.round(w/2.5)), Math.max(1,Math.round(h/2.5)));
     const bump=stuccoTex(); bump.repeat.copy(tex.repeat);
+    swapAlbedo('Wall_T1.jpg', tex, bump);
     // textured beige stucco: the map carries the colour, so don't tint with wc.color
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.015,roughness:0.95,metalness:0});
   }
