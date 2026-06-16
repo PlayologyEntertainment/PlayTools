@@ -103,7 +103,7 @@ export function swapAlbedo(file, ...textures){
   );
 }
 // Floor variants: 'floor_t1' shag carpet (default) · 'floor_t2' dark hardwood ·
-// 'floor_t3' polished stone (terrazzo). Unknown/absent → tier 1, so the editor/preview
+// 'floor_t3' patterned woven rug. Unknown/absent → tier 1, so the editor/preview
 // and older callers keep the original carpet. Each tier loads a real albedo image from
 // assets/rig/textures/Floor_T{1,2,3}.jpg when present (see that folder's README), else
 // stays procedural.
@@ -116,12 +116,12 @@ export function buildFloor(scene, variant){
     swapAlbedo('Floor_T2.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.02,roughness:0.55,metalness:0});
   } else if(variant==='floor_t3'){
-    // Polished terrazzo stone — a plain glossy floor (no self-illumination). The light
-    // albedo would blow out if used as an emissive map, so T3 reads its gl.OSS from the
-    // scene's neon lights via low roughness (gloss) instead.
-    const tex=neonTileTex(false); tex.repeat.set(6,6); const bump=neonTileTex(false); bump.repeat.copy(tex.repeat);
+    // Patterned woven rug — a matte fabric floor (no self-illumination). High roughness
+    // kills any sheen so it reads as carpet; a little bump gives the weave relief. Tiled
+    // tightly so the ornate motif reads small rather than as a few giant repeats.
+    const tex=neonTileTex(false); tex.repeat.set(30,30); const bump=neonTileTex(false); bump.repeat.copy(tex.repeat);
     swapAlbedo('Floor_T3.jpg', tex, bump);
-    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.01,roughness:0.45,metalness:0});
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.03,roughness:0.95,metalness:0});
   } else {
     const tex=carpetTex(); tex.repeat.set(24,24); const bump=carpetTex(); bump.repeat.set(24,24);
     swapAlbedo('Floor_T1.jpg', tex, bump);
