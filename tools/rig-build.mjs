@@ -103,29 +103,36 @@ export function swapAlbedo(file, ...textures){
   );
 }
 // Floor variants: 'floor_t1' shag carpet (default) · 'floor_t2' dark hardwood ·
-// 'floor_t3' neon glass tiles. Unknown/absent → tier 1, so the editor/preview and
-// older callers keep the original carpet. Each tier loads a real albedo image from
-// assets/rig/textures/ when present (see that folder's README), else stays procedural.
+// 'floor_t3' polished stone (terrazzo). Unknown/absent → tier 1, so the editor/preview
+// and older callers keep the original carpet. Each tier loads a real albedo image from
+// assets/rig/textures/Floor_T{1,2,3}.jpg when present (see that folder's README), else
+// stays procedural.
 export function buildFloor(scene, variant){
   variant = variant||'floor_t1'; let mat;
   if(variant==='floor_t2'){
-    const tex=hardwoodTex(); tex.repeat.set(7,7); const bump=hardwoodTex(); bump.repeat.set(7,7);
-    swapAlbedo('floor_hardwood.jpg', tex, bump);
+    // Wood image is portrait (~512×900); tile fewer rows than columns so planks keep
+    // their proportions on the square floor instead of being squished.
+    const tex=hardwoodTex(); tex.repeat.set(7,4); const bump=hardwoodTex(); bump.repeat.copy(tex.repeat);
+    swapAlbedo('Floor_T2.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.02,roughness:0.55,metalness:0});
   } else if(variant==='floor_t3'){
-    const tex=neonTileTex(false); tex.repeat.set(14,14); const em=neonTileTex(true); em.repeat.set(14,14);
-    swapAlbedo('floor_neon.jpg', tex, em);     // albedo doubles as the emissive (glow) map
-    mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:em,emissiveIntensity:1.6,roughness:0.16,metalness:0.65});
+    // Polished terrazzo stone — a plain glossy floor (no self-illumination). The light
+    // albedo would blow out if used as an emissive map, so T3 reads its gl.OSS from the
+    // scene's neon lights via low roughness (gloss) instead.
+    const tex=neonTileTex(false); tex.repeat.set(6,6); const bump=neonTileTex(false); bump.repeat.copy(tex.repeat);
+    swapAlbedo('Floor_T3.jpg', tex, bump);
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.01,roughness:0.45,metalness:0});
   } else {
     const tex=carpetTex(); tex.repeat.set(24,24); const bump=carpetTex(); bump.repeat.set(24,24);
-    swapAlbedo('floor_carpet.jpg', tex, bump);
+    swapAlbedo('Floor_T1.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:1,metalness:0});
   }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), mat);
   floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor); return floor;
 }
 // Wall variants: 'wall_t1' beige stucco (default) · 'wall_t2' exposed brick ·
-// 'wall_t3' glowing synthwave mural. Unknown/absent → tier 1.
+// 'wall_t3' brushed metal panelling. Unknown/absent → tier 1. Each tier loads a real
+// albedo image from assets/rig/textures/Wall_T{1,2,3}.jpg when present, else procedural.
 export function buildWall(scene, wc, variant){
   if(!wc) return null;
   variant = variant||'wall_t1';
@@ -133,16 +140,20 @@ export function buildWall(scene, wc, variant){
   if(variant==='wall_t2'){
     const tex=brickTex(); tex.repeat.set(Math.max(1,Math.round(w/2.4)), Math.max(1,Math.round(h/1.6)));
     const bump=brickTex(); bump.repeat.copy(tex.repeat);
-    swapAlbedo('wall_brick.jpg', tex, bump);
+    swapAlbedo('Wall_T2.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:0.9,metalness:0});
   } else if(variant==='wall_t3'){
-    const tex=synthwaveTex();                                  // one mural across the wall (no tiling)
-    swapAlbedo('wall_synthwave.jpg', tex);                     // same texture drives map + emissive
-    mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:0.7,roughness:0.6,metalness:0});
+    // Brushed-metal panels — tiled (not a stretched mural) and non-glowing. Metalness +
+    // low roughness let the panels catch the scene's neon point lights as coloured sheen.
+    const tex=synthwaveTex(); tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+    tex.repeat.set(Math.max(1,Math.round(w/1.4)), Math.max(1,Math.round(h/1.7)));
+    const bump=synthwaveTex(); bump.wrapS=bump.wrapT=THREE.RepeatWrapping; bump.repeat.copy(tex.repeat);
+    swapAlbedo('Wall_T3.jpg', tex, bump);
+    mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.012,roughness:0.42,metalness:0.7});
   } else {
     const tex=stuccoTex(); tex.repeat.set(Math.max(1,Math.round(w/2.5)), Math.max(1,Math.round(h/2.5)));
     const bump=stuccoTex(); bump.repeat.copy(tex.repeat);
-    swapAlbedo('wall_stucco.jpg', tex, bump);
+    swapAlbedo('Wall_T1.jpg', tex, bump);
     // textured beige stucco: the map carries the colour, so don't tint with wc.color
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.015,roughness:0.95,metalness:0});
   }

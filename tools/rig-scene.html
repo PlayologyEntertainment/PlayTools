@@ -24,7 +24,7 @@ renderer.outputColorSpace=THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 const scene=new THREE.Scene(); scene.background=new THREE.Color('#0b0816');
-buildLights(scene); buildFloor(scene);
+buildLights(scene); buildFloor(scene, qs.get('floor'));
 const loader=makeLoader();
 
 function finish(camera,bl){
@@ -58,7 +58,7 @@ async function scene_(){
   const cm=man.scene?.camera||{};
   const cam=new THREE.PerspectiveCamera(cm.fov||42,W/H,0.1,100);
   cam.position.set(...(cm.pos||[-1.6,1.4,3.0])); cam.lookAt(...(cm.target||[0.3,0.85,-0.6]));
-  await buildScene(scene, renderer, loader, man, { ownParam: qs.get('own'), dbg: window.__dbg });
+  await buildScene(scene, renderer, loader, man, { ownParam: qs.get('own'), dbg: window.__dbg, wall: qs.get('wall') });
   finish(cam, man.scene?.bloom);
 }
 

@@ -10,8 +10,8 @@ textures/ ← Floor & Wall albedo images (drop-in, see textures/README.md)
 rig_manifest.json  ← maps NetStore part ids → model + placement
 ```
 
-**Floor / Wall textures:** the six surface tiers (carpet/hardwood/neon floors and
-stucco/brick/synthwave walls) render from procedural canvas textures by default. To upgrade
+**Floor / Wall textures:** the six surface tiers (carpet/hardwood/stone floors and
+stucco/brick/metal walls) render from procedural canvas textures by default. To upgrade
 any of them with a real image, drop an albedo file into `textures/` using the fixed name in
 [`textures/README.md`](textures/README.md) — it's picked up automatically with a procedural
 fallback, so no code change is needed.
