@@ -101,6 +101,14 @@ for (const c of cases) {
       for (let i = 0; i < 3; i++) { click(/Feed/i); click(/Pet/i); }
       const col = [...document.querySelectorAll('button.btn.primary')].find((b) => /Collect Foraged/i.test(b.textContent));
       if (col) col.click();
+      // Exercise the Sell path (price calc + roster removal). The card's Sell
+      // button goes through window.confirm, which Playwright auto-dismisses, so
+      // drive the API directly to cover the actual liquidation.
+      if (window.Pets && window.Pets.roster().length) {
+        const id = window.Pets.roster()[0].id;
+        window.Pets.sellPrice(window.Pets.roster()[0]);
+        window.Pets.sell(id);
+      }
     });
     await page.waitForTimeout(200);
     // Play the Rhythm-Feed mini-game: start, then tap the bar a dozen times.

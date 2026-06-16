@@ -299,7 +299,8 @@
      playing and dims to gray once muted (.muted set by the Music engine). */
   #musicBtn{filter:drop-shadow(0 0 5px rgba(124,92,255,0.8)); transition:filter .25s;}
   #musicBtn.muted{filter:grayscale(1) brightness(0.45);}
-  .btn.danger:hover{border-color:var(--danger); color:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.25);}
+  .btn.danger{border-color:var(--danger); color:var(--danger);}
+  .btn.danger:hover{border-color:var(--danger); color:#fff; background:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.35);}
 
   /* ============================================================
      APP LAYOUT (rail + screen)
@@ -2497,8 +2498,8 @@ const Ach = (function(){
       test:(d)=> !!(d.pets && d.pets.pals && new Set(d.pets.pals.map(p=>p.species)).size>=8) },
     { id:'pets_first_legendary', name:'Legendary Pull', icon:'🌟', desc:'Pull a Legendary Pet.',
       test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=>p.rarity==='legendary')) },
-    { id:'pets_best_friends', name:'Best Friends', icon:'💞', desc:'Raise a Pet to Bond level 5.',
-      test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=> Math.floor((p.bond||0)/100)>=5)) },
+    { id:'pets_best_friends', name:'Best Friends', icon:'💞', desc:'Raise a Pet to 100% Bond.',
+      test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=> (p.bond||0)>=100)) },
     { id:'pets_rhythm_ace', name:'Rhythm Ace', icon:'🎵', desc:'Earn an A grade or better at Rhythm-Feed.',
       test:(d,c)=> c && c.tool==='pet_rhythm' && (c.grade==='A'||c.grade==='S') },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
@@ -3254,10 +3255,11 @@ const Pets = (function(){
   const HAPPY_MULT_MIN = 0.3;
   function happyMult(happy){ return HAPPY_MULT_MIN + (1-HAPPY_MULT_MIN)*(clamp100(happy)/100); }
 
-  // ---- bond (DD §3.1): raised purely by care over time. Phase 1 tracks it +
-  // unlocks an achievement; richer perks land Phase 2. 100 xp per level. ----
+  // ---- bond (DD §3.1): raised purely by care over time, on a 0–100% scale
+  // (caps at 100%). Phase 1 shows it + unlocks an achievement at 100% and feeds
+  // the Sell price; richer perks land Phase 2. ----
   const BOND_PER_FEED = 6, BOND_PER_TAP = 2, BOND_PER_GAME = 16;
-  function bondLevel(bond){ return Math.floor((bond||0)/100); }
+  function bondPct(pal){ return Math.round(clamp100((pal&&pal.bond)||0)); }
 
   function clamp100(v){ return Math.max(0, Math.min(100, v)); }
   function pets(){ return Store.get().pets; }
@@ -3522,7 +3524,7 @@ const Pets = (function(){
     if(Store.get().rig.netcoin < FEED_COST) return false;
     commit();
     Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===id);
-      s.rig.netcoin -= FEED_COST; q.hunger=clamp100(q.hunger+FEED_HUNGER); q.bond=(q.bond||0)+BOND_PER_FEED; });
+      s.rig.netcoin -= FEED_COST; q.hunger=clamp100(q.hunger+FEED_HUNGER); q.bond=clamp100((q.bond||0)+BOND_PER_FEED); });
     Ach.evaluate({ pets:true });
     return true;
   }
@@ -3531,7 +3533,7 @@ const Pets = (function(){
     commit();
     const dk = dayKey(); let paid=0;
     Store.update(s=>{ const pt=s.pets; const q=pt.pals.find(x=>x.id===id);
-      q.happy=clamp100(q.happy+TAP_HAPPY); q.bond=(q.bond||0)+BOND_PER_TAP;
+      q.happy=clamp100(q.happy+TAP_HAPPY); q.bond=clamp100((q.bond||0)+BOND_PER_TAP);
       if(pt.tapDay!==dk){ pt.tapDay=dk; pt.tapCoins=0; }
       if(pt.tapCoins < TAP_COIN_CAP){ paid=TAP_COIN; pt.tapCoins+=TAP_COIN; s.rig.netcoin+=TAP_COIN; s.rig.totalEarned+=TAP_COIN; }
     });
@@ -3544,17 +3546,34 @@ const Pets = (function(){
     commit();
     Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===id); if(!q) return;
       q.energy=clamp100(q.energy-FEED_ENERGY_COST); q.happy=clamp100(q.happy+10);
-      q.bond=(q.bond||0)+BOND_PER_GAME;
+      q.bond=clamp100((q.bond||0)+BOND_PER_GAME);
       if(reward>0){ s.rig.netcoin+=reward; s.rig.totalEarned+=reward; }
     });
+  }
+
+  // ---- sell (liquidate a Pet for NetCoin). A fully-happy pet fetches the Loot
+  // Box cost plus a bond bonus (bond% × box cost); lower Happiness scales the
+  // whole price down toward a 50% floor. e.g. bond 10% + full Happiness → 275
+  // (250 + 25); the same pet at 50% Happiness → ~206. ----
+  function sellPrice(pal){
+    if(!pal) return 0;
+    const m = derive(pal, Date.now());
+    const max = BOX_COST + Math.round(BOX_COST * (bondPct(pal)/100));   // fully-happy price
+    return Math.round(max * (0.5 + 0.5*(clamp100(m.happy)/100)));
+  }
+  function sell(id){
+    const pal = pets().pals.find(x=>x.id===id); if(!pal) return 0;
+    const price = sellPrice(pal);
+    Store.update(s=>{ s.pets.pals = s.pets.pals.filter(x=>x.id!==id); s.rig.netcoin += price; });
+    return price;
   }
 
   return {
     RARITIES, RARITY, SPECIES, speciesByKey,
     render, renderHero, drawPet,
-    derive, commit, moodOf, moodFor, bondLevel,
+    derive, commit, moodOf, moodFor, bondPct,
     idleFrac, idlePending, idleFull, stableRate, collectIdle, happyMult,
-    canOpen, openBox, feed, tap, applyGameResult,
+    canOpen, openBox, feed, tap, applyGameResult, sellPrice, sell,
     cfg:{ BOX_COST, PITY_THRESHOLD, FEED_COST, FEED_ENERGY_MIN, FEED_ENERGY_COST, PET_RATE, IDLE_CAP_H, DUPE_SHARDS },
     pity(){ return pets().pity; }, shards(){ return pets().shards; }, roster(){ return pets().pals; }
   };
@@ -18507,10 +18526,12 @@ Views.retroPets = function(c){
       card.append(meters);
       const bond = el('div',{class:'pet-bond'}); card.append(bond);
       const actions = el('div',{class:'pet-actions'});
-      const feedB = el('button',{class:'btn', html:`🍖 Feed (${Pets.cfg.FEED_COST})`});
-      const petB  = el('button',{class:'btn', html:'💖 Pet'});
-      const moreB = el('button',{class:'btn ghost', html:'⋯'});
-      actions.append(feedB, petB, moreB);
+      const feedB   = el('button',{class:'btn', html:`🍖 Feed (${Pets.cfg.FEED_COST})`});
+      const petB    = el('button',{class:'btn', html:'💖 Pet'});
+      const renameB = el('button',{class:'btn ghost', html:'✏ Rename'});
+      const sellB   = el('button',{class:'btn danger', html:'💰 Sell'});
+      const shareB  = el('button',{class:'btn ghost', html:'📸 Share'});
+      actions.append(feedB, petB, renameB, sellB, shareB);
       card.append(actions);
 
       let mood = Pets.moodFor(pal);   // cached by tick(), consumed by draw()
@@ -18520,21 +18541,31 @@ Views.retroPets = function(c){
       petB.onclick  = ()=>{ const got=Pets.tap(pal.id); bump(); tick(); if(got>0) updateWallet(); };
       canvas.onclick = petB.onclick;
       canvas.style.cursor='pointer';
-      moreB.onclick = ()=>{
+      renameB.onclick = ()=>{
         const nm = window.prompt('Rename '+pal.name+':', pal.name);
-        if(nm && nm.trim()){ Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===pal.id); q.name=nm.trim().slice(0,18); }); paint(); return; }
+        if(nm && nm.trim()){ Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===pal.id); q.name=nm.trim().slice(0,18); }); paint(); }
+      };
+      shareB.onclick = ()=>{
         ShareCard.open({ lab:'RETROPETS', tool:pal.name, glyphImage:Pets.renderHero(pal),
-          metric:[{k:'Species', v:Pets.speciesByKey(pal.species).name},{k:'Rarity', v:rk.label},{k:'Bond', v:'Lv '+Pets.bondLevel(pal.bond)}],
-          designation: rk.title, badge: Pets.bondLevel(pal.bond)>=5?'Best Friends':null });
+          metric:[{k:'Species', v:Pets.speciesByKey(pal.species).name},{k:'Rarity', v:rk.label},{k:'Bond', v:Pets.bondPct(pal)+'%'}],
+          designation: rk.title, badge: Pets.bondPct(pal)>=100?'Best Friends':null });
+      };
+      sellB.onclick = ()=>{
+        const price = Pets.sellPrice(pal);
+        if(window.confirm(`Sell ${pal.name} for ${price.toLocaleString()} NetCoin?\n\nThis removes it from your stable permanently.`)){
+          const got = Pets.sell(pal.id);
+          UI.toast('Sold', `${pal.name} sold for +${got.toLocaleString()} NetCoin`);
+          paint();
+        }
       };
       function updateWallet(){ const rr=Store.get().rig; w.querySelector('.bal .n').textContent=rr.netcoin.toLocaleString(); }
       function tick(){
         const m = Pets.derive(pal, Date.now());
         mood = Pets.moodFor(pal);
         hi.style.width=Math.round(m.hunger)+'%'; pi.style.width=Math.round(m.happy)+'%'; ei.style.width=Math.round(m.energy)+'%';
-        const lvl=Pets.bondLevel(pal.bond), into=Math.round((pal.bond||0)%100);
-        bond.textContent = `❤ Bond Lv ${lvl} · ${into}%`;
+        bond.textContent = `❤ Bond ${Pets.bondPct(pal)}%`;
         feedB.disabled = Store.get().rig.netcoin < Pets.cfg.FEED_COST;
+        sellB.innerHTML = `💰 Sell (${Pets.sellPrice(pal).toLocaleString()})`;
       }
       function draw(t){
         // a tap briefly forces a happy bounce regardless of the cached mood
