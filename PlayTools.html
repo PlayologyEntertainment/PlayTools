@@ -776,7 +776,7 @@
   .pets-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:12px; margin-top:6px;}
   .pet-card{border:1px solid var(--line); border-radius:10px; background:var(--panel-2); padding:12px; text-align:center; position:relative; overflow:hidden;}
   .pet-card::before{content:''; position:absolute; inset:0; background:radial-gradient(120% 80% at 50% 0%, var(--pet-accent,transparent) 0%, transparent 55%); opacity:0.14; pointer-events:none;}
-  .pet-card canvas{image-rendering:pixelated; width:120px; height:120px; cursor:pointer;}
+  .pet-card canvas{width:128px; height:128px; cursor:pointer;}
   .pet-card .pet-name{font-family:var(--pixel); font-size:13px; color:var(--ink); margin:4px 0 2px; word-break:break-word;}
   .pet-card .pet-sub{font-size:10px; letter-spacing:1px; text-transform:uppercase;}
   .pet-rarity{font-family:var(--pixel); font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--pet-accent,var(--ink-dim));}
@@ -795,7 +795,7 @@
   .pets-rarity-odds span{display:inline-flex; align-items:center; gap:5px;}
   .pets-rarity-odds i{width:9px; height:9px; border-radius:50%; display:inline-block;}
   .pets-reveal{display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;}
-  .pets-reveal canvas{image-rendering:pixelated; width:176px; height:176px;}
+  .pets-reveal canvas{width:184px; height:184px;}
   .pets-empty{text-align:center; padding:26px 12px; color:var(--ink-dim);}
   .rhythm-stage{position:relative; height:120px; border:1px solid var(--line); border-radius:10px; background:var(--bg-2); overflow:hidden; margin:12px 0;}
   .rhythm-track{position:absolute; top:0; bottom:0; left:0; right:0;}
@@ -3220,14 +3220,14 @@ const Pets = (function(){
   // entry only carries silhouette/personality params — the seed perturbs the
   // rest, so there is zero asset cost. ----
   const SPECIES = [
-    { key:'gloop', name:'Gloop', hue:288, ear:'antenna', pattern:'spots',  rx:6.2, ry:6.6 },
-    { key:'byte',  name:'Byte',  hue:202, ear:'ears',    pattern:'belly',  rx:6.0, ry:6.2 },
-    { key:'ember', name:'Ember', hue:16,  ear:'horn',    pattern:'flame',  rx:5.8, ry:6.4 },
-    { key:'frost', name:'Frost', hue:190, ear:'ears',    pattern:'stripe', rx:6.2, ry:6.0 },
-    { key:'moss',  name:'Moss',  hue:104, ear:'leaf',    pattern:'spots',  rx:6.4, ry:6.2 },
-    { key:'volt',  name:'Volt',  hue:52,  ear:'bolt',    pattern:'belly',  rx:5.8, ry:6.0 },
-    { key:'cosmo', name:'Cosmo', hue:258, ear:'antenna', pattern:'stars',  rx:6.4, ry:6.6 },
-    { key:'pip',   name:'Pip',   hue:332, ear:'ears',    pattern:'belly',  rx:5.6, ry:5.8 }
+    { key:'cat',     name:'Cat',     ears:'pointed', snout:'muzzle', whiskers:true,  tail:'curl', paws:true, body:{rx:43,ry:47}, eyeSp:15, eyeR:12, palettes:[[28,55,62],[222,7,72],[34,58,74],[265,16,58]] },
+    { key:'puppy',   name:'Puppy',   ears:'floppy',  snout:'long',   whiskers:false, tail:'stub', paws:true, body:{rx:47,ry:46}, eyeSp:14, eyeR:12, palettes:[[32,50,58],[28,32,40],[40,42,80],[210,10,60]] },
+    { key:'bunny',   name:'Bunny',   ears:'long',    snout:'muzzle', whiskers:true,  buck:true, tail:'puff', paws:true, body:{rx:41,ry:50}, eyeSp:15, eyeR:12, palettes:[[250,12,84],[28,38,76],[330,38,82],[200,14,74]] },
+    { key:'fox',     name:'Fox',     ears:'pointed', snout:'long',   whiskers:true,  ruff:true, chin:true, tail:'bush', paws:true, body:{rx:45,ry:46}, eyeSp:14, eyeR:11, palettes:[[20,80,58],[28,68,52]] },
+    { key:'bear',    name:'Bear',    ears:'round',   snout:'muzzle', tail:'none', paws:true, body:{rx:52,ry:48}, eyeSp:13, eyeR:11, palettes:[[26,33,46],[28,26,30],[35,38,72]] },
+    { key:'panda',   name:'Panda',   ears:'round',   snout:'muzzle', patches:true, tail:'none', paws:true, body:{rx:51,ry:50}, eyeSp:17, eyeR:12, palettes:[[240,5,93]] },
+    { key:'frog',    name:'Frog',    ears:'none',    snout:'wide',   topEyes:true, web:true, body:{rx:55,ry:42}, eyeSp:21, eyeR:15, palettes:[[110,52,52],[150,48,50],[85,52,55]] },
+    { key:'penguin', name:'Penguin', ears:'none',    snout:'beak',   tuxedo:true, flippers:true, body:{rx:40,ry:54}, eyeSp:11, eyeR:10, palettes:[[225,28,28],[260,20,30]] }
   ];
   const speciesByKey = k => SPECIES.find(s=>s.key===k) || SPECIES[0];
 
@@ -3267,96 +3267,156 @@ const Pets = (function(){
   function rngFrom(seed){ let a=seed>>>0; return function(){ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 
   /* ------------------------------------------------------------------------
-     PROCEDURAL PIXEL RENDERER
-     Builds a 18×18 vertically-symmetric pixel creature seeded by the Pet, then
-     paints it nearest-neighbour at `px` scale. Species sets the silhouette,
-     ears and palette hue; the seed perturbs palette + pattern; rarity adds a
-     flourish (gem / crown / sparkles). `mood` (happy|ok|sad) tweaks the face.
+     PROCEDURAL VECTOR RENDERER (Hopper-fidelity)
+     Smooth canvas illustration seeded per-Pet: radial-gradient body, neon rim +
+     warm key light, layered belly/muzzle/ears, paws, species tail, expressive
+     face. Species sets the silhouette; the seed perturbs palette + feature
+     spacing (so individuals differ); rarity adds a flourish (gem / crown +
+     sparkles). `mood` reshapes ears, eyes, brows, mouth, posture & props
+     (blush / tear / Zzz); `t` (seconds) drives idle motion (breathe/bob/blink).
      ------------------------------------------------------------------------ */
-  const GRID = 18;
-  function buildGrid(pal, mood){
-    const sp = speciesByKey(pal.species);
-    const rnd = rngFrom((pal.seed>>>0) || 1);
-    const g = Array.from({length:GRID}, ()=> new Array(GRID).fill(null));
-    const cx = (GRID-1)/2, cy = GRID*0.56;
-    const hue = (sp.hue + (rnd()*36-18) + 360) % 360;
-    const rk = RARITY[pal.rarity] || RARITY.common;
-    const pal_ = {
-      body:   `hsl(${hue},62%,60%)`,
-      shade:  `hsl(${hue},58%,44%)`,
-      belly:  `hsl(${(hue+8)%360},50%,80%)`,
-      outline:`hsl(${hue},45%,17%)`,
-      eyeW:'#ffffff', eyeB:'#191033', blush:`hsl(${(hue+330)%360},70%,72%)`,
-      accent: rk.color
+  function hsl(h,s,l){ return `hsl(${((h%360)+360)%360},${Math.max(0,Math.min(100,s))}%,${Math.max(0,Math.min(100,l))}%)`; }
+  function moodSpec(m){
+    switch(m){
+      case 'happy':  return { earRot:-0.32, eye:'spark', brow:'raise', mouth:'grin', blush:1.0, slump:0, tear:0, zzz:0, sat:4,  bobAmp:5 };
+      case 'sad':    return { earRot: 0.55, eye:'droop', brow:'worry', mouth:'frown',blush:0,   slump:9, tear:1, zzz:0, sat:-22,bobAmp:1 };
+      case 'sleepy': return { earRot: 0.18, eye:'closed',brow:'flat',  mouth:'small',blush:.3,  slump:5, tear:0, zzz:1, sat:-8, bobAmp:2 };
+      default:       return { earRot: 0.0,  eye:'open',  brow:'flat',  mouth:'smile',blush:.25, slump:1, tear:0, zzz:0, sat:0,  bobAmp:3 };
+    }
+  }
+  function drawPet(ctx, cx, cy, S, key, seed, mood, rarity, t, eyeOpenOverride){
+    const sp = speciesByKey(key); const rnd = rngFrom(seed>>>0||1);
+    mood=mood||'ok'; rarity=rarity||'common'; t=t||0;
+    const M=moodSpec(mood);
+    const pf = sp.palettes[Math.floor(rnd()*sp.palettes.length)];
+    const hue=pf[0]+(rnd()*18-9), sat=Math.max(0,pf[1]+M.sat), lit=pf[2];
+    const eyeSp = sp.eyeSp + (rnd()*6-3);
+    const eyeR  = sp.eyeR  + (rnd()*2.4-1.2);
+    const eyeY  = (sp.topEyes?-30:-15) + (rnd()*4-2);
+    const muzY  = (rnd()*4-2);
+    const lookX = (rnd()*4-2);
+    const P = {
+      body:hsl(hue,sat,lit), hi:hsl(hue,sat,lit+22), lo:hsl(hue,sat,lit-30), belly:hsl(hue+6,sat-26,lit+26),
+      ear:hsl(hue-4,sat,lit-15), earIn:hsl(335,52,80), muzzle:hsl(hue+6,sat-30,lit+30),
+      nose:sp.snout==='beak'?'#ffae3d':hsl(335,44,60), line:hsl(hue,42,lit-42), accent:(RARITY[rarity]||RARITY.common).color
     };
-    const set=(x,y,c)=>{ if(x>=0&&x<GRID&&y>=0&&y<GRID&&c) g[y][x]=c; };
-    const inBody=(x,y)=>{ const dx=(x-cx)/sp.rx, dy=(y-cy)/sp.ry; return dx*dx+dy*dy<=1; };
+    const B=sp.body;
+    const breathe=Math.sin(t*2.4+seed)*0.05;
+    const bob=Math.sin(t*2.4+seed)*M.bobAmp;
+    const sway=Math.sin(t*1.7+seed*0.5)*0.06;
+    let open;
+    if(eyeOpenOverride!=null) open=eyeOpenOverride;
+    else { const bc=((t*0.36+seed*0.11)%1); const bl = bc>0.93 ? (1-Math.abs((bc-0.965)/0.035)) : 0; open=Math.max(0,1-bl); }
+    if(M.eye==='closed') open=0; if(M.eye==='droop') open=Math.min(open,0.6);
 
-    // body (left half computed, mirrored)
-    for(let y=0;y<GRID;y++) for(let x=0;x<=Math.floor(cx);x++){
-      if(inBody(x,y)){ const c = (y>cy+1)? pal_.shade : pal_.body; set(x,y,c); set(Math.round(2*cx)-x,y,c); }
-    }
-    // ears / antenna / horns (species silhouette cue), symmetric
-    const topY = Math.round(cy - sp.ry);
-    function pair(dx, drawFn){ drawFn(Math.round(cx-dx)); drawFn(Math.round(cx+dx)); }
-    if(sp.ear==='ears'){ pair(3,(x)=>{ set(x,topY,pal_.body); set(x,topY-1,pal_.shade); }); }
-    else if(sp.ear==='antenna'){ pair(2,(x)=>{ set(x,topY-1,pal_.shade); set(x,topY-2,pal_.shade); set(x,topY-3,pal_.accent); }); }
-    else if(sp.ear==='horn'){ pair(2,(x)=>{ set(x,topY-1,pal_.accent); }); set(Math.round(cx),topY-2,pal_.accent); }
-    else if(sp.ear==='leaf'){ set(Math.round(cx),topY-1,pal_.shade); set(Math.round(cx),topY-2,`hsl(110,55%,45%)`); set(Math.round(cx),topY-3,`hsl(110,55%,55%)`); }
-    else if(sp.ear==='bolt'){ set(Math.round(cx),topY-1,pal_.accent); set(Math.round(cx)-1,topY-2,pal_.accent); set(Math.round(cx),topY-3,pal_.accent); }
+    ctx.save(); ctx.translate(cx,cy+bob+M.slump); ctx.scale(S*(1+breathe), S*(1-breathe));
+    ctx.save(); ctx.globalAlpha=.22; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(0,B.ry+16,B.rx*0.95,11,0,0,7); ctx.fill(); ctx.restore();
 
-    // belly patch
-    for(let y=Math.round(cy);y<GRID;y++) for(let x=0;x<=Math.floor(cx);x++){
-      const dx=(x-cx)/(sp.rx*0.55), dy=(y-(cy+1.6))/(sp.ry*0.5);
-      if(dx*dx+dy*dy<=1 && g[y][x]){ set(x,y,pal_.belly); set(Math.round(2*cx)-x,y,pal_.belly); }
-    }
-    // pattern overlay (only on body, seeded)
-    const patc = (sp.pattern==='flame') ? `hsl(${(hue+18)%360},80%,62%)` : pal_.shade;
-    if(sp.pattern==='spots' || sp.pattern==='stars'){
-      for(let i=0;i<3;i++){ const x=1+Math.floor(rnd()*(cx-1)), y=Math.round(cy-1+rnd()*3);
-        if(g[y]&&g[y][x]){ set(x,y,patc); set(Math.round(2*cx)-x,y,patc); } }
-    } else if(sp.pattern==='stripe'){
-      for(let y=Math.round(cy);y<GRID;y+=2) for(let x=0;x<=Math.floor(cx);x++) if(g[y][x]&&g[y][x]!==pal_.belly){ set(x,y,patc); set(Math.round(2*cx)-x,y,patc); }
-    } else if(sp.pattern==='flame'){
-      pair(2,(x)=>{ const y=Math.round(cy); if(g[y]&&g[y][x]) set(x,y,patc); });
-    }
+    // tail
+    (function(){ const s=(seed%2?1:-1); ctx.save(); ctx.translate(s*B.rx*0.7,B.ry-6); ctx.rotate(sway*s);
+      if(sp.tail==='curl'){ ctx.strokeStyle=P.lo; ctx.lineWidth=11; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(s*24,4,s*14,-28); ctx.stroke(); }
+      else if(sp.tail==='bush'){ ctx.fillStyle=P.lo; ctx.beginPath(); ctx.ellipse(s*8,0,16,24,s*0.5,0,7); ctx.fill(); ctx.fillStyle='#fff'; ctx.globalAlpha=.85; ctx.beginPath(); ctx.ellipse(s*14,12,8,11,s*0.5,0,7); ctx.fill(); }
+      else if(sp.tail==='puff'){ ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(s*-2,4,12,0,7); ctx.fill(); }
+      else if(sp.tail==='stub'){ ctx.fillStyle=P.lo; ctx.beginPath(); ctx.ellipse(s*0,-4,8,13,s*0.4,0,7); ctx.fill(); }
+      ctx.restore(); })();
 
-    // eyes — symmetric, with a seeded pupil offset for personality
-    const eyeY = Math.round(cy-1.5), eyeDx = 2;
-    const pox = rnd()<0.5?0:(rnd()<0.5?-0:0);
-    pair(eyeDx,(x)=>{ set(x,eyeY,pal_.eyeW); set(x,eyeY+1,pal_.eyeW); set(x+pox,eyeY+ (mood==='sad'?0:1),pal_.eyeB); });
-    // blush on the cheeks when happy
-    if(mood==='happy'){ pair(Math.round(sp.rx-1),(x)=>{ set(x,eyeY+2,pal_.blush); }); }
-    // mouth reflects mood
-    const mY = Math.round(cy+1.5), mcx=Math.round(cx);
-    if(mood==='sad'){ set(mcx-1,mY+1,pal_.outline); set(mcx,mY,pal_.outline); set(mcx+1,mY+1,pal_.outline); }
-    else if(mood==='happy'){ set(mcx-1,mY,pal_.outline); set(mcx,mY+1,pal_.outline); set(mcx+1,mY,pal_.outline); }
-    else { set(mcx,mY,pal_.outline); }
+    // ears (mood rotates them)
+    function ear(s){ ctx.save(); ctx.rotate(s*(M.earRot)+sway*s*0.5);
+      if(sp.ears==='pointed'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.moveTo(s*16,-B.ry+8); ctx.lineTo(s*40,-B.ry-28); ctx.lineTo(s*43,-B.ry+8); ctx.closePath(); ctx.fill();
+        ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.moveTo(s*22,-B.ry+4); ctx.lineTo(s*36,-B.ry-18); ctx.lineTo(s*38,-B.ry+4); ctx.closePath(); ctx.fill(); }
+      else if(sp.ears==='round'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,17,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,9,0,7); ctx.fill(); }
+      else if(sp.ears==='floppy'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(s*(B.rx-2),-8,15,32,s*0.35,0,7); ctx.fill(); }
+      else if(sp.ears==='long'){ ctx.translate(s*18,-B.ry); ctx.rotate(s*0.1); ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(0,-30,12,40,0,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.ellipse(0,-30,6,30,0,0,7); ctx.fill(); }
+      ctx.restore(); }
+    ear(-1); ear(1);
+
+    // paws / feet
+    if(sp.paws){ ctx.fillStyle=P.lo; [-1,1].forEach(s=>{ ctx.beginPath(); ctx.ellipse(s*18,B.ry-2,12,9,0,0,7); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1.4; for(let k=-1;k<=1;k++){ ctx.beginPath(); ctx.moveTo(s*18+k*4,B.ry-6); ctx.lineTo(s*18+k*4,B.ry+1); ctx.stroke(); } }); }
+    if(sp.web){ ctx.fillStyle=P.lo; [-1,1].forEach(s=>{ ctx.beginPath(); ctx.moveTo(s*14,B.ry-4); ctx.lineTo(s*40,B.ry+8); ctx.lineTo(s*8,B.ry+10); ctx.closePath(); ctx.fill(); }); }
+
+    // body
+    const bg=ctx.createRadialGradient(-B.rx*0.35,-B.ry*0.45,8,0,6,B.ry+24);
+    bg.addColorStop(0,P.hi); bg.addColorStop(.5,P.body); bg.addColorStop(1,P.lo);
+    ctx.fillStyle=bg; ctx.beginPath();
+    if(sp.chin){ ctx.moveTo(-B.rx,-4); ctx.bezierCurveTo(-B.rx,-B.ry,B.rx,-B.ry,B.rx,-4); ctx.bezierCurveTo(B.rx*0.7,B.ry*0.8,0,B.ry+10,0,B.ry+10); ctx.bezierCurveTo(0,B.ry+10,-B.rx*0.7,B.ry*0.8,-B.rx,-4); ctx.closePath(); }
+    else ctx.ellipse(0,2,B.rx,B.ry,0,0,7);
+    ctx.fill();
+    ctx.save(); const og=ctx.createLinearGradient(0,B.ry-24,0,B.ry+6); og.addColorStop(0,'rgba(0,0,0,0)'); og.addColorStop(1,'rgba(0,0,0,0.22)'); ctx.fillStyle=og; ctx.beginPath(); ctx.ellipse(0,2,B.rx,B.ry,0,0,7); ctx.fill(); ctx.restore();
+    if(sp.tuxedo){ ctx.fillStyle='#f4f1ff'; ctx.beginPath(); ctx.ellipse(0,12,B.rx-9,B.ry-12,0,0,7); ctx.fill(); }
+    else { ctx.fillStyle=P.belly; ctx.beginPath(); ctx.ellipse(0,16,B.rx*0.62,B.ry*0.66,0,0,7); ctx.fill(); }
+    if(sp.ruff){ ctx.fillStyle=P.belly; [-1,1].forEach(s=>{ ctx.beginPath(); ctx.moveTo(s*8,8); ctx.lineTo(s*(B.rx+6),-4); ctx.lineTo(s*28,30); ctx.closePath(); ctx.fill(); }); }
+    if(sp.patches){ ctx.fillStyle='#241a33'; [-1,1].forEach(s=>{ ctx.save(); ctx.translate(s*(eyeSp+2),eyeY); ctx.rotate(s*0.5); ctx.beginPath(); ctx.ellipse(0,0,11,15,0,0,7); ctx.fill(); ctx.restore(); }); }
+
+    ctx.save(); ctx.strokeStyle='rgba(110,231,255,0.42)'; ctx.lineWidth=3; ctx.shadowColor='#6ee7ff'; ctx.shadowBlur=6; ctx.beginPath(); ctx.ellipse(0,2,B.rx,B.ry,0,Math.PI*0.92,Math.PI*1.5); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.strokeStyle='rgba(255,206,150,0.55)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(0,2,B.rx,B.ry,0,Math.PI*1.5,Math.PI*1.97); ctx.stroke(); ctx.restore();
+
+    // muzzle
+    if(sp.snout==='muzzle'||sp.snout==='long'){ const mY=(sp.snout==='long'?7:3)+muzY, mRx=sp.snout==='long'?15:18, mRy=sp.snout==='long'?16:13; ctx.fillStyle=P.muzzle; ctx.beginPath(); ctx.ellipse(0,mY,mRx,mRy,0,0,7); ctx.fill(); }
+
+    // brows (mood)
+    if(!sp.patches && sp.snout!=='wide'){ ctx.strokeStyle=P.lo; ctx.lineWidth=2.8; ctx.lineCap='round';
+      [-1,1].forEach(s=>{ ctx.save(); ctx.translate(s*eyeSp, eyeY-eyeR-4); let a=0;
+        if(M.brow==='raise'){ ctx.translate(0,-3); } else if(M.brow==='worry'){ a=s*-0.5; }
+        ctx.rotate(a); ctx.beginPath(); ctx.moveTo(-9,2); ctx.quadraticCurveTo(0,-3,9,2); ctx.stroke(); ctx.restore(); }); }
+
+    // nose / beak / mouth (mood)
+    const ny=(sp.snout==='long'?3:-2)+muzY;
+    if(sp.snout==='beak'){ ctx.fillStyle='#ff9f1c'; ctx.beginPath(); ctx.moveTo(-12,-4+muzY); ctx.lineTo(12,-4+muzY); ctx.lineTo(0,(M.mouth==='grin'?16:12)+muzY); ctx.closePath(); ctx.fill(); ctx.fillStyle='#d97d10'; ctx.beginPath(); ctx.moveTo(-12,-4+muzY); ctx.lineTo(12,-4+muzY); ctx.lineTo(0,3+muzY); ctx.closePath(); ctx.fill(); }
+    else if(sp.snout==='wide'){ ctx.strokeStyle=P.line; ctx.lineWidth=3.4; ctx.lineCap='round'; const md=(M.mouth==='frown')?-1:1;
+      ctx.beginPath(); ctx.arc(0,4-md*3, M.mouth==='grin'?24:20, md>0?0.08*Math.PI:1.08*Math.PI, md>0?0.92*Math.PI:1.92*Math.PI); ctx.stroke();
+      ctx.fillStyle=P.line; [-7,7].forEach(x=>{ ctx.beginPath(); ctx.arc(x,-8+muzY,2,0,7); ctx.fill(); }); }
+    else {
+      ctx.fillStyle=P.nose; ctx.beginPath(); ctx.ellipse(0,ny,7,5.5,0,0,7); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.ellipse(-2,ny-2,2.2,1.5,0,0,7); ctx.fill();
+      ctx.strokeStyle=P.line; ctx.lineWidth=2.6; ctx.lineCap='round';
+      if(M.mouth==='grin'){ ctx.fillStyle=P.line; ctx.beginPath(); ctx.moveTo(-10,ny+6); ctx.quadraticCurveTo(0,ny+20,10,ny+6); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#ff7d9b'; ctx.beginPath(); ctx.ellipse(0,ny+13,5,3,0,0,7); ctx.fill(); }
+      else if(M.mouth==='frown'){ ctx.beginPath(); ctx.moveTo(-8,ny+12); ctx.quadraticCurveTo(0,ny+5,8,ny+12); ctx.stroke(); }
+      else if(M.mouth==='small'){ ctx.beginPath(); ctx.arc(0,ny+8,3,0,Math.PI); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.moveTo(0,ny+5); ctx.quadraticCurveTo(-6,ny+11,-9,ny+10); ctx.moveTo(0,ny+5); ctx.quadraticCurveTo(6,ny+11,9,ny+10); ctx.stroke(); }
+      if(sp.buck && M.mouth!=='grin'){ ctx.fillStyle='#fff6e8'; ctx.beginPath(); ctx.rect(-6,ny+8,5,8); ctx.rect(1,ny+8,5,8); ctx.fill(); ctx.strokeStyle=P.line; ctx.lineWidth=1; ctx.strokeRect(-6,ny+8,5,8); ctx.strokeRect(1,ny+8,5,8); }
+    }
+    if(sp.whiskers){ ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.4; ctx.lineCap='round'; [-1,1].forEach(s=>{ for(let w=0;w<3;w++){ ctx.beginPath(); ctx.moveTo(s*10,ny-1+w*3); ctx.lineTo(s*40,ny-7+w*7); ctx.stroke(); } }); }
+
+    // eyes (mood-shaped, dual catchlights, blink-aware)
+    [-1,1].forEach(s=>{
+      const x=s*eyeSp;
+      if(sp.topEyes){ ctx.fillStyle=P.hi; ctx.beginPath(); ctx.arc(x,eyeY,eyeR+2,0,7); ctx.fill(); }
+      if(open<0.12 || M.eye==='closed'){ ctx.strokeStyle=P.line; ctx.lineWidth=2.8; ctx.lineCap='round'; ctx.beginPath();
+        if(mood==='happy'||mood==='sleepy') ctx.arc(x,eyeY+3,eyeR,1.15*Math.PI,1.85*Math.PI); else ctx.arc(x,eyeY,eyeR,0.15*Math.PI,0.85*Math.PI);
+        ctx.stroke(); return; }
+      ctx.save(); ctx.beginPath(); ctx.ellipse(x,eyeY,eyeR,(eyeR+1)*open,0,0,7); ctx.clip();
+      ctx.fillStyle='#fff'; ctx.fillRect(x-eyeR-2,eyeY-eyeR-2,(eyeR+2)*2,(eyeR+2)*2);
+      const py=mood==='happy'?eyeY-3:(M.eye==='droop'?eyeY+4:eyeY);
+      const pr=mood==='happy'?eyeR*0.62:eyeR*0.54;
+      ctx.fillStyle='#241830'; ctx.beginPath(); ctx.arc(x+lookX,py,pr,0,7); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x+lookX-3,py-4,pr*0.42,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+lookX+4,py+3,pr*0.2,0,7); ctx.fill();
+      if(M.eye==='droop'){ ctx.fillStyle=P.body; ctx.fillRect(x-eyeR-2,eyeY-eyeR-2,(eyeR+2)*2,eyeR*0.9); }
+      ctx.restore();
+      ctx.strokeStyle='rgba(0,0,0,0.16)'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.ellipse(x,eyeY,eyeR,(eyeR+1)*open,0,Math.PI*0.95,Math.PI*2.05); ctx.stroke();
+    });
+
+    // mood props
+    if(M.blush>0){ ctx.fillStyle=`rgba(255,120,160,${0.5*M.blush})`; [-1,1].forEach(s=>{ ctx.beginPath(); ctx.ellipse(s*(eyeSp+14),4+muzY,8,5,0,0,7); ctx.fill(); }); }
+    if(M.tear){ const tx=eyeSp+2, ty=eyeY+eyeR; ctx.fillStyle='rgba(120,200,255,0.9)'; ctx.beginPath(); ctx.moveTo(tx,ty); ctx.quadraticCurveTo(tx-4,ty+8,tx,ty+12); ctx.quadraticCurveTo(tx+4,ty+8,tx,ty); ctx.fill(); }
+    if(M.zzz){ ctx.fillStyle='rgba(180,200,255,0.9)'; ctx.font='bold 13px system-ui'; ctx.textAlign='left'; const zx=eyeSp+22, zy=eyeY-18+Math.sin(t*3)*2; ctx.fillText('z',zx,zy); ctx.font='bold 10px system-ui'; ctx.fillText('z',zx+9,zy-9); }
 
     // rarity flourish
-    if(rk.tier>=2){ set(mcx,Math.round(cy-3),pal_.accent); }                 // forehead gem (rare+)
-    if(rk.tier>=4){ // legendary crown + sparkles
-      pair(2,(x)=>set(x,topY-2,pal_.accent)); set(mcx,topY-3,pal_.accent);
-      [[1,3],[GRID-2,4],[2,GRID-3]].forEach(p=>set(p[0],p[1],pal_.accent));
-    }
-
-    // 1px outline: empty cells orthogonally adjacent to a body cell
-    const out=[];
-    for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){ if(g[y][x]) continue;
-      if((g[y][x-1])||(g[y][x+1])||(g[y-1]&&g[y-1][x])||(g[y+1]&&g[y+1][x])) out.push([x,y]); }
-    out.forEach(p=> g[p[1]][p[0]] = pal_.outline);
-    return g;
+    if(rarity==='rare'||rarity==='epic'){ ctx.fillStyle=P.accent; ctx.shadowColor=P.accent; ctx.shadowBlur=10; ctx.beginPath(); ctx.arc(0,-B.ry-(sp.ears==='long'?2:6),4,0,7); ctx.fill(); ctx.shadowBlur=0; }
+    if(rarity==='legendary'){ ctx.fillStyle=P.accent; ctx.shadowColor=P.accent; ctx.shadowBlur=12; const cyk=-B.ry-(sp.ears==='round'?2:6);
+      ctx.beginPath(); ctx.moveTo(-16,cyk); ctx.lineTo(-16,cyk-14); ctx.lineTo(-7,cyk-6); ctx.lineTo(0,cyk-18); ctx.lineTo(7,cyk-6); ctx.lineTo(16,cyk-14); ctx.lineTo(16,cyk); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+      [[-B.rx-6,-26],[B.rx+8,-18],[-B.rx-2,30]].forEach(p=>{ ctx.save(); ctx.translate(p[0],p[1]); ctx.fillStyle=P.accent; ctx.shadowColor=P.accent; ctx.shadowBlur=8; ctx.beginPath(); for(let i=0;i<8;i++){ const r=i%2?2:6, a=Math.PI/4*i; ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);} ctx.closePath(); ctx.fill(); ctx.restore(); }); }
+    ctx.restore();
   }
-  // Paint a Pet into a canvas at `px` scale (+ a soft ground shadow). Returns the canvas.
-  function render(pal, canvas, px, mood){
-    px = px||8; canvas = canvas || document.createElement('canvas');
-    const g = buildGrid(pal, mood||'ok');
-    canvas.width = GRID*px; canvas.height = GRID*px;
-    const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled=false;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.save(); ctx.globalAlpha=0.18; ctx.fillStyle='#000';
-    ctx.beginPath(); ctx.ellipse(GRID*px/2, (GRID-2.2)*px, GRID*px*0.30, px*1.1, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
-    for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){ const c=g[y][x]; if(c){ ctx.fillStyle=c; ctx.fillRect(x*px,y*px,px,px); } }
+  // Paint a Pet centred into a square canvas of `size` device-px. `t` seconds
+  // drives idle motion; pass it from a render loop for animation, 0 for a still.
+  function render(pal, canvas, size, mood, t){
+    size = size||128; canvas = canvas || document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,size,size);
+    drawPet(ctx, size/2, size*0.54, size/205, pal.species, pal.seed>>>0, mood||'ok', pal.rarity, t||0, null);
     return canvas;
   }
   // Wide "hero shot" canvas for the Share Card glyph frame (neon grid + big Pet).
@@ -3368,10 +3428,7 @@ const Pets = (function(){
     ctx.strokeStyle='rgba(124,92,255,0.18)'; ctx.lineWidth=1;
     for(let x=0;x<360;x+=24){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,154); ctx.stroke(); }
     for(let y=0;y<154;y+=24){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(360,y); ctx.stroke(); }
-    const sprite=render(pal, null, 8, 'happy');
-    ctx.imageSmoothingEnabled=false;
-    const s=140/sprite.height, dw=sprite.width*s, dh=sprite.height*s;
-    ctx.drawImage(sprite,(360-dw)/2,(154-dh)/2,dw,dh);
+    drawPet(ctx, 180, 104, 0.92, pal.species, pal.seed>>>0, 'happy', pal.rarity, 0, null);
     return cv;
   }
 
@@ -3394,6 +3451,12 @@ const Pets = (function(){
     Store.update(s=>{ s.pets.pals.forEach(p=>{ const m=derive(p,now); p.hunger=m.hunger; p.happy=m.happy; p.energy=m.energy; p.lastTickTs=now; }); });
   }
   function moodOf(happy){ return happy>=66?'happy':(happy>=33?'ok':'sad'); }
+  // Emotion shown on a Pet's face — driven by BOTH care meters: low Energy reads
+  // as Sleepy; otherwise Happiness bands map to happy / content / sad (DD §3.2).
+  const ENERGY_SLEEPY = 25;
+  function moodFor(pal, now){ const m=derive(pal, now||Date.now());
+    if(m.energy < ENERGY_SLEEPY) return 'sleepy';
+    return m.happy>=66?'happy':(m.happy>=33?'ok':'sad'); }
 
   // ---- idle earning (Rig-style capped tank, scaled by Happiness) ----
   function idleElapsedH(){ return Math.max(0,(Date.now()-(pets().lastIdleTs||Date.now()))/HOUR_MS); }
@@ -3488,8 +3551,8 @@ const Pets = (function(){
 
   return {
     RARITIES, RARITY, SPECIES, speciesByKey,
-    render, renderHero, buildGrid,
-    derive, commit, moodOf, bondLevel,
+    render, renderHero, drawPet,
+    derive, commit, moodOf, moodFor, bondLevel,
     idleFrac, idlePending, idleFull, stableRate, collectIdle, happyMult,
     canOpen, openBox, feed, tap, applyGameResult,
     cfg:{ BOX_COST, PITY_THRESHOLD, FEED_COST, FEED_ENERGY_MIN, FEED_ENERGY_COST, PET_RATE, IDLE_CAP_H, DUPE_SHARDS },
@@ -18356,12 +18419,13 @@ function petRarityOdds(){
 /* ---- Stable: roster, 3-meter care, Tap affection, capped idle earning ---- */
 Views.retroPets = function(c){
   Pets.commit();   // settle offline meter drain on entry (DD §9 idle calc on load/route)
-  let timer = null;
+  let timer = null, raf = null;
   function paint(){
     if(timer){ clearInterval(timer); timer=null; }
+    if(raf){ cancelAnimationFrame(raf); raf=null; }
     c.innerHTML='';
     const panel = petsHead(c, '🐾 RetroPets',
-      'Crack Loot Boxes for original pixel Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the Rhythm-Feed mini-game does.</span>');
+      'Crack Loot Boxes for original animal Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away — and your Pets show how they feel. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the Rhythm-Feed mini-game does.</span>');
 
     // ---- wallet / shards / shortcuts ----
     const r = Store.get().rig;
@@ -18421,7 +18485,14 @@ Views.retroPets = function(c){
     panel.append(rosterB);
 
     updateTank();
-    timer = setInterval(()=>{ updateTank(); cards.forEach(cd=>cd.update()); }, 1000);
+    // 1s tick: meter bars, mood, bond, idle tank, wallet — the values that change
+    // on a human timescale. The Pets themselves animate every frame via RAF below.
+    timer = setInterval(()=>{ updateTank(); cards.forEach(cd=>cd.tick()); }, 1000);
+    // idle animation: redraw each Pet every frame (breathe/bob/blink/ear+tail sway),
+    // using the mood the last tick cached. Browsers auto-pause RAF on hidden tabs.
+    const t0 = performance.now();
+    function animLoop(now){ const t=(now-t0)/1000; cards.forEach(cd=>cd.draw(t)); raf=requestAnimationFrame(animLoop); }
+    if(cards.length) raf=requestAnimationFrame(animLoop);
 
     function makeCard(pal){
       const rk = Pets.RARITY[pal.rarity] || Pets.RARITY.common;
@@ -18442,10 +18513,13 @@ Views.retroPets = function(c){
       actions.append(feedB, petB, moreB);
       card.append(actions);
 
-      function bump(){ canvas.animate?canvas.animate([{transform:'translateY(0)'},{transform:'translateY(-6px)'},{transform:'translateY(0)'}],{duration:260}):0; }
-      feedB.onclick = ()=>{ if(Pets.feed(pal.id)){ UI.toast('Fed', `${pal.name} munches happily.`); update(); updateWallet(); } else UI.toast('Not enough NetCoin', `Feeding costs ${Pets.cfg.FEED_COST} NetCoin.`); };
-      petB.onclick  = ()=>{ const got=Pets.tap(pal.id); bump(); update(); if(got>0) updateWallet(); };
+      let mood = Pets.moodFor(pal);   // cached by tick(), consumed by draw()
+      let pop = 0;                     // brief affection bounce on a tap
+      function bump(){ pop = performance.now(); }
+      feedB.onclick = ()=>{ if(Pets.feed(pal.id)){ UI.toast('Fed', `${pal.name} munches happily.`); bump(); tick(); updateWallet(); } else UI.toast('Not enough NetCoin', `Feeding costs ${Pets.cfg.FEED_COST} NetCoin.`); };
+      petB.onclick  = ()=>{ const got=Pets.tap(pal.id); bump(); tick(); if(got>0) updateWallet(); };
       canvas.onclick = petB.onclick;
+      canvas.style.cursor='pointer';
       moreB.onclick = ()=>{
         const nm = window.prompt('Rename '+pal.name+':', pal.name);
         if(nm && nm.trim()){ Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===pal.id); q.name=nm.trim().slice(0,18); }); paint(); return; }
@@ -18454,21 +18528,26 @@ Views.retroPets = function(c){
           designation: rk.title, badge: Pets.bondLevel(pal.bond)>=5?'Best Friends':null });
       };
       function updateWallet(){ const rr=Store.get().rig; w.querySelector('.bal .n').textContent=rr.netcoin.toLocaleString(); }
-      function update(){
+      function tick(){
         const m = Pets.derive(pal, Date.now());
-        Pets.render(pal, canvas, 8, Pets.moodOf(m.happy));
+        mood = Pets.moodFor(pal);
         hi.style.width=Math.round(m.hunger)+'%'; pi.style.width=Math.round(m.happy)+'%'; ei.style.width=Math.round(m.energy)+'%';
-        const lvl=Pets.bondLevel(pal.bond), into=(pal.bond||0)%100;
+        const lvl=Pets.bondLevel(pal.bond), into=Math.round((pal.bond||0)%100);
         bond.textContent = `❤ Bond Lv ${lvl} · ${into}%`;
         feedB.disabled = Store.get().rig.netcoin < Pets.cfg.FEED_COST;
       }
-      update();
-      cards.push({update});
+      function draw(t){
+        // a tap briefly forces a happy bounce regardless of the cached mood
+        const recent = pop && (performance.now()-pop < 500);
+        Pets.render(pal, canvas, 232, recent?'happy':mood, t);
+      }
+      tick(); draw(0);
+      cards.push({tick, draw});
       return card;
     }
   }
   paint();
-  return ()=>{ if(timer) clearInterval(timer); };
+  return ()=>{ if(timer) clearInterval(timer); if(raf) cancelAnimationFrame(raf); };
 };
 
 /* ---- Loot Box Store: gacha with pity timer + dupe→Shard ---- */
@@ -18512,7 +18591,7 @@ Views.petsStore = function(c){
       if(!res) return;
       reveal.innerHTML='';
       const wrap = el('div',{class:'pets-reveal'});
-      const cv = document.createElement('canvas'); Pets.render(res.pal, cv, 10, 'happy');
+      const cv = document.createElement('canvas'); Pets.render(res.pal, cv, 320, 'happy', 0);
       wrap.append(cv);
       const rk = Pets.RARITY[(res.kind==='dupe')?res.rarity:res.pal.rarity];
       wrap.append(el('div',{class:'pet-rarity', style:'font-size:13px', html:rk.label}));
