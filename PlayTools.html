@@ -772,6 +772,37 @@
   .rig-store-row.locked{opacity:0.55;}
   nav.rail a .rail-dot{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--neon-3); box-shadow:0 0 8px var(--neon-3); animation:rigPulse 1.3s ease-in-out infinite;}
 
+  /* ---- RetroPets (RetroMall_DD.md) ---- */
+  .pets-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:12px; margin-top:6px;}
+  .pet-card{border:1px solid var(--line); border-radius:10px; background:var(--panel-2); padding:12px; text-align:center; position:relative; overflow:hidden;}
+  .pet-card::before{content:''; position:absolute; inset:0; background:radial-gradient(120% 80% at 50% 0%, var(--pet-accent,transparent) 0%, transparent 55%); opacity:0.14; pointer-events:none;}
+  .pet-card canvas{image-rendering:pixelated; width:120px; height:120px; cursor:pointer;}
+  .pet-card .pet-name{font-family:var(--pixel); font-size:13px; color:var(--ink); margin:4px 0 2px; word-break:break-word;}
+  .pet-card .pet-sub{font-size:10px; letter-spacing:1px; text-transform:uppercase;}
+  .pet-rarity{font-family:var(--pixel); font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--pet-accent,var(--ink-dim));}
+  .pet-meters{margin:8px 0; display:flex; flex-direction:column; gap:5px;}
+  .pet-meter{display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ink-dim);}
+  .pet-meter .lbl{width:14px; text-align:center;}
+  .pet-meter .bar{flex:1; height:7px; border-radius:5px; background:var(--bg-2); border:1px solid var(--line); overflow:hidden;}
+  .pet-meter .bar i{display:block; height:100%; border-radius:5px; transition:width .3s ease;}
+  .pet-meter.hunger .bar i{background:linear-gradient(90deg,#ff9f1c,#ffd23d);}
+  .pet-meter.happy  .bar i{background:linear-gradient(90deg,#ff3df0,#16f2c8);}
+  .pet-meter.energy .bar i{background:linear-gradient(90deg,#37e35b,#16f2c8);}
+  .pet-actions{display:flex; gap:6px; justify-content:center; flex-wrap:wrap;}
+  .pet-actions .btn{padding:6px 10px; font-size:11px;}
+  .pet-bond{font-size:10px; color:var(--neon-2); letter-spacing:1px; text-transform:uppercase; margin-top:6px;}
+  .pets-rarity-odds{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; font-size:11px;}
+  .pets-rarity-odds span{display:inline-flex; align-items:center; gap:5px;}
+  .pets-rarity-odds i{width:9px; height:9px; border-radius:50%; display:inline-block;}
+  .pets-reveal{display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;}
+  .pets-reveal canvas{image-rendering:pixelated; width:176px; height:176px;}
+  .pets-empty{text-align:center; padding:26px 12px; color:var(--ink-dim);}
+  .rhythm-stage{position:relative; height:120px; border:1px solid var(--line); border-radius:10px; background:var(--bg-2); overflow:hidden; margin:12px 0;}
+  .rhythm-track{position:absolute; top:0; bottom:0; left:0; right:0;}
+  .rhythm-target{position:absolute; top:8px; bottom:8px; left:calc(50% - 4px); width:8px; border-radius:5px; background:var(--neon-3); box-shadow:0 0 12px var(--neon-3);}
+  .rhythm-note{position:absolute; top:18px; width:30px; height:84px; border-radius:7px; background:linear-gradient(180deg,var(--neon),var(--neon-2)); box-shadow:0 0 10px var(--neon); transform:translateX(-50%);}
+  .rhythm-judge{position:absolute; left:0; right:0; top:46px; text-align:center; font-family:var(--pixel); font-size:18px; pointer-events:none; opacity:0; transition:opacity .1s;}
+
   .seg{display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
   .seg button{
     font-family:var(--mono); font-size:12px; background:var(--panel-2); color:var(--ink-dim);
@@ -1796,6 +1827,19 @@ const Store = (function(){
         jackInCredits: 0,      // persistent Jack-In bankroll bought with NetCoin (§7 Phase 2)
         achInit: false,        // one-time founder back-pay of past achievements done
         achPaidIds: []         // achievement ids already paid NetCoin (no double-pay)
+      },
+      // RetroPets (RetroMall_DD.md) — collect/raise/care creatures ("Pets").
+      // A pure ECONOMY + care layer: only the skill mini-game writes attributes;
+      // gacha/care/idle never touch Gamer Score (DD §1.2 honesty guardrail). The
+      // spendable NetCoin balance stays in the shared wallet (rig.netcoin), NOT here.
+      pets: {
+        pals: [],              // [{id, seed, species, rarity, name, adoptedAt, bond, hunger, happy, energy, lastTickTs}]
+        shards: 0,             // crafting material — recycled from duplicate pulls (sink lands Phase 2)
+        pity: 0,               // pulls since the last rare-or-better (pity timer)
+        pulls: 0,              // lifetime Loot Boxes opened
+        lastIdleTs: Date.now(),// capped idle-accrual clock (Rig-style), shared across the stable
+        tapDay: null,          // local day key for the daily tap-NetCoin cap
+        tapCoins: 0            // NetCoin already paid from tapping today
       }
     };
   }
@@ -1856,7 +1900,15 @@ const Store = (function(){
           m.overclock = Object.assign({day:null,tools:[]}, (pr && pr.overclock)||{});
           m.achPaidIds = Array.isArray(pr && pr.achPaidIds) ? pr.achPaidIds : [];
           return m;
-        })(parsed.rig)
+        })(parsed.rig),
+        // Deep-merge the RetroPets block the same way, so saves that predate it
+        // (or any field added later) inherit the current defaults rather than
+        // being clobbered. The roster array is preserved as-is.
+        pets: (function(pp){
+          const m = Object.assign(defaultDNA().pets, pp||{});
+          m.pals = Array.isArray(pp && pp.pals) ? pp.pals : [];
+          return m;
+        })(parsed.pets)
       });
       return seedAndDecay(merged);
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
@@ -2437,6 +2489,18 @@ const Ach = (function(){
       test:(d)=> !!(d.rig && d.rig.rigScore>=200) },
     { id:'rig_decked', name:'Fully Decked', icon:'🪑', desc:'Own every Battlestation item in the NetStore.',
       test:(d)=> !!(d.rig && d.rig.parts && window.Rig && Rig.COSMETICS.every(p=> d.rig.parts[p.id])) },
+    // ---- RetroPets (RetroMall_DD.md §9) — collect/care milestones. Pay NetCoin
+    //      like every other achievement; only the Rhythm-Feed _ace touches skill. ----
+    { id:'pets_first_hatch', name:'First Hatch', icon:'🥚', desc:'Adopt your first Pet from a Loot Box.',
+      test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.length>=1) },
+    { id:'pets_full_stable', name:'Full Stable', icon:'🐾', desc:'Collect all 8 RetroPets species.',
+      test:(d)=> !!(d.pets && d.pets.pals && new Set(d.pets.pals.map(p=>p.species)).size>=8) },
+    { id:'pets_first_legendary', name:'Legendary Pull', icon:'🌟', desc:'Pull a Legendary Pet.',
+      test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=>p.rarity==='legendary')) },
+    { id:'pets_best_friends', name:'Best Friends', icon:'💞', desc:'Raise a Pet to Bond level 5.',
+      test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=> Math.floor((p.bond||0)/100)>=5)) },
+    { id:'pets_rhythm_ace', name:'Rhythm Ace', icon:'🎵', desc:'Earn an A grade or better at Rhythm-Feed.',
+      test:(d,c)=> c && c.tool==='pet_rhythm' && (c.grade==='A'||c.grade==='S') },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -3065,6 +3129,8 @@ const Rig = (function(){
     if(id==='completionist')   return 5000;
     if(id==='rig_streak_30')   return 2000;
     if(id==='arcade_champion') return 1000;
+    if(id==='pets_first_legendary') return 750;
+    if(id==='pets_full_stable')     return 1000;
     if(id==='rig_streak_7')    return 750;
     if(/^rig_|^forge_legend$/.test(id)) return 500;
     if(/_ace$/.test(id))       return 150;
@@ -3115,6 +3181,322 @@ const Rig = (function(){
   };
 })();
 window.Rig = Rig;
+
+/* ============================================================================
+   RETROPETS — collect / raise / care economy (RetroMall_DD.md, Phase 1)
+   ----------------------------------------------------------------------------
+   A NetCoin sink + care layer that proves the loop end-to-end: gacha Loot Boxes
+   (pity + dupe→Shard), a stable of procedurally-rendered Pets, 3-meter Light
+   care (Hunger/Happiness/Energy) with Tap affection, Rig-style capped idle
+   earning scaled by Happiness, and ONE skill mini-game (Rhythm-Feed) that posts
+   to GamerDNA through the SAME recording path the labs use. Honesty guardrail
+   (DD §1.2): money buys content, never skill — only the mini-game touches
+   attributes; gacha/care/idle never move Gamer Score. The spendable balance is
+   the shared wallet (rig.netcoin); only Pet data lives in the `pets` block.
+   All numbers are named so the Phase-1 baseline stays trivial to retune.
+   ============================================================================ */
+const Pets = (function(){
+  const HOUR_MS = 3600000, DAY_MS = 86400000;
+
+  // ---- gacha baseline (DD §7) ----
+  const BOX_COST       = 250;   // NetCoin per Loot Box
+  const PITY_THRESHOLD = 10;    // a rare-or-better is guaranteed within N pulls
+  // Rarity drop table. weight = relative odds; tier orders rarity for upgrades.
+  // Cosmetic flourish only — rarity never affects earning or skill (DD §3.1).
+  const RARITIES = [
+    { key:'common',    label:'Common',    tier:0, weight:62,  color:'#9aa3d4', title:'Loyal Sidekick' },
+    { key:'uncommon',  label:'Uncommon',  tier:1, weight:24,  color:'#37e35b', title:'Good Buddy' },
+    { key:'rare',      label:'Rare',      tier:2, weight:10,  color:'#16f2c8', title:'Rare Find' },
+    { key:'epic',      label:'Epic',      tier:3, weight:3.4, color:'#ff3df0', title:'Prized Pal' },
+    { key:'legendary', label:'Legendary', tier:4, weight:0.6, color:'#ffd23d', title:'Mythic Companion' }
+  ];
+  const RARITY = Object.fromEntries(RARITIES.map(r=>[r.key,r]));
+  // Shards minted when a pull duplicates a species you already own at-or-above
+  // the rolled rarity (a pull is never wasted — DD §7).
+  const DUPE_SHARDS = { common:5, uncommon:12, rare:30, epic:75, legendary:200 };
+
+  // ---- species roster (DD §3.1). Original creatures, procedurally rendered.
+  // Any species can roll at any rarity; `Full Stable` = collect them all. Each
+  // entry only carries silhouette/personality params — the seed perturbs the
+  // rest, so there is zero asset cost. ----
+  const SPECIES = [
+    { key:'gloop', name:'Gloop', hue:288, ear:'antenna', pattern:'spots',  rx:6.2, ry:6.6 },
+    { key:'byte',  name:'Byte',  hue:202, ear:'ears',    pattern:'belly',  rx:6.0, ry:6.2 },
+    { key:'ember', name:'Ember', hue:16,  ear:'horn',    pattern:'flame',  rx:5.8, ry:6.4 },
+    { key:'frost', name:'Frost', hue:190, ear:'ears',    pattern:'stripe', rx:6.2, ry:6.0 },
+    { key:'moss',  name:'Moss',  hue:104, ear:'leaf',    pattern:'spots',  rx:6.4, ry:6.2 },
+    { key:'volt',  name:'Volt',  hue:52,  ear:'bolt',    pattern:'belly',  rx:5.8, ry:6.0 },
+    { key:'cosmo', name:'Cosmo', hue:258, ear:'antenna', pattern:'stars',  rx:6.4, ry:6.6 },
+    { key:'pip',   name:'Pip',   hue:332, ear:'ears',    pattern:'belly',  rx:5.6, ry:5.8 }
+  ];
+  const speciesByKey = k => SPECIES.find(s=>s.key===k) || SPECIES[0];
+
+  // ---- care baseline (DD §3.2). Meters are 0..100. Pets never die — meters
+  // floor at 0 and affection always recovers. Happiness is the only economic
+  // stake (it scales idle earn-rate). ----
+  const HUNGER_DRAIN  = 6;    // /hr  — empties a full belly in ~16h
+  const HAPPY_DRAIN   = 4;    // /hr  — neglect erodes mood
+  const HUNGRY_PENALTY= 4;    // extra Happiness /hr drain while starving (hunger<20)
+  const ENERGY_REGEN  = 10;   // /hr  — rest restores energy passively
+  const FEED_COST     = 10;   // NetCoin per feed
+  const FEED_HUNGER   = 42;   // Hunger restored per feed
+  const TAP_HAPPY     = 8;    // Happiness per pet/play tap
+  const TAP_COIN      = 1;    // NetCoin per tap …
+  const TAP_COIN_CAP  = 80;   // … capped per local day so tapping can't farm
+  const FEED_ENERGY_COST = 30;// Energy spent to play one Rhythm-Feed session
+  const FEED_ENERGY_MIN  = 25;// Energy required to enter the mini-game
+
+  // ---- idle baseline (DD §4, Rig-style capped accrual) ----
+  const PET_RATE   = 2;     // NetCoin/hr per Pet at full Happiness
+  const IDLE_CAP_H = 8;     // offline accrual cap (hours) before the tank stops
+  // Happiness → idle multiplier: a neglected Pet still earns a floor, a happy
+  // one earns full. This is the whole stake (DD §3.2).
+  const HAPPY_MULT_MIN = 0.3;
+  function happyMult(happy){ return HAPPY_MULT_MIN + (1-HAPPY_MULT_MIN)*(clamp100(happy)/100); }
+
+  // ---- bond (DD §3.1): raised purely by care over time. Phase 1 tracks it +
+  // unlocks an achievement; richer perks land Phase 2. 100 xp per level. ----
+  const BOND_PER_FEED = 6, BOND_PER_TAP = 2, BOND_PER_GAME = 16;
+  function bondLevel(bond){ return Math.floor((bond||0)/100); }
+
+  function clamp100(v){ return Math.max(0, Math.min(100, v)); }
+  function pets(){ return Store.get().pets; }
+  function dayKey(ts){ const t=ts?new Date(ts):new Date(); return t.getFullYear()+'-'+(t.getMonth()+1)+'-'+t.getDate(); }
+
+  // ---- seeded RNG (mulberry32) — deterministic per-Pet variation ----
+  function rngFrom(seed){ let a=seed>>>0; return function(){ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+  /* ------------------------------------------------------------------------
+     PROCEDURAL PIXEL RENDERER
+     Builds a 18×18 vertically-symmetric pixel creature seeded by the Pet, then
+     paints it nearest-neighbour at `px` scale. Species sets the silhouette,
+     ears and palette hue; the seed perturbs palette + pattern; rarity adds a
+     flourish (gem / crown / sparkles). `mood` (happy|ok|sad) tweaks the face.
+     ------------------------------------------------------------------------ */
+  const GRID = 18;
+  function buildGrid(pal, mood){
+    const sp = speciesByKey(pal.species);
+    const rnd = rngFrom((pal.seed>>>0) || 1);
+    const g = Array.from({length:GRID}, ()=> new Array(GRID).fill(null));
+    const cx = (GRID-1)/2, cy = GRID*0.56;
+    const hue = (sp.hue + (rnd()*36-18) + 360) % 360;
+    const rk = RARITY[pal.rarity] || RARITY.common;
+    const pal_ = {
+      body:   `hsl(${hue},62%,60%)`,
+      shade:  `hsl(${hue},58%,44%)`,
+      belly:  `hsl(${(hue+8)%360},50%,80%)`,
+      outline:`hsl(${hue},45%,17%)`,
+      eyeW:'#ffffff', eyeB:'#191033', blush:`hsl(${(hue+330)%360},70%,72%)`,
+      accent: rk.color
+    };
+    const set=(x,y,c)=>{ if(x>=0&&x<GRID&&y>=0&&y<GRID&&c) g[y][x]=c; };
+    const inBody=(x,y)=>{ const dx=(x-cx)/sp.rx, dy=(y-cy)/sp.ry; return dx*dx+dy*dy<=1; };
+
+    // body (left half computed, mirrored)
+    for(let y=0;y<GRID;y++) for(let x=0;x<=Math.floor(cx);x++){
+      if(inBody(x,y)){ const c = (y>cy+1)? pal_.shade : pal_.body; set(x,y,c); set(Math.round(2*cx)-x,y,c); }
+    }
+    // ears / antenna / horns (species silhouette cue), symmetric
+    const topY = Math.round(cy - sp.ry);
+    function pair(dx, drawFn){ drawFn(Math.round(cx-dx)); drawFn(Math.round(cx+dx)); }
+    if(sp.ear==='ears'){ pair(3,(x)=>{ set(x,topY,pal_.body); set(x,topY-1,pal_.shade); }); }
+    else if(sp.ear==='antenna'){ pair(2,(x)=>{ set(x,topY-1,pal_.shade); set(x,topY-2,pal_.shade); set(x,topY-3,pal_.accent); }); }
+    else if(sp.ear==='horn'){ pair(2,(x)=>{ set(x,topY-1,pal_.accent); }); set(Math.round(cx),topY-2,pal_.accent); }
+    else if(sp.ear==='leaf'){ set(Math.round(cx),topY-1,pal_.shade); set(Math.round(cx),topY-2,`hsl(110,55%,45%)`); set(Math.round(cx),topY-3,`hsl(110,55%,55%)`); }
+    else if(sp.ear==='bolt'){ set(Math.round(cx),topY-1,pal_.accent); set(Math.round(cx)-1,topY-2,pal_.accent); set(Math.round(cx),topY-3,pal_.accent); }
+
+    // belly patch
+    for(let y=Math.round(cy);y<GRID;y++) for(let x=0;x<=Math.floor(cx);x++){
+      const dx=(x-cx)/(sp.rx*0.55), dy=(y-(cy+1.6))/(sp.ry*0.5);
+      if(dx*dx+dy*dy<=1 && g[y][x]){ set(x,y,pal_.belly); set(Math.round(2*cx)-x,y,pal_.belly); }
+    }
+    // pattern overlay (only on body, seeded)
+    const patc = (sp.pattern==='flame') ? `hsl(${(hue+18)%360},80%,62%)` : pal_.shade;
+    if(sp.pattern==='spots' || sp.pattern==='stars'){
+      for(let i=0;i<3;i++){ const x=1+Math.floor(rnd()*(cx-1)), y=Math.round(cy-1+rnd()*3);
+        if(g[y]&&g[y][x]){ set(x,y,patc); set(Math.round(2*cx)-x,y,patc); } }
+    } else if(sp.pattern==='stripe'){
+      for(let y=Math.round(cy);y<GRID;y+=2) for(let x=0;x<=Math.floor(cx);x++) if(g[y][x]&&g[y][x]!==pal_.belly){ set(x,y,patc); set(Math.round(2*cx)-x,y,patc); }
+    } else if(sp.pattern==='flame'){
+      pair(2,(x)=>{ const y=Math.round(cy); if(g[y]&&g[y][x]) set(x,y,patc); });
+    }
+
+    // eyes — symmetric, with a seeded pupil offset for personality
+    const eyeY = Math.round(cy-1.5), eyeDx = 2;
+    const pox = rnd()<0.5?0:(rnd()<0.5?-0:0);
+    pair(eyeDx,(x)=>{ set(x,eyeY,pal_.eyeW); set(x,eyeY+1,pal_.eyeW); set(x+pox,eyeY+ (mood==='sad'?0:1),pal_.eyeB); });
+    // blush on the cheeks when happy
+    if(mood==='happy'){ pair(Math.round(sp.rx-1),(x)=>{ set(x,eyeY+2,pal_.blush); }); }
+    // mouth reflects mood
+    const mY = Math.round(cy+1.5), mcx=Math.round(cx);
+    if(mood==='sad'){ set(mcx-1,mY+1,pal_.outline); set(mcx,mY,pal_.outline); set(mcx+1,mY+1,pal_.outline); }
+    else if(mood==='happy'){ set(mcx-1,mY,pal_.outline); set(mcx,mY+1,pal_.outline); set(mcx+1,mY,pal_.outline); }
+    else { set(mcx,mY,pal_.outline); }
+
+    // rarity flourish
+    if(rk.tier>=2){ set(mcx,Math.round(cy-3),pal_.accent); }                 // forehead gem (rare+)
+    if(rk.tier>=4){ // legendary crown + sparkles
+      pair(2,(x)=>set(x,topY-2,pal_.accent)); set(mcx,topY-3,pal_.accent);
+      [[1,3],[GRID-2,4],[2,GRID-3]].forEach(p=>set(p[0],p[1],pal_.accent));
+    }
+
+    // 1px outline: empty cells orthogonally adjacent to a body cell
+    const out=[];
+    for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){ if(g[y][x]) continue;
+      if((g[y][x-1])||(g[y][x+1])||(g[y-1]&&g[y-1][x])||(g[y+1]&&g[y+1][x])) out.push([x,y]); }
+    out.forEach(p=> g[p[1]][p[0]] = pal_.outline);
+    return g;
+  }
+  // Paint a Pet into a canvas at `px` scale (+ a soft ground shadow). Returns the canvas.
+  function render(pal, canvas, px, mood){
+    px = px||8; canvas = canvas || document.createElement('canvas');
+    const g = buildGrid(pal, mood||'ok');
+    canvas.width = GRID*px; canvas.height = GRID*px;
+    const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled=false;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save(); ctx.globalAlpha=0.18; ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.ellipse(GRID*px/2, (GRID-2.2)*px, GRID*px*0.30, px*1.1, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
+    for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){ const c=g[y][x]; if(c){ ctx.fillStyle=c; ctx.fillRect(x*px,y*px,px,px); } }
+    return canvas;
+  }
+  // Wide "hero shot" canvas for the Share Card glyph frame (neon grid + big Pet).
+  function renderHero(pal){
+    const cv=document.createElement('canvas'); cv.width=360; cv.height=154;
+    const ctx=cv.getContext('2d');
+    const grad=ctx.createLinearGradient(0,0,0,154); grad.addColorStop(0,'#13123a'); grad.addColorStop(1,'#0a0a1e');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,360,154);
+    ctx.strokeStyle='rgba(124,92,255,0.18)'; ctx.lineWidth=1;
+    for(let x=0;x<360;x+=24){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,154); ctx.stroke(); }
+    for(let y=0;y<154;y+=24){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(360,y); ctx.stroke(); }
+    const sprite=render(pal, null, 8, 'happy');
+    ctx.imageSmoothingEnabled=false;
+    const s=140/sprite.height, dw=sprite.width*s, dh=sprite.height*s;
+    ctx.drawImage(sprite,(360-dw)/2,(154-dh)/2,dw,dh);
+    return cv;
+  }
+
+  /* ------------------------------------------------------------------------
+     CARE METERS — lazy drain. derive() returns display values without writing;
+     commit(now) writes the drained snapshot + advances each Pet's clock. We
+     commit on route entry and after every action, never per animation frame.
+     ------------------------------------------------------------------------ */
+  function derive(pal, now){
+    now = now||Date.now();
+    const hrs = Math.max(0,(now-(pal.lastTickTs||now))/HOUR_MS);
+    const hunger = clamp100((pal.hunger||0) - HUNGER_DRAIN*hrs);
+    const starving = (pal.hunger||0) < 20;
+    const happy = clamp100((pal.happy||0) - (HAPPY_DRAIN + (starving?HUNGRY_PENALTY:0))*hrs);
+    const energy = clamp100((pal.energy||0) + ENERGY_REGEN*hrs);
+    return { hunger, happy, energy };
+  }
+  function commit(now){
+    now = now||Date.now();
+    Store.update(s=>{ s.pets.pals.forEach(p=>{ const m=derive(p,now); p.hunger=m.hunger; p.happy=m.happy; p.energy=m.energy; p.lastTickTs=now; }); });
+  }
+  function moodOf(happy){ return happy>=66?'happy':(happy>=33?'ok':'sad'); }
+
+  // ---- idle earning (Rig-style capped tank, scaled by Happiness) ----
+  function idleElapsedH(){ return Math.max(0,(Date.now()-(pets().lastIdleTs||Date.now()))/HOUR_MS); }
+  function idleFrac(){ return Math.max(0,Math.min(1, idleElapsedH()/IDLE_CAP_H)); }
+  function stableRate(){ // NetCoin/hr right now, summed over the roster at current Happiness
+    const now=Date.now();
+    return pets().pals.reduce((sum,p)=> sum + PET_RATE*happyMult(derive(p,now).happy), 0);
+  }
+  function idlePending(){ return Math.floor(Math.min(idleElapsedH(), IDLE_CAP_H) * stableRate()); }
+  function idleFull(){ return pets().pals.length>0 && idleElapsedH()>=IDLE_CAP_H; }
+  function collectIdle(){
+    const amt = idlePending();
+    Store.update(s=>{ s.pets.lastIdleTs=Date.now(); if(amt>0){ s.rig.netcoin+=amt; s.rig.totalEarned+=amt; } });
+    return amt;
+  }
+
+  // ---- gacha (DD §7) ----
+  function rollRarity(rnd, forceRare){
+    const pool = forceRare ? RARITIES.filter(r=>r.tier>=2) : RARITIES;
+    const total = pool.reduce((s,r)=>s+r.weight,0);
+    let t = rnd()*total;
+    for(const r of pool){ if((t-=r.weight)<=0) return r; }
+    return pool[pool.length-1];
+  }
+  function ownedSpecies(key){ return pets().pals.find(p=>p.species===key) || null; }
+  function canOpen(){ return Store.get().rig.netcoin >= BOX_COST; }
+  // Open one Loot Box. Returns a result describing the pull for the reveal UI.
+  function openBox(){
+    if(!canOpen()) return null;
+    const rnd = Math.random;
+    const seed = (Math.random()*0xFFFFFFFF)>>>0;
+    const sp = SPECIES[Math.floor(rnd()*SPECIES.length)];
+    const force = pets().pity+1 >= PITY_THRESHOLD;
+    const rarity = rollRarity(rnd, force);
+    let result;
+    Store.update(s=>{
+      const pt = s.pets;
+      s.rig.netcoin -= BOX_COST;
+      pt.pulls = (pt.pulls||0)+1;
+      // pity: reset on rare-or-better, otherwise advance
+      pt.pity = (rarity.tier>=2) ? 0 : (pt.pity+1);
+      const owned = pt.pals.find(p=>p.species===sp.key);
+      if(!owned){
+        const pal = { id:'pal_'+seed.toString(36), seed, species:sp.key, rarity:rarity.key,
+          name: sp.name, adoptedAt:Date.now(), bond:0, hunger:80, happy:80, energy:90, lastTickTs:Date.now() };
+        pt.pals.push(pal);
+        result = { kind:'new', pal };
+      } else if(RARITY[rarity.key].tier > RARITY[owned.rarity].tier){
+        const from = owned.rarity; owned.rarity = rarity.key;   // dupe of a higher grade upgrades the Pet
+        result = { kind:'upgrade', pal:owned, from, to:rarity.key };
+      } else {
+        const sh = DUPE_SHARDS[rarity.key]||5; pt.shards = (pt.shards||0)+sh;
+        result = { kind:'dupe', species:sp.key, rarity:rarity.key, shards:sh, pal:owned };
+      }
+    });
+    Ach.evaluate({ pets:true });   // First Hatch / Full Stable / First Legendary (pays NetCoin)
+    return result;
+  }
+
+  // ---- care actions ----
+  function feed(id){
+    const p = pets().pals.find(x=>x.id===id); if(!p) return false;
+    if(Store.get().rig.netcoin < FEED_COST) return false;
+    commit();
+    Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===id);
+      s.rig.netcoin -= FEED_COST; q.hunger=clamp100(q.hunger+FEED_HUNGER); q.bond=(q.bond||0)+BOND_PER_FEED; });
+    Ach.evaluate({ pets:true });
+    return true;
+  }
+  function tap(id){
+    const p = pets().pals.find(x=>x.id===id); if(!p) return 0;
+    commit();
+    const dk = dayKey(); let paid=0;
+    Store.update(s=>{ const pt=s.pets; const q=pt.pals.find(x=>x.id===id);
+      q.happy=clamp100(q.happy+TAP_HAPPY); q.bond=(q.bond||0)+BOND_PER_TAP;
+      if(pt.tapDay!==dk){ pt.tapDay=dk; pt.tapCoins=0; }
+      if(pt.tapCoins < TAP_COIN_CAP){ paid=TAP_COIN; pt.tapCoins+=TAP_COIN; s.rig.netcoin+=TAP_COIN; s.rig.totalEarned+=TAP_COIN; }
+    });
+    Ach.evaluate({ pets:true });
+    return paid;
+  }
+  // Apply the Rhythm-Feed result: spend energy, reward NetCoin + bond/Happiness,
+  // and post the skill sample to GamerDNA via the same path the labs use.
+  function applyGameResult(id, quality, reward){
+    commit();
+    Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===id); if(!q) return;
+      q.energy=clamp100(q.energy-FEED_ENERGY_COST); q.happy=clamp100(q.happy+10);
+      q.bond=(q.bond||0)+BOND_PER_GAME;
+      if(reward>0){ s.rig.netcoin+=reward; s.rig.totalEarned+=reward; }
+    });
+  }
+
+  return {
+    RARITIES, RARITY, SPECIES, speciesByKey,
+    render, renderHero, buildGrid,
+    derive, commit, moodOf, bondLevel,
+    idleFrac, idlePending, idleFull, stableRate, collectIdle, happyMult,
+    canOpen, openBox, feed, tap, applyGameResult,
+    cfg:{ BOX_COST, PITY_THRESHOLD, FEED_COST, FEED_ENERGY_MIN, FEED_ENERGY_COST, PET_RATE, IDLE_CAP_H, DUPE_SHARDS },
+    pity(){ return pets().pity; }, shards(){ return pets().shards; }, roster(){ return pets().pals; }
+  };
+})();
+window.Pets = Pets;
 
 /* ============================================================================
    small DOM helper
@@ -3178,6 +3560,8 @@ const CABINETS = [
     desc:'Your profile, 7 attributes, class & rank.' },
   { id:'rig',        lab:'The MetaGame', name:'The Rig', railName:'The Rig', icon:RIG_ICON, tag:'mvp', route:'#/rig',
     desc:'Mine NetCoin, build your battlestation & climb your Rig Score.', dna:'Idle · NetCoin · Rig Score' },
+  { id:'pets',       lab:'The MetaGame', name:'RetroPets', railName:'RetroPets', icon:'🐾', tag:'mvp', route:'#/pets',
+    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Rhythm-Feed' },
   { id:'friends',    lab:'The MetaGame', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
@@ -15792,6 +16176,8 @@ const UI = (function(){
     const rigLink = railLink({ href:'#/rig', icon:RIG_ICON, label:'The Rig' });
     if(window.Rig && Rig.dailyAvailable()) rigLink.append(el('span',{class:'rail-dot', title:'Daily payout ready'}));
     rail.append(rigLink);
+    // RetroPets — top-level collect/care world, alongside The Rig (RetroMall_DD §9).
+    rail.append(railLink({ href:'#/pets', icon:'🐾', label:'RetroPets' }));
     rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends',
       count: Store.getFriends().length || null, countColor: FRIENDS_RAIL_COLOR }));
     rail.append(railLink({ href:'#/dna/platforms',  icon:'🔗', label:'Platforms' }));
@@ -17945,6 +18331,334 @@ Views.rigStore = function(c){
 };
 
 /* ============================================================================
+   RETROPETS VIEWS (RetroMall_DD.md, Phase 1) — Stable, Loot-Box Store, Rhythm-Feed
+   ============================================================================ */
+function petsHead(c, title, desc){
+  const panel = el('div',{class:'panel'});
+  panel.append(
+    el('div',{class:'view-head', html:`<span class="lab-tag">RetroPets</span>`}),
+    el('h1',{class:'title', html:title}),
+    el('p',{class:'view-desc', html:desc})
+  );
+  c.append(panel);
+  return panel;
+}
+function petRarityOdds(){
+  const wrap = el('div',{class:'pets-rarity-odds'});
+  const total = Pets.RARITIES.reduce((s,r)=>s+r.weight,0);
+  Pets.RARITIES.forEach(r=>{
+    const pct = (r.weight/total*100);
+    wrap.append(el('span',{html:`<i style="background:${r.color}"></i> ${r.label} <b style="color:${r.color}">${pct<1?pct.toFixed(1):Math.round(pct)}%</b>`}));
+  });
+  return wrap;
+}
+
+/* ---- Stable: roster, 3-meter care, Tap affection, capped idle earning ---- */
+Views.retroPets = function(c){
+  Pets.commit();   // settle offline meter drain on entry (DD §9 idle calc on load/route)
+  let timer = null;
+  function paint(){
+    if(timer){ clearInterval(timer); timer=null; }
+    c.innerHTML='';
+    const panel = petsHead(c, '🐾 RetroPets',
+      'Crack Loot Boxes for original pixel Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the Rhythm-Feed mini-game does.</span>');
+
+    // ---- wallet / shards / shortcuts ----
+    const r = Store.get().rig;
+    const wallet = el('div',{class:'rig-block'});
+    wallet.append(el('h2',{class:'sub', text:'Stable Wallet'}));
+    const w = el('div',{class:'rig-wallet'});
+    w.innerHTML =
+      `<div class="bal">${netcoinSVG(56)}<span class="n">${r.netcoin.toLocaleString()}</span></div>`+
+      `<div><div class="sub-stat">Shards</div><b>${Pets.shards().toLocaleString()}</b></div>`+
+      `<div><div class="sub-stat">Pets</div><b>${Pets.roster().length} / ${Pets.SPECIES.length}</b></div>`+
+      `<div><div class="sub-stat">Idle Rate</div><b>${Pets.stableRate().toFixed(1)}/hr</b></div>`;
+    wallet.append(w);
+    const shortcuts = el('div',{class:'controls-row'});
+    const storeBtn = el('button',{class:'btn primary', html:'🎁 Loot Box Store'});
+    storeBtn.onclick = ()=> Router.go('#/pets/store');
+    const trainBtn = el('button',{class:'btn', html:'🎵 Rhythm-Feed'});
+    trainBtn.onclick = ()=> Router.go('#/pets/feed');
+    shortcuts.append(storeBtn, trainBtn);
+    wallet.append(shortcuts);
+    panel.append(wallet);
+
+    // ---- idle tank (Rig-style capped accrual, scaled by Happiness) ----
+    const tankB = el('div',{class:'rig-block'});
+    tankB.append(el('h2',{class:'sub', text:'Idle Foraging'}));
+    const gauge = el('div',{class:'rig-gauge'}); const fill = el('div',{class:'fill'}); gauge.append(fill);
+    const tline = el('div',{class:'rig-line'}); const lRate=el('span',{}), lTank=el('span',{}); tline.append(lRate,lTank);
+    const collectRow = el('div',{class:'controls-row'});
+    const collect = el('button',{class:'btn primary', html:'🧺 Collect Foraged NetCoin'});
+    collect.onclick = ()=>{ const got=Pets.collectIdle(); if(got>0) UI.toast('Collected', '+'+got.toLocaleString()+' NetCoin foraged'); paint(); };
+    collectRow.append(collect);
+    tankB.append(gauge, tline, collectRow);
+    panel.append(tankB);
+    function updateTank(){
+      const frac=Pets.idleFrac(), full=Pets.idleFull(), pend=Pets.idlePending();
+      fill.style.width=Math.round(frac*100)+'%'; gauge.classList.toggle('full', full);
+      lRate.innerHTML = `Rate: <b>${Pets.stableRate().toFixed(1)}/hr</b> · Happiness-scaled`;
+      lTank.innerHTML = Pets.roster().length===0 ? `Adopt a Pet to start foraging`
+        : (full ? `<b style="color:var(--neon-3)">TANK FULL</b> · <b>${pend.toLocaleString()}</b> ready`
+                : `Tank <b>${Math.round(frac*100)}%</b> · <b>${pend.toLocaleString()}</b> ready · cap ${Pets.cfg.IDLE_CAP_H}h`);
+      collect.disabled = pend<1;
+    }
+
+    // ---- roster ----
+    const rosterB = el('div',{class:'rig-block'});
+    rosterB.append(el('h2',{class:'sub', text:'Your Stable'}));
+    const cards=[];
+    if(Pets.roster().length===0){
+      const empty = el('div',{class:'pets-empty'});
+      empty.innerHTML = `<div style="font-size:40px">🥚</div><p>No Pets yet. Crack open a Loot Box to adopt your first one!</p>`;
+      const b = el('button',{class:'btn primary', html:'🎁 Open the Loot Box Store'}); b.onclick=()=>Router.go('#/pets/store');
+      empty.append(b); rosterB.append(empty);
+    } else {
+      const grid = el('div',{class:'pets-grid'});
+      Pets.roster().forEach(pal=> grid.append(makeCard(pal, cards)));
+      rosterB.append(grid);
+    }
+    panel.append(rosterB);
+
+    updateTank();
+    timer = setInterval(()=>{ updateTank(); cards.forEach(cd=>cd.update()); }, 1000);
+
+    function makeCard(pal){
+      const rk = Pets.RARITY[pal.rarity] || Pets.RARITY.common;
+      const card = el('div',{class:'pet-card', style:`--pet-accent:${rk.color}`});
+      const canvas = document.createElement('canvas');
+      card.append(canvas);
+      card.append(el('div',{class:'pet-name', text:pal.name}));
+      card.append(el('div',{class:'pet-sub', html:`<span class="pet-rarity">${rk.label}</span> · ${Pets.speciesByKey(pal.species).name}`}));
+      const meters = el('div',{class:'pet-meters'});
+      function meter(cls, lbl){ const m=el('div',{class:'pet-meter '+cls}); m.innerHTML=`<span class="lbl">${lbl}</span><span class="bar"><i></i></span>`; meters.append(m); return m.querySelector('i'); }
+      const hi=meter('hunger','🍖'), pi=meter('happy','💖'), ei=meter('energy','⚡');
+      card.append(meters);
+      const bond = el('div',{class:'pet-bond'}); card.append(bond);
+      const actions = el('div',{class:'pet-actions'});
+      const feedB = el('button',{class:'btn', html:`🍖 Feed (${Pets.cfg.FEED_COST})`});
+      const petB  = el('button',{class:'btn', html:'💖 Pet'});
+      const moreB = el('button',{class:'btn ghost', html:'⋯'});
+      actions.append(feedB, petB, moreB);
+      card.append(actions);
+
+      function bump(){ canvas.animate?canvas.animate([{transform:'translateY(0)'},{transform:'translateY(-6px)'},{transform:'translateY(0)'}],{duration:260}):0; }
+      feedB.onclick = ()=>{ if(Pets.feed(pal.id)){ UI.toast('Fed', `${pal.name} munches happily.`); update(); updateWallet(); } else UI.toast('Not enough NetCoin', `Feeding costs ${Pets.cfg.FEED_COST} NetCoin.`); };
+      petB.onclick  = ()=>{ const got=Pets.tap(pal.id); bump(); update(); if(got>0) updateWallet(); };
+      canvas.onclick = petB.onclick;
+      moreB.onclick = ()=>{
+        const nm = window.prompt('Rename '+pal.name+':', pal.name);
+        if(nm && nm.trim()){ Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===pal.id); q.name=nm.trim().slice(0,18); }); paint(); return; }
+        ShareCard.open({ lab:'RETROPETS', tool:pal.name, glyphImage:Pets.renderHero(pal),
+          metric:[{k:'Species', v:Pets.speciesByKey(pal.species).name},{k:'Rarity', v:rk.label},{k:'Bond', v:'Lv '+Pets.bondLevel(pal.bond)}],
+          designation: rk.title, badge: Pets.bondLevel(pal.bond)>=5?'Best Friends':null });
+      };
+      function updateWallet(){ const rr=Store.get().rig; w.querySelector('.bal .n').textContent=rr.netcoin.toLocaleString(); }
+      function update(){
+        const m = Pets.derive(pal, Date.now());
+        Pets.render(pal, canvas, 8, Pets.moodOf(m.happy));
+        hi.style.width=Math.round(m.hunger)+'%'; pi.style.width=Math.round(m.happy)+'%'; ei.style.width=Math.round(m.energy)+'%';
+        const lvl=Pets.bondLevel(pal.bond), into=(pal.bond||0)%100;
+        bond.textContent = `❤ Bond Lv ${lvl} · ${into}%`;
+        feedB.disabled = Store.get().rig.netcoin < Pets.cfg.FEED_COST;
+      }
+      update();
+      cards.push({update});
+      return card;
+    }
+  }
+  paint();
+  return ()=>{ if(timer) clearInterval(timer); };
+};
+
+/* ---- Loot Box Store: gacha with pity timer + dupe→Shard ---- */
+Views.petsStore = function(c){
+  function paint(){
+    c.innerHTML='';
+    const panel = petsHead(c, '🎁 Loot Box Store',
+      'Crack a Loot Box for a random Pet. Duplicates recycle into <b>Shards</b>, and a <b>Rare-or-better is guaranteed</b> within '+Pets.cfg.PITY_THRESHOLD+' pulls — so a pull is never wasted. <span class="muted">NetCoin is earned in-app; there are no real-money purchases.</span>');
+
+    const back = el('div',{class:'controls-row'});
+    const b = el('button',{class:'btn', html:'← Back to Stable'}); b.onclick=()=>Router.go('#/pets'); back.append(b); panel.append(back);
+
+    const r = Store.get().rig;
+    const wallet = el('div',{class:'rig-block'});
+    wallet.append(el('h2',{class:'sub', text:'Wallet'}));
+    const w = el('div',{class:'rig-wallet'});
+    w.innerHTML = `<div class="bal">${netcoinSVG(40)}<span class="n">${r.netcoin.toLocaleString()}</span></div>`+
+      `<div><div class="sub-stat">Shards</div><b>${Pets.shards().toLocaleString()}</b></div>`+
+      `<div><div class="sub-stat">Pity</div><b>${Pets.pity()} / ${Pets.cfg.PITY_THRESHOLD}</b></div>`;
+    wallet.append(w);
+    panel.append(wallet);
+
+    const box = el('div',{class:'rig-block'});
+    box.append(el('h2',{class:'sub', text:'Loot Box'}));
+    box.append(petRarityOdds());
+    const pityNote = el('p',{class:'muted', style:'font-size:12px; margin:4px 0 12px;',
+      html:`<b>${Pets.cfg.PITY_THRESHOLD - Pets.pity()}</b> pull(s) until a guaranteed Rare-or-better.`});
+    box.append(pityNote);
+    const row = el('div',{class:'controls-row'});
+    const open = el('button',{class:'btn primary', html:`🎁 Open Loot Box — ${Pets.cfg.BOX_COST} NetCoin`});
+    open.disabled = !Pets.canOpen();
+    row.append(open);
+    box.append(row);
+    if(!Pets.canOpen()) box.append(el('p',{class:'muted', style:'font-size:12px; margin-top:8px;', html:`Earn more NetCoin in The Rig or by foraging & training your stable.`}));
+    const reveal = el('div',{style:'margin-top:14px;'});
+    box.append(reveal);
+    panel.append(box);
+
+    open.onclick = ()=>{
+      const res = Pets.openBox();
+      if(!res) return;
+      reveal.innerHTML='';
+      const wrap = el('div',{class:'pets-reveal'});
+      const cv = document.createElement('canvas'); Pets.render(res.pal, cv, 10, 'happy');
+      wrap.append(cv);
+      const rk = Pets.RARITY[(res.kind==='dupe')?res.rarity:res.pal.rarity];
+      wrap.append(el('div',{class:'pet-rarity', style:'font-size:13px', html:rk.label}));
+      if(res.kind==='new')      wrap.append(el('div',{html:`<b>${res.pal.name}</b> joined your stable! 🎉`}));
+      else if(res.kind==='upgrade') wrap.append(el('div',{html:`<b>${res.pal.name}</b> evolved — ${Pets.RARITY[res.from].label} → <b style="color:${rk.color}">${rk.label}</b>!`}));
+      else                      wrap.append(el('div',{html:`Duplicate ${Pets.speciesByKey(res.species).name} — recycled into <b>+${res.shards} Shards</b>.`}));
+      reveal.append(wrap);
+      paint.preserveReveal = reveal.innerHTML;
+      // refresh balances/pity without nuking the reveal we just drew
+      w.querySelector('.bal .n').textContent = Store.get().rig.netcoin.toLocaleString();
+      w.querySelectorAll('b')[0].textContent = Pets.shards().toLocaleString();
+      w.querySelectorAll('b')[1].textContent = Pets.pity()+' / '+Pets.cfg.PITY_THRESHOLD;
+      pityNote.innerHTML = `<b>${Pets.cfg.PITY_THRESHOLD - Pets.pity()}</b> pull(s) until a guaranteed Rare-or-better.`;
+      open.disabled = !Pets.canOpen();
+      const after = el('div',{class:'controls-row', style:'margin-top:10px; justify-content:center;'});
+      const toStable = el('button',{class:'btn ghost', html:'🐾 View Stable'}); toStable.onclick=()=>Router.go('#/pets');
+      after.append(toStable); wrap.append(after);
+    };
+  }
+  paint();
+};
+
+/* ---- Rhythm-Feed: the one Phase-1 care mini-game wired to GamerDNA ---- */
+Views.petsFeed = function(c){
+  const panel = petsHead(c, '🎵 Rhythm-Feed',
+    'Feed your Pet <b>on the beat</b>. Hit the target line as each note lands — steady, well-timed feeding sharpens your <b>Consistency</b> &amp; <b>Speed</b> on your real Gamer DNA. <span class="muted">This is the only RetroPets surface that moves your skill profile (DD §5).</span>');
+  const back = el('div',{class:'controls-row'});
+  const bk = el('button',{class:'btn', html:'← Back to Stable'}); bk.onclick=()=>Router.go('#/pets'); back.append(bk); panel.append(back);
+
+  const roster = Pets.roster();
+  if(roster.length===0){
+    panel.append(el('p',{class:'pets-empty', html:'You need a Pet first. <a href="#/pets/store">Open a Loot Box →</a>'}));
+    return;
+  }
+
+  let selId = roster[0].id;
+  const pick = el('div',{class:'rig-block'});
+  pick.append(el('h2',{class:'sub', text:'Pick a Pet to train'}));
+  const seg = el('div',{class:'controls-row'});
+  function renderPicker(){
+    seg.innerHTML='';
+    Pets.roster().forEach(p=>{
+      const m=Pets.derive(p,Date.now()); const ok=m.energy>=Pets.cfg.FEED_ENERGY_MIN;
+      const btn=el('button',{class:'btn'+(p.id===selId?' primary':'')+(ok?'':' ghost'), html:`${p.name} <span class="sub-stat">⚡${Math.round(m.energy)}</span>`});
+      btn.disabled = !ok && p.id!==selId;
+      btn.title = ok?'':'Needs ⚡'+Pets.cfg.FEED_ENERGY_MIN+'+ energy — let it rest first.';
+      btn.onclick = ()=>{ selId=p.id; renderPicker(); };
+      seg.append(btn);
+    });
+  }
+  renderPicker();
+  pick.append(seg);
+  pick.append(el('p',{class:'muted', style:'font-size:11px; margin:6px 0 0;', html:`Training costs ⚡${Pets.cfg.FEED_ENERGY_COST} energy. Energy rests back over time.`}));
+  panel.append(pick);
+
+  const game = el('div',{class:'rig-block'});
+  game.append(el('h2',{class:'sub', text:'The Beat'}));
+  const stage = el('div',{class:'rhythm-stage'});
+  const track = el('div',{class:'rhythm-track'});
+  const target = el('div',{class:'rhythm-target'});
+  const note = el('div',{class:'rhythm-note', style:'display:none'});
+  const judge = el('div',{class:'rhythm-judge'});
+  track.append(target, note, judge); stage.append(track);
+  game.append(stage);
+  const hint = el('p',{class:'muted', style:'font-size:12px;', html:'Press <b>SPACE</b> or tap the bar when each note crosses the glowing line.'});
+  game.append(hint);
+  const ctrls = el('div',{class:'controls-row'});
+  const start = el('button',{class:'btn primary', html:'▶ Start Feeding'});
+  ctrls.append(start); game.append(ctrls);
+  const result = el('div',{}); game.append(result);
+  panel.append(game);
+
+  // ---- timing engine ----
+  const BEATS=12, INTERVAL=820, LEAD=1300, HIT_WINDOW=260;
+  let raf=null, beats=[], startT=0, running=false, errors=[];
+  function beatTime(i){ return startT + LEAD + i*INTERVAL; }
+  function flashJudge(txt, col){ judge.textContent=txt; judge.style.color=col; judge.style.opacity='1'; setTimeout(()=>{ judge.style.opacity='0'; }, 220); }
+
+  function loop(){
+    const now = performance.now();
+    // auto-miss any beat whose window has fully passed
+    beats.forEach((b,i)=>{ if(!b.done && now > beatTime(i)+HIT_WINDOW){ b.done=true; errors.push(HIT_WINDOW); flashJudge('MISS','#ff4d6d'); } });
+    // position the note for the next un-passed beat
+    const nextI = beats.findIndex((b,i)=> now <= beatTime(i)+HIT_WINDOW);
+    if(nextI>=0){
+      const p = clamp01(1-(beatTime(nextI)-now)/INTERVAL);  // 0 at left, 1 at the target line
+      note.style.display='block'; note.style.left=(p*50)+'%';
+      note.style.opacity = (now>beatTime(nextI))?'0.35':'1';
+    } else { note.style.display='none'; }
+    if(errors.length>=BEATS){ finish(); return; }
+    raf = requestAnimationFrame(loop);
+  }
+  function hit(){
+    if(!running) return;
+    const now=performance.now();
+    let bi=-1, best=1e9;
+    beats.forEach((b,i)=>{ if(b.done) return; const d=Math.abs(now-beatTime(i)); if(d<best){ best=d; bi=i; } });
+    if(bi<0 || best>HIT_WINDOW){ flashJudge('—','#9aa3d4'); return; }
+    beats[bi].done=true; errors.push(best);
+    flashJudge(best<70?'PERFECT':best<140?'GOOD':'OK', best<70?'#16f2c8':best<140?'#37e35b':'#ffd23d');
+    if(errors.length>=BEATS) finish();
+  }
+  function onKey(e){ if(e.code==='Space'){ e.preventDefault(); hit(); } }
+  function begin(){
+    const pal = Pets.roster().find(p=>p.id===selId); if(!pal) return;
+    if(Pets.derive(pal,Date.now()).energy < Pets.cfg.FEED_ENERGY_MIN){ UI.toast('Too tired', `${pal.name} needs to rest before training.`); return; }
+    result.innerHTML=''; errors=[]; beats=Array.from({length:BEATS},()=>({done:false}));
+    running=true; start.disabled=true; startT=performance.now();
+    raf=requestAnimationFrame(loop);
+  }
+  function finish(){
+    if(!running) return;
+    running=false; if(raf) cancelAnimationFrame(raf); raf=null; note.style.display='none';
+    const avgErr = errors.reduce((s,e)=>s+e,0)/errors.length;
+    const quality = clamp01((HIT_WINDOW-avgErr)/(HIT_WINDOW-40));
+    const grade = avgErr<70?'S':avgErr<110?'A':avgErr<150?'B':avgErr<210?'C':'F';
+    const reward = Math.round(18 + 62*quality);
+    const pal = Pets.roster().find(p=>p.id===selId);
+    // GamerDNA via the SAME path the labs use (honest skill bridge, DD §5)
+    recordRun('pet_rhythm', {best:'min', value:Math.round(avgErr)});
+    Attr.applyVector({consistency:12, speed:6}, quality);
+    Pets.applyGameResult(selId, quality, reward);
+    Ach.evaluate({tool:'pet_rhythm', grade, avgErr:Math.round(avgErr)});
+
+    result.innerHTML='';
+    const res = el('div',{class:'results'});
+    res.innerHTML = `<div class="result-tile"><div class="k">Avg Timing</div><div class="v">${Math.round(avgErr)} ms</div></div>`+
+      `<div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${grade}">${grade}</div></div>`+
+      `<div class="result-tile"><div class="k">NetCoin</div><div class="v">+${reward}</div></div>`+
+      `<div class="result-tile"><div class="k">DNA</div><div class="v">Consistency · Speed</div></div>`;
+    result.append(res);
+    result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} feasted on the beat — Happiness & Bond up, ⚡${Pets.cfg.FEED_ENERGY_COST} energy spent.`}));
+    result.append(shareRow({ lab:'RETROPETS', tool:'Rhythm-Feed', glyph:'🎵', grade,
+      metric:[{k:'Avg Timing', v:Math.round(avgErr)+' ms'},{k:'NetCoin', v:'+'+reward}],
+      designation: grade==='S'?'Beat Master': grade==='A'?'In the Pocket':'Finding the Groove',
+      badge: grade==='S'?'Perfect Rhythm':null }));
+    renderPicker();
+    start.disabled=false; start.innerHTML='▶ Feed Again';
+  }
+  start.onclick = begin;
+  stage.addEventListener('pointerdown', hit);
+  window.addEventListener('keydown', onKey);
+  return ()=>{ if(raf) cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); };
+};
+
+/* ============================================================================
    BOOT
    ============================================================================ */
 Router.add('#/', Views.home);
@@ -17957,6 +18671,9 @@ Router.add('#/favorites', Views.favorites);
 })();
 Router.add('#/rig', Views.rig);
 Router.add('#/rig/store', Views.rigStore);
+Router.add('#/pets', Views.retroPets);
+Router.add('#/pets/store', Views.petsStore);
+Router.add('#/pets/feed', Views.petsFeed);
 Router.add('#/dna', Views.dna);
 Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);

@@ -15,6 +15,7 @@ const cases = [
   { name: 'playtools-dna', file: 'PlayTools.html', enter: true, hash: '#/dna' },
   { name: 'playtools-crossload', file: 'PlayTools.html', enter: true, hash: '#/arcade/crossload', drive: 'crossload' },
   { name: 'playtools-rig', file: 'PlayTools.html', enter: true, hash: '#/rig', drive: 'rig' },
+  { name: 'playtools-pets', file: 'PlayTools.html', enter: true, hash: '#/pets', drive: 'pets' },
   { name: 'sharecard-studio', file: 'sharecard-studio.html' },
 ];
 
@@ -79,6 +80,40 @@ for (const c of cases) {
         .find((b) => /Share Battlestation/i.test(b.textContent));
       if (share) share.click();
     });
+    await page.waitForTimeout(400);
+  }
+
+  // RetroPets: grant NetCoin, open Loot Boxes (gacha + pity + dupe→Shard), run the
+  // care actions on the stable, then play the Rhythm-Feed mini-game so the gacha,
+  // care, idle and GamerDNA-skill paths all execute — not just the route mount.
+  if (c.drive === 'pets') {
+    await page.evaluate(() => {
+      if (window.Rig) window.Rig.grant(20000);
+      // Open enough boxes to trip the pity timer and likely a duplicate.
+      if (window.Pets) for (let i = 0; i < 14; i++) window.Pets.openBox();
+      window.location.hash = '#/pets';
+    });
+    await page.waitForTimeout(300);
+    // Feed + pet the first Pet a few times via the card buttons.
+    await page.evaluate(() => {
+      const click = (re) => [...document.querySelectorAll('.pet-actions .btn')]
+        .filter((b) => re.test(b.textContent)).slice(0, 1).forEach((b) => b.click());
+      for (let i = 0; i < 3; i++) { click(/Feed/i); click(/Pet/i); }
+      const col = [...document.querySelectorAll('button.btn.primary')].find((b) => /Collect Foraged/i.test(b.textContent));
+      if (col) col.click();
+    });
+    await page.waitForTimeout(200);
+    // Play the Rhythm-Feed mini-game: start, then tap the bar a dozen times.
+    await page.evaluate(() => { window.location.hash = '#/pets/feed'; });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      const s = [...document.querySelectorAll('button.btn.primary')].find((b) => /Start Feeding/i.test(b.textContent));
+      if (s) s.click();
+    });
+    for (let i = 0; i < 14; i++) {
+      await page.keyboard.press('Space');
+      await page.waitForTimeout(120);
+    }
     await page.waitForTimeout(400);
   }
 
