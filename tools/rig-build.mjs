@@ -87,19 +87,38 @@ export function brickTex(){
         x.fillStyle=`rgba(${120+sp},${58+sp},${44+sp},0.5)`; x.fillRect(bx+3+Math.random()*(bw-6),y+3+Math.random()*(bh-6),2,2); } } }
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
 }
+// Progressive enhancement for surfaces: a procedural texture is built immediately so
+// there's never a blank frame, then we try to load a real albedo image from
+// assets/rig/textures/<file>. If it loads, its pixels are swapped into the SAME
+// texture object(s) — preserving wrap/repeat/colorSpace — so any material referencing
+// them updates live. If the file is missing (or fails to load), the procedural look
+// stays. Pass every texture that should adopt the image (e.g. map + bumpMap, or
+// map + emissiveMap) so one albedo drives them all.
+export function swapAlbedo(file, ...textures){
+  new THREE.TextureLoader().load(
+    A + 'textures/' + file,
+    img => { for(const t of textures){ if(!t) continue; t.image = img.image; t.needsUpdate = true; } },
+    undefined,
+    () => {}                                   // missing/unreachable → keep procedural, silently
+  );
+}
 // Floor variants: 'floor_t1' shag carpet (default) · 'floor_t2' dark hardwood ·
 // 'floor_t3' neon glass tiles. Unknown/absent → tier 1, so the editor/preview and
-// older callers keep the original carpet.
+// older callers keep the original carpet. Each tier loads a real albedo image from
+// assets/rig/textures/ when present (see that folder's README), else stays procedural.
 export function buildFloor(scene, variant){
   variant = variant||'floor_t1'; let mat;
   if(variant==='floor_t2'){
     const tex=hardwoodTex(); tex.repeat.set(7,7); const bump=hardwoodTex(); bump.repeat.set(7,7);
+    swapAlbedo('floor_hardwood.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.02,roughness:0.55,metalness:0});
   } else if(variant==='floor_t3'){
     const tex=neonTileTex(false); tex.repeat.set(14,14); const em=neonTileTex(true); em.repeat.set(14,14);
+    swapAlbedo('floor_neon.jpg', tex, em);     // albedo doubles as the emissive (glow) map
     mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:em,emissiveIntensity:1.6,roughness:0.16,metalness:0.65});
   } else {
     const tex=carpetTex(); tex.repeat.set(24,24); const bump=carpetTex(); bump.repeat.set(24,24);
+    swapAlbedo('floor_carpet.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:1,metalness:0});
   }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), mat);
@@ -114,13 +133,16 @@ export function buildWall(scene, wc, variant){
   if(variant==='wall_t2'){
     const tex=brickTex(); tex.repeat.set(Math.max(1,Math.round(w/2.4)), Math.max(1,Math.round(h/1.6)));
     const bump=brickTex(); bump.repeat.copy(tex.repeat);
+    swapAlbedo('wall_brick.jpg', tex, bump);
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.04,roughness:0.9,metalness:0});
   } else if(variant==='wall_t3'){
     const tex=synthwaveTex();                                  // one mural across the wall (no tiling)
+    swapAlbedo('wall_synthwave.jpg', tex);                     // same texture drives map + emissive
     mat=new THREE.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:0.7,roughness:0.6,metalness:0});
   } else {
     const tex=stuccoTex(); tex.repeat.set(Math.max(1,Math.round(w/2.5)), Math.max(1,Math.round(h/2.5)));
     const bump=stuccoTex(); bump.repeat.copy(tex.repeat);
+    swapAlbedo('wall_stucco.jpg', tex, bump);
     // textured beige stucco: the map carries the colour, so don't tint with wc.color
     mat=new THREE.MeshStandardMaterial({map:tex,bumpMap:bump,bumpScale:0.015,roughness:0.95,metalness:0});
   }
