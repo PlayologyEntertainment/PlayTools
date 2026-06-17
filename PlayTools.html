@@ -399,6 +399,8 @@
     text-shadow:0 0 6px rgba(31,217,255,0.75), 0 0 13px rgba(31,217,255,0.45);}
   /* StarDodger badge: the in-game "Steel Raptor" pixel ship, scales to font-size */
   .dodge-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em; image-rendering:pixelated;}
+  /* Fetch badge: a rainbow beach ball, scales to the surrounding font-size */
+  .ball-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.12em;}
   /* B0ggle badge: white "B0" on a purple chip, scales to the surrounding font-size */
   .b0-ico{display:inline-flex; align-items:center; justify-content:center; width:1.18em; height:1em; padding:0 0.08em;
     border-radius:0.18em; background:var(--neon-4); color:#fff; font-family:var(--pixel); font-weight:800;
@@ -827,6 +829,14 @@
   .rhythm-target{position:absolute; top:8px; bottom:8px; left:calc(50% - 4px); width:8px; border-radius:5px; background:var(--neon-3); box-shadow:0 0 12px var(--neon-3);}
   .rhythm-note{position:absolute; top:18px; width:30px; height:84px; border-radius:7px; background:linear-gradient(180deg,var(--neon),var(--neon-2)); box-shadow:0 0 10px var(--neon); transform:translateX(-50%);}
   .rhythm-judge{position:absolute; left:0; right:0; top:46px; text-align:center; font-family:var(--pixel); font-size:18px; pointer-events:none; opacity:0; transition:opacity .1s;}
+  /* Tag reuses the lab .stage (flex/centred + .go/.foul/.wait states); it
+     only needs a shorter height than the full-screen reflex labs. */
+  .stage.pets-dodge{min-height:180px; padding:24px;}
+  /* Fetch: a stage where shrinking, drifting balls bounce across for the Pet
+     to fetch (each ball's hue is set inline per-spawn so the field is colorful). */
+  .groom-stage{position:relative; height:200px; border:1px solid var(--line); border-radius:10px; background:radial-gradient(120% 90% at 50% 120%, #241046, var(--bg-2)); overflow:hidden; margin:12px 0; cursor:crosshair; touch-action:none;}
+  .groom-spot{position:absolute; border-radius:50%; background:radial-gradient(circle at 38% 32%, #fff, var(--neon) 55%, var(--neon-2) 100%); box-shadow:0 0 14px var(--neon); transform:translate(-50%,-50%); pointer-events:none;}
+  .groom-judge{position:absolute; font-family:var(--pixel); font-size:14px; pointer-events:none; transform:translate(-50%,-50%); opacity:0; transition:opacity .12s, top .12s;}
 
   .seg{display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
   .seg button{
@@ -2235,6 +2245,30 @@ const DODGE_ICON = (function(){
   return '<svg class="dodge-icon" viewBox="0 0 '+w+' '+h+'" aria-hidden="true" focusable="false">'+rects.join('')+'</svg>';
 })();
 
+// BALL_ICON — Fetch's badge: a colorful beach ball built on a soccer-ball
+// panel layout (a central pentagon ringed by five panels, seamed in the dark
+// neon-house outline) but each panel painted a different rainbow hue. Computed
+// from pentagon geometry so the seams line up; inline SVG sized to 1em like the
+// other cabinet icons, so it renders wherever the icon string lands.
+const BALL_ICON = (function(){
+  const cx=50, cy=50, r1=15, R=44;
+  const ang=[-90,-18,54,126,198].map(d=>d*Math.PI/180);
+  const V=ang.map(a=>[cx+r1*Math.cos(a), cy+r1*Math.sin(a)]);   // inner pentagon
+  const E=ang.map(a=>[cx+R*Math.cos(a),  cy+R*Math.sin(a)]);    // panel feet on the rim
+  const cols=['#ff3b3b','#ff9628','#ffe65a','#37e35b','#21a7ff']; // rainbow ring
+  const f=n=>n.toFixed(2);
+  let panels='';
+  for(let i=0;i<5;i++){ const j=(i+1)%5;
+    panels += '<path d="M'+f(V[i][0])+' '+f(V[i][1])+' L'+f(E[i][0])+' '+f(E[i][1])+
+      ' A'+R+' '+R+' 0 0 1 '+f(E[j][0])+' '+f(E[j][1])+' L'+f(V[j][0])+' '+f(V[j][1])+' Z" fill="'+cols[i]+'"/>'; }
+  const pent='M'+V.map(p=>f(p[0])+' '+f(p[1])).join(' L')+' Z';
+  const seams=V.map((p,i)=>'<line x1="'+f(p[0])+'" y1="'+f(p[1])+'" x2="'+f(E[i][0])+'" y2="'+f(E[i][1])+'" stroke="#070912" stroke-width="2.5"/>').join('');
+  return '<svg class="ball-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">'+
+    '<circle cx="50" cy="50" r="'+R+'" fill="#0c1330"/>'+panels+seams+
+    '<path d="'+pent+'" fill="#7c5cff" stroke="#070912" stroke-width="2.5" stroke-linejoin="round"/>'+
+    '<circle cx="50" cy="50" r="'+R+'" fill="none" stroke="#070912" stroke-width="3"/></svg>';
+})();
+
 // Overdrive cabinet icon — the user-supplied DeLorean, white background keyed out and embedded.
 const OVERDRIVE_ICON = '<img src="data:image/png;base64,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" alt="" style="height:0.55em;width:auto;vertical-align:-0.1em;image-rendering:auto">';
 
@@ -2540,7 +2574,7 @@ const Ach = (function(){
     { id:'rig_decked', name:'Fully Decked', icon:'🪑', desc:'Own every Battlestation item in the NetStore.',
       test:(d)=> !!(d.rig && d.rig.parts && window.Rig && Rig.COSMETICS.every(p=> d.rig.parts[p.id])) },
     // ---- RetroPets (RetroMall_DD.md §9) — collect/care milestones. Pay NetCoin
-    //      like every other achievement; only the Rhythm-Feed _ace touches skill. ----
+    //      like every other achievement; only the training _ace's touch skill. ----
     { id:'pets_first_hatch', name:'First Hatch', icon:'🥚', desc:'Adopt your first Pet from a Loot Box.',
       test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.length>=1) },
     { id:'pets_full_stable', name:'Full Stable', icon:'🐾', desc:'Collect all 8 RetroPets species.',
@@ -2549,8 +2583,12 @@ const Ach = (function(){
       test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=>p.rarity==='legendary')) },
     { id:'pets_best_friends', name:'Best Friends', icon:'💞', desc:'Raise a Pet to 100% Bond.',
       test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=> (p.bond||0)>=100)) },
-    { id:'pets_rhythm_ace', name:'Rhythm Ace', icon:'🎵', desc:'Earn an A grade or better at Rhythm-Feed.',
+    { id:'pets_rhythm_ace', name:'Rhythm Ace', icon:'🎵', desc:'Earn an A grade or better at Tap.',
       test:(d,c)=> c && c.tool==='pet_rhythm' && (c.grade==='A'||c.grade==='S') },
+    { id:'pets_dodge_ace', name:'Quick Reflexes', icon:'🖐️', desc:'Earn an A grade or better at Tag.',
+      test:(d,c)=> c && c.tool==='pet_dodge' && (c.grade==='A'||c.grade==='S') },
+    { id:'pets_groom_ace', name:'Fetch Master', icon:'🎾', desc:'Earn an A grade or better at Fetch.',
+      test:(d,c)=> c && c.tool==='pet_groom' && (c.grade==='A'||c.grade==='S') },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -3313,9 +3351,9 @@ window.Rig = Rig;
    A NetCoin sink + care layer that proves the loop end-to-end: gacha Loot Boxes
    (pity + dupe→Shard), a stable of procedurally-rendered Pets, 3-meter Light
    care (Hunger/Happiness/Energy) with Tap affection, Rig-style capped idle
-   earning scaled by Happiness, and ONE skill mini-game (Rhythm-Feed) that posts
-   to GamerDNA through the SAME recording path the labs use. Honesty guardrail
-   (DD §1.2): money buys content, never skill — only the mini-game touches
+   earning scaled by Happiness, and skill mini-games (Tap, Tag, Fetch) that
+   post to GamerDNA through the SAME recording path the labs use. Honesty guardrail
+   (DD §1.2): money buys content, never skill — only the mini-games touch
    attributes; gacha/care/idle never move Gamer Score. The spendable balance is
    the shared wallet (rig.netcoin); only Pet data lives in the `pets` block.
    All numbers are named so the Phase-1 baseline stays trivial to retune.
@@ -3384,8 +3422,8 @@ const Pets = (function(){
   const TAP_HAPPY     = 8;    // Happiness per pet/play tap
   const TAP_COIN      = 1;    // NetCoin per tap …
   const TAP_COIN_CAP  = 80;   // … capped per local day so tapping can't farm
-  const FEED_ENERGY_COST = 30;// Energy spent to play one Rhythm-Feed session
-  const FEED_ENERGY_MIN  = 25;// Energy required to enter the mini-game
+  const FEED_ENERGY_COST = 30;// Energy spent to play one training mini-game session
+  const FEED_ENERGY_MIN  = 25;// Energy required to enter a mini-game
 
   // ---- idle baseline (DD §4, Rig-style capped accrual) ----
   const PET_RATE   = 2;     // NetCoin/hr per Pet at full Happiness (Common base)
@@ -3741,8 +3779,9 @@ const Pets = (function(){
     Ach.evaluate({ pets:true });
     return paid;
   }
-  // Apply the Rhythm-Feed result: spend energy, reward NetCoin + bond/Happiness,
-  // and post the skill sample to GamerDNA via the same path the labs use.
+  // Apply a training mini-game result: spend energy, reward NetCoin + bond/Happiness.
+  // The skill sample itself is posted to GamerDNA by the view, via the same path
+  // the labs use.
   function applyGameResult(id, quality, reward){
     commit();
     Store.update(s=>{ const q=s.pets.pals.find(x=>x.id===id); if(!q) return;
@@ -3847,7 +3886,7 @@ const CABINETS = [
   { id:'rig',        lab:'The MetaGame', name:'The Rig', railName:'The Rig', icon:RIG_ICON, tag:'mvp', route:'#/rig',
     desc:'Mine NetCoin, build your battlestation & climb your Rig Score.', dna:'Idle · NetCoin · Rig Score' },
   { id:'pets',       lab:'The MetaGame', name:'RetroPets', railName:'RetroPets', icon:'🐾', tag:'mvp', route:'#/pets',
-    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Rhythm-Feed' },
+    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Train (Tap · Tag · Fetch)' },
   { id:'friends',    lab:'The MetaGame', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
@@ -18648,7 +18687,7 @@ Views.rigStore = function(c){
 };
 
 /* ============================================================================
-   RETROPETS VIEWS (RetroMall_DD.md, Phase 1) — Stable, Loot-Box Store, Rhythm-Feed
+   RETROPETS VIEWS (RetroMall_DD.md) — Stable, Loot-Box Store, training mini-games
    ============================================================================ */
 function petsHead(c, title, desc){
   const panel = el('div',{class:'panel'});
@@ -18793,7 +18832,7 @@ Views.retroPets = function(c){
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     c.innerHTML='';
     const panel = petsHead(c, '🐾 RetroPets',
-      'Crack Loot Boxes for original animal Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away — and your Pets show how they feel. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the Rhythm-Feed mini-game does.</span>');
+      'Crack Loot Boxes for original animal Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away — and your Pets show how they feel. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the training mini-games (Tap, Tag, Fetch) do.</span>');
 
     // ---- wallet / shards / shortcuts ----
     const r = Store.get().rig;
@@ -18849,11 +18888,17 @@ Views.retroPets = function(c){
       const b = el('button',{class:'btn primary', html:'🎁 Open the Loot Box Store'}); b.onclick=()=>Router.go('#/pets/store');
       empty.append(b); rosterB.append(empty);
     } else {
-      // Stable-wide action: train a Pet via the Rhythm-Feed mini-game.
+      // Stable-wide actions: train a Pet via one of the three care mini-games.
+      // Each is a separate GamerDNA on-ramp (DD §5) — Tap → Consistency/
+      // Speed, Tag → Reflex/Focus, Fetch → Precision/Control.
       const trainRow = el('div',{class:'controls-row', style:'margin-bottom:12px;'});
-      const trainBtn = el('button',{class:'btn', html:'🎵 Rhythm-Feed'});
-      trainBtn.onclick = ()=> Router.go('#/pets/feed');
-      trainRow.append(trainBtn);
+      const feedBtn = el('button',{class:'btn', html:'🎵 Tap'});
+      feedBtn.onclick = ()=> Router.go('#/pets/feed');
+      const tagBtn = el('button',{class:'btn', html:'🖐️ Tag'});
+      tagBtn.onclick = ()=> Router.go('#/pets/play');
+      const fetchBtn = el('button',{class:'btn', html:BALL_ICON+' Fetch'});
+      fetchBtn.onclick = ()=> Router.go('#/pets/groom');
+      trainRow.append(feedBtn, tagBtn, fetchBtn);
       rosterB.append(trainRow);
       const grid = el('div',{class:'pets-grid'});
       Pets.roster().forEach(pal=> grid.append(makeCard(pal, cards)));
@@ -19016,10 +19061,10 @@ Views.petsStore = function(c){
   paint();
 };
 
-/* ---- Rhythm-Feed: the one Phase-1 care mini-game wired to GamerDNA ---- */
+/* ---- Tap: rhythm care mini-game → Consistency/Speed (DD §5) ---- */
 Views.petsFeed = function(c){
-  const panel = petsHead(c, '🎵 Rhythm-Feed',
-    'Feed your Pet <b>on the beat</b>. Hit the target line as each note lands — steady, well-timed feeding sharpens your <b>Consistency</b> &amp; <b>Speed</b> on your real Gamer DNA. <span class="muted">This is the only RetroPets surface that moves your skill profile (DD §5).</span>');
+  const panel = petsHead(c, '🎵 Tap',
+    'Feed your Pet <b>on the beat</b>. Tap the target line as each note lands — steady, well-timed feeding sharpens your <b>Consistency</b> &amp; <b>Speed</b> on your real Gamer DNA.');
   const back = el('div',{class:'controls-row'});
   const bk = el('button',{class:'btn', html:'← Back to Stable'}); bk.onclick=()=>Router.go('#/pets'); back.append(bk); panel.append(back);
 
@@ -19126,7 +19171,7 @@ Views.petsFeed = function(c){
       `<div class="result-tile"><div class="k">DNA</div><div class="v">Consistency · Speed</div></div>`;
     result.append(res);
     result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} feasted on the beat — Happiness & Bond up, ⚡${Pets.cfg.FEED_ENERGY_COST} energy spent.`}));
-    result.append(shareRow({ lab:'RETROPETS', tool:'Rhythm-Feed', glyph:'🎵', grade,
+    result.append(shareRow({ lab:'RETROPETS', tool:'Tap', glyph:'🎵', grade,
       metric:[{k:'Avg Timing', v:Math.round(avgErr)+' ms'},{k:'NetCoin', v:'+'+reward}],
       designation: grade==='S'?'Beat Master': grade==='A'?'In the Pocket':'Finding the Groove',
       badge: grade==='S'?'Perfect Rhythm':null }));
@@ -19137,6 +19182,235 @@ Views.petsFeed = function(c){
   stage.addEventListener('pointerdown', hit);
   window.addEventListener('keydown', onKey);
   return ()=>{ if(raf) cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); };
+};
+
+/* ---- Shared scaffolding for the care mini-games (DD §5). Builds the header,
+   a Back-to-Stable link, and an Energy-gated Pet picker; each game layers its
+   own stage + scoring on top. Returns null when the stable is empty (the caller
+   then has nothing to mount). `selId()` is the currently chosen Pet; `refresh()`
+   re-renders the picker so spent-energy state shows after a run. ---- */
+function petsTrainScaffold(c, opts){
+  const panel = petsHead(c, opts.title, opts.desc);
+  const back = el('div',{class:'controls-row'});
+  const bk = el('button',{class:'btn', html:'← Back to Stable'}); bk.onclick=()=>Router.go('#/pets'); back.append(bk); panel.append(back);
+
+  if(Pets.roster().length===0){
+    panel.append(el('p',{class:'pets-empty', html:'You need a Pet first. <a href="#/pets/store">Open a Loot Box →</a>'}));
+    return null;
+  }
+
+  let selId = Pets.roster()[0].id;
+  const pick = el('div',{class:'rig-block'});
+  pick.append(el('h2',{class:'sub', text:'Pick a Pet to train'}));
+  const seg = el('div',{class:'controls-row'});
+  function refresh(){
+    seg.innerHTML='';
+    Pets.roster().forEach(p=>{
+      const m=Pets.derive(p,Date.now()); const ok=m.energy>=Pets.cfg.FEED_ENERGY_MIN;
+      const btn=el('button',{class:'btn'+(p.id===selId?' primary':'')+(ok?'':' ghost'), html:`${p.name} <span class="sub-stat">⚡${Math.round(m.energy)}</span>`});
+      btn.disabled = !ok && p.id!==selId;
+      btn.title = ok?'':'Needs ⚡'+Pets.cfg.FEED_ENERGY_MIN+'+ energy — let it rest first.';
+      btn.onclick = ()=>{ selId=p.id; refresh(); };
+      seg.append(btn);
+    });
+  }
+  refresh();
+  pick.append(seg);
+  pick.append(el('p',{class:'muted', style:'font-size:11px; margin:6px 0 0;', html:`Training costs ⚡${Pets.cfg.FEED_ENERGY_COST} energy. Energy rests back over time.`}));
+  panel.append(pick);
+
+  const game = el('div',{class:'rig-block'}); panel.append(game);
+  // Energy gate shared by all three games: a tired Pet can't train (DD §3.2).
+  function energyOk(){ const p=Pets.roster().find(x=>x.id===selId); return p && Pets.derive(p,Date.now()).energy >= Pets.cfg.FEED_ENERGY_MIN; }
+  return { panel, game, selId:()=>selId, sel:()=>Pets.roster().find(p=>p.id===selId), refresh, energyOk };
+}
+
+/* ---- Tag: a reaction mini-game → Reflex/Focus (DD §5). Play a game of tag with
+   your Pet — across several rounds the stage arms after a RANDOM delay then
+   flashes NEON GREEN; tag it before it scampers off. Random delays + a
+   false-start foul make sustained attention (Focus) matter, not just raw
+   reflex. Mirrors the Reaction Trainer's input + DNA weighting for honesty. ---- */
+Views.petsDodge = function(c){
+  const S = petsTrainScaffold(c, {
+    title:'🖐️ Tag',
+    desc:'Play a game of tag with your Pet — when the stage flashes <b>NEON GREEN</b>, slap the panel (or hit <b>SPACE</b>) to tag it before it darts away. Quick, attentive reactions train your <b>Reflex</b> &amp; <b>Focus</b>. <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5).</span>' });
+  if(!S) return;
+  const { game, sel, refresh, energyOk } = S;
+
+  game.append(el('h2',{class:'sub', text:'Read the Cue'}));
+  const stage = el('div',{class:'stage pets-dodge'});
+  game.append(stage);
+  const ctrls = el('div',{class:'controls-row'});
+  const start = el('button',{class:'btn primary', html:'▶ Start Tag'});
+  ctrls.append(start); game.append(ctrls);
+  const result = el('div',{}); game.append(result);
+
+  const ROUNDS=8, MIN_DELAY=800, MAX_DELAY=2500, FOUL_MS=600, MISS_MS=1200, GAP=850;
+  let state='idle', round=0, times=[], goAt=0, armTimer=null, missTimer=null, gapTimer=null, running=false;
+  function setStage(cls, big, small){ stage.className='stage pets-dodge'+(cls?' '+cls:''); stage.innerHTML=`<div class="big">${big}</div>`+(small?`<div class="small">${small}</div>`:''); }
+  function clearTimers(){ [armTimer,missTimer,gapTimer].forEach(t=>{ if(t) clearTimeout(t); }); armTimer=missTimer=gapTimer=null; }
+  function arm(){
+    if(round>=ROUNDS){ finish(); return; }
+    state='wait'; setStage('wait','WAIT FOR NEON GREEN…', `Round ${round+1}/${ROUNDS} — hold steady, don't jump early.`);
+    armTimer=setTimeout(()=>{ state='go'; goAt=performance.now(); setStage('go','TAG!','Tap or hit SPACE — now!');
+      missTimer=setTimeout(()=>register(MISS_MS,'slow'), 1100); }, MIN_DELAY+Math.random()*(MAX_DELAY-MIN_DELAY));
+  }
+  function register(val, kind){
+    clearTimers(); times.push(val); round++;
+    const big = kind==='foul'?'TOO SOON · FOUL': kind==='slow'?'TOO SLOW': val+' ms';
+    const cls = (kind==='foul'||kind==='slow')?'foul':'';
+    setStage(cls, big, round>=ROUNDS?'Last one — tallying…':'Nice. Next toy incoming…');
+    state='shown'; gapTimer=setTimeout(arm, GAP);
+  }
+  function react(){
+    if(!running) return;
+    if(state==='wait'){ register(FOUL_MS,'foul'); return; }   // jumped before the cue
+    if(state==='go'){ register(Math.round(performance.now()-goAt)); return; }
+  }
+  function begin(){
+    if(!energyOk()){ const p=sel(); UI.toast('Too tired', `${p?p.name:'Your Pet'} needs to rest before training.`); return; }
+    result.innerHTML=''; times=[]; round=0; running=true; start.disabled=true; arm();
+  }
+  function finish(){
+    if(!running) return; running=false; clearTimers();
+    const avg = times.reduce((s,e)=>s+e,0)/times.length;
+    const quality = clamp01((520-avg)/(520-180));
+    const grade = avg<220?'S':avg<280?'A':avg<360?'B':avg<460?'C':'F';
+    const reward = Math.round(18 + 62*quality);
+    const pal = sel();
+    // GamerDNA via the SAME path the labs use (honest skill bridge, DD §5)
+    recordRun('pet_dodge', {best:'min', value:Math.round(avg)});
+    Attr.applyVector({reflex:12, focus:4}, quality);
+    Pets.applyGameResult(pal.id, quality, reward);
+    Ach.evaluate({tool:'pet_dodge', grade, avg:Math.round(avg)});
+    setStage('','Done!','');
+    result.innerHTML='';
+    const res = el('div',{class:'results'});
+    res.innerHTML = `<div class="result-tile"><div class="k">Avg Reaction</div><div class="v">${Math.round(avg)} ms</div></div>`+
+      `<div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${grade}">${grade}</div></div>`+
+      `<div class="result-tile"><div class="k">NetCoin</div><div class="v">+${reward}</div></div>`+
+      `<div class="result-tile"><div class="k">DNA</div><div class="v">Reflex · Focus</div></div>`;
+    result.append(res);
+    result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} got tagged before it could escape — Happiness & Bond up, ⚡${Pets.cfg.FEED_ENERGY_COST} energy spent.`}));
+    result.append(shareRow({ lab:'RETROPETS', tool:'Tag', glyph:'🖐️', grade,
+      metric:[{k:'Avg Reaction', v:Math.round(avg)+' ms'},{k:'NetCoin', v:'+'+reward}],
+      designation: grade==='S'?'No Escape': grade==='A'?'Quick Hands':'Warming Up',
+      badge: grade==='S'?'Perfect Reflexes':null }));
+    refresh();
+    start.disabled=false; start.innerHTML='▶ Tag Again';
+  }
+  function onKey(e){ if(e.code==='Space'){ e.preventDefault(); react(); } }
+  setStage('','🖐️ Ready?','Press Start, then react when the stage flashes NEON GREEN. Jumping early is a foul.');
+  start.onclick = begin;
+  stage.addEventListener('pointerdown', react);
+  window.addEventListener('keydown', onKey);
+  return ()=>{ clearTimers(); window.removeEventListener('keydown', onKey); };
+};
+
+/* ---- Fetch: a fine-pointer mini-game → Precision/Control (DD §5). Throw balls
+   for your Pet — colorful balls bounce across the play area and shrink as they
+   roll out of reach; click each one before it's gone. Closer-to-centre clicks
+   score higher (Precision); the drift + shrink make steady tracking matter
+   (Control). Mirrors the Precision Trainer's DNA weighting. Outcome is pure
+   input quality — rarity/NetCoin never touch it. ---- */
+Views.petsGroom = function(c){
+  const S = petsTrainScaffold(c, {
+    title:BALL_ICON+' Fetch',
+    desc:'Throw balls for your Pet to fetch — <b>colorful balls bounce across the play area and shrink</b> as they roll out of reach. Click each one dead-centre before it\'s gone. Fast, accurate aiming trains your <b>Precision</b> &amp; <b>Control</b>. <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5).</span>' });
+  if(!S) return;
+  const { game, sel, refresh, energyOk } = S;
+
+  game.append(el('h2',{class:'sub', text:'Fetch the Balls'}));
+  const stage = el('div',{class:'groom-stage'});
+  const spot = el('div',{class:'groom-spot', style:'display:none'});
+  const judge = el('div',{class:'groom-judge'});
+  stage.append(spot, judge);
+  game.append(stage);
+  const hint = el('p',{class:'muted', style:'font-size:12px;', html:'Click directly on each ball — the further it has rolled away (the smaller it is), the more precise you must be.'});
+  game.append(hint);
+  const ctrls = el('div',{class:'controls-row'});
+  const start = el('button',{class:'btn primary', html:'▶ Start Fetch'});
+  ctrls.append(start); game.append(ctrls);
+  const result = el('div',{}); game.append(result);
+
+  const SPOTS=12, LIFE=1400, R_MAX=26, R_MIN=7, MARGIN=32;
+  let raf=null, running=false, done=0, qSum=0, cur=null;
+  function spawn(){
+    const w=stage.clientWidth, h=stage.clientHeight;
+    const x=MARGIN+Math.random()*(w-2*MARGIN), y=MARGIN+Math.random()*(h-2*MARGIN);
+    const ang=Math.random()*Math.PI*2, sp=18+Math.random()*22;   // gentle drift px/s
+    cur={ x, y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp, born:performance.now() };
+    const hue=Math.floor(Math.random()*360);   // each ball a different rainbow hue
+    spot.style.background=`radial-gradient(circle at 38% 32%, #fff, hsl(${hue},90%,60%) 55%, hsl(${hue},85%,46%) 100%)`;
+    spot.style.boxShadow=`0 0 14px hsl(${hue},90%,60%)`;
+    spot.style.display='block';
+  }
+  function loop(now){
+    if(!running) return;
+    const dt=Math.min(0.05,(now-(cur.last||now))/1000); cur.last=now;
+    const age=now-cur.born;
+    if(age>=LIFE){ flash(cur.x, cur.y, 'MISS', '#ff4d6d'); next(0); return; }
+    const w=stage.clientWidth, h=stage.clientHeight;
+    cur.x+=cur.vx*dt; cur.y+=cur.vy*dt;
+    if(cur.x<MARGIN||cur.x>w-MARGIN) cur.vx*=-1; if(cur.y<MARGIN||cur.y>h-MARGIN) cur.vy*=-1;
+    cur.x=Math.max(MARGIN,Math.min(w-MARGIN,cur.x)); cur.y=Math.max(MARGIN,Math.min(h-MARGIN,cur.y));
+    cur.r=R_MAX-(R_MAX-R_MIN)*(age/LIFE);
+    spot.style.left=cur.x+'px'; spot.style.top=cur.y+'px'; spot.style.width=spot.style.height=(cur.r*2)+'px';
+    raf=requestAnimationFrame(loop);
+  }
+  function flash(x,y,txt,col){ judge.textContent=txt; judge.style.color=col; judge.style.left=x+'px'; judge.style.top=(y-cur.r-6)+'px'; judge.style.opacity='1'; setTimeout(()=>{ judge.style.opacity='0'; }, 260); }
+  function click(e){
+    if(!running||!cur) return;
+    const rect=stage.getBoundingClientRect();
+    const cx=(e.clientX!=null?e.clientX:rect.left+cur.x)-rect.left, cy=(e.clientY!=null?e.clientY:rect.top+cur.y)-rect.top;
+    const dist=Math.hypot(cx-cur.x, cy-cur.y);
+    if(dist<=cur.r+8){
+      const q=clamp01(1-dist/R_MAX);            // centre hit ≈1; edge of a big spot lower
+      flash(cur.x, cur.y, q>0.85?'PERFECT':q>0.6?'GREAT':'OK', q>0.85?'#16f2c8':q>0.6?'#37e35b':'#ffd23d');
+      next(q);
+    } // stray clicks (outside the spot) are ignored — no penalty, no progress
+  }
+  function next(q){
+    if(raf) cancelAnimationFrame(raf); raf=null;
+    qSum+=q; done++;
+    if(done>=SPOTS){ finish(); return; }
+    cur=null; spawn(); raf=requestAnimationFrame(loop);
+  }
+  function begin(){
+    if(!energyOk()){ const p=sel(); UI.toast('Too tired', `${p?p.name:'Your Pet'} needs to rest before training.`); return; }
+    result.innerHTML=''; done=0; qSum=0; running=true; start.disabled=true;
+    spawn(); raf=requestAnimationFrame(loop);
+  }
+  function finish(){
+    if(!running) return; running=false; if(raf) cancelAnimationFrame(raf); raf=null; spot.style.display='none';
+    const accuracy=Math.round(100*qSum/SPOTS);
+    const quality=clamp01(accuracy/100);
+    const grade = accuracy>=92?'S':accuracy>=80?'A':accuracy>=66?'B':accuracy>=50?'C':'F';
+    const reward = Math.round(18 + 62*quality);
+    const pal = sel();
+    // GamerDNA via the SAME path the labs use (honest skill bridge, DD §5)
+    recordRun('pet_groom', {best:'max', value:accuracy});
+    Attr.applyVector({precision:16, control:6}, quality);
+    Pets.applyGameResult(pal.id, quality, reward);
+    Ach.evaluate({tool:'pet_groom', grade, accuracy});
+    result.innerHTML='';
+    const res = el('div',{class:'results'});
+    res.innerHTML = `<div class="result-tile"><div class="k">Accuracy</div><div class="v">${accuracy}%</div></div>`+
+      `<div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${grade}">${grade}</div></div>`+
+      `<div class="result-tile"><div class="k">NetCoin</div><div class="v">+${reward}</div></div>`+
+      `<div class="result-tile"><div class="k">DNA</div><div class="v">Precision · Control</div></div>`;
+    result.append(res);
+    result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} chased down every ball — Happiness & Bond up, ⚡${Pets.cfg.FEED_ENERGY_COST} energy spent.`}));
+    result.append(shareRow({ lab:'RETROPETS', tool:'Fetch', glyph:'🎾', grade,
+      metric:[{k:'Accuracy', v:accuracy+'%'},{k:'NetCoin', v:'+'+reward}],
+      designation: grade==='S'?'Star Retriever': grade==='A'?'Steady Hand':'Good Fetch',
+      badge: grade==='S'?'Master Fetcher':null }));
+    refresh();
+    start.disabled=false; start.innerHTML='▶ Fetch Again';
+  }
+  start.onclick = begin;
+  stage.addEventListener('pointerdown', click);
+  return ()=>{ running=false; if(raf) cancelAnimationFrame(raf); };
 };
 
 /* ============================================================================
@@ -19155,6 +19429,8 @@ Router.add('#/rig/store', Views.rigStore);
 Router.add('#/pets', Views.retroPets);
 Router.add('#/pets/store', Views.petsStore);
 Router.add('#/pets/feed', Views.petsFeed);
+Router.add('#/pets/play', Views.petsDodge);
+Router.add('#/pets/groom', Views.petsGroom);
 Router.add('#/dna', Views.dna);
 Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);

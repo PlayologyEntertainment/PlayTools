@@ -84,7 +84,7 @@ for (const c of cases) {
   }
 
   // RetroPets: grant NetCoin, open Loot Boxes (gacha + pity + dupe→Shard), run the
-  // care actions on the stable, then play the Rhythm-Feed mini-game so the gacha,
+  // care actions on the stable, then play the training mini-games so the gacha,
   // care, idle and GamerDNA-skill paths all execute — not just the route mount.
   if (c.drive === 'pets') {
     await page.evaluate(() => {
@@ -115,7 +115,7 @@ for (const c of cases) {
       }
     });
     await page.waitForTimeout(200);
-    // Play the Rhythm-Feed mini-game: start, then tap the bar a dozen times.
+    // Play Tap: start, then tap the bar a dozen times.
     await page.evaluate(() => { window.location.hash = '#/pets/feed'; });
     await page.waitForTimeout(200);
     await page.evaluate(() => {
@@ -125,6 +125,42 @@ for (const c of cases) {
     for (let i = 0; i < 14; i++) {
       await page.keyboard.press('Space');
       await page.waitForTimeout(120);
+    }
+    await page.waitForTimeout(400);
+    // Tag (Reflex/Focus): start, then react with SPACE across the rounds. The
+    // random arm delay + per-round gap mean we tap steadily for a few seconds so
+    // the arm/go/foul/auto-miss + finish (recordRun/applyVector) paths all run.
+    await page.evaluate(() => { window.location.hash = '#/pets/play'; });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      const s = [...document.querySelectorAll('button.btn.primary')].find((b) => /Start Tag/i.test(b.textContent));
+      if (s) s.click();
+    });
+    for (let i = 0; i < 30; i++) {
+      await page.keyboard.press('Space');
+      await page.waitForTimeout(250);
+    }
+    await page.waitForTimeout(400);
+    // Fetch (Precision/Control): start, then click the drifting ball's current
+    // centre repeatedly so hits register and the run finishes.
+    await page.evaluate(() => { window.location.hash = '#/pets/groom'; });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      const s = [...document.querySelectorAll('button.btn.primary')].find((b) => /Start Fetch/i.test(b.textContent));
+      if (s) s.click();
+    });
+    for (let i = 0; i < 24; i++) {
+      await page.evaluate(() => {
+        const spot = document.querySelector('.groom-spot');
+        const stage = document.querySelector('.groom-stage');
+        if (spot && stage && spot.style.display !== 'none') {
+          const r = stage.getBoundingClientRect();
+          const x = r.left + parseFloat(spot.style.left || 0);
+          const y = r.top + parseFloat(spot.style.top || 0);
+          stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }));
+        }
+      });
+      await page.waitForTimeout(160);
     }
     await page.waitForTimeout(400);
   }
