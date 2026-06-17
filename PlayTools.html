@@ -1553,6 +1553,11 @@
       font-size:clamp(9px, 3vw, 12px); letter-spacing:0;
     }
     .score-strip .sep{ margin:0 3px; }
+    /* SCORE + NetCoin always drop together onto their own line (the third row,
+       below RANK/CLASS which still wrap naturally). The pair stays a single unit
+       with its · separator intact; the leading dot at the break is dropped. */
+    .score-strip .seg-pair{ display:block; width:100%; }
+    .score-strip .sep-pair-lead{ display:none; }
 
     /* ---- The Rig — narrow-screen pass (whole page) ---- */
     /* Trim panel padding so the inner content keeps as much width as possible. */
@@ -1755,8 +1760,7 @@
     <div class="score-strip" id="scoreStrip">
       <span class="seg">RANK <b id="ssRank">NEWBIE</b></span>
       <span class="sep">·</span> <span class="seg">CLASS <b id="ssClass">UNRANKED</b></span>
-      <span class="sep">·</span> <span class="seg">SCORE <b id="ssScore">0</b></span>
-      <span class="sep">·</span> <span class="seg"><span id="ssCoinIc" class="coin-ic" aria-hidden="true"></span><b id="ssCoin" title="NetCoin — your spendable economy (separate from Gamer Score)">0</b></span>
+      <span class="sep sep-pair-lead">·</span> <span class="seg-pair"><span class="seg">SCORE <b id="ssScore">0</b></span> <span class="sep">·</span> <span class="seg"><span id="ssCoinIc" class="coin-ic" aria-hidden="true"></span><b id="ssCoin" title="NetCoin — your spendable economy (separate from Gamer Score)">0</b></span></span>
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
