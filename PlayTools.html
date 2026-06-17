@@ -3264,12 +3264,22 @@ const Pets = (function(){
   const FEED_ENERGY_MIN  = 25;// Energy required to enter the mini-game
 
   // ---- idle baseline (DD §4, Rig-style capped accrual) ----
-  const PET_RATE   = 2;     // NetCoin/hr per Pet at full Happiness
+  const PET_RATE   = 2;     // NetCoin/hr per Pet at full Happiness (Common base)
   const IDLE_CAP_H = 8;     // offline accrual cap (hours) before the tank stops
   // Happiness → idle multiplier: a neglected Pet still earns a floor, a happy
-  // one earns full. This is the whole stake (DD §3.2).
+  // one earns full. This is the per-Pet care stake (DD §3.2).
   const HAPPY_MULT_MIN = 0.3;
   function happyMult(happy){ return HAPPY_MULT_MIN + (1-HAPPY_MULT_MIN)*(clamp100(happy)/100); }
+  // Rarity → per-Pet earn multiplier. Rarer Pets forage faster (NetCoin only —
+  // rarity still never touches skill or Gamer Score). Legendary is the 5× cap.
+  const RARITY_EARN = { common:1, uncommon:2, rare:3, epic:4, legendary:5 };
+  function rarityMult(key){ return RARITY_EARN[key] || 1; }
+  // Collection bonus → a stable-wide multiplier for breadth of the roster: +8%
+  // per unique species owned, replaced by a 2× capstone once the Stable is Full
+  // (all species). Multiplies the summed per-Pet rates.
+  const COLLECT_PER_SPECIES = 0.08;
+  const FULL_STABLE_MULT    = 2.0;
+  function rosterMult(){ const n = pets().pals.length; return n>=SPECIES.length ? FULL_STABLE_MULT : 1 + COLLECT_PER_SPECIES*n; }
 
   // ---- bond (DD §3.1): raised purely by care over time, on a 0–100% scale
   // (caps at 100%). Phase 1 shows it + unlocks an achievement at 100% and feeds
@@ -3479,10 +3489,14 @@ const Pets = (function(){
   // ---- idle earning (Rig-style capped tank, scaled by Happiness) ----
   function idleElapsedH(){ return Math.max(0,(Date.now()-(pets().lastIdleTs||Date.now()))/HOUR_MS); }
   function idleFrac(){ return Math.max(0,Math.min(1, idleElapsedH()/IDLE_CAP_H)); }
-  function stableRate(){ // NetCoin/hr right now, summed over the roster at current Happiness
+  function stableRate(){ // NetCoin/hr right now: per-Pet (base × Happiness × Rarity), then × Collection
     const now=Date.now();
-    return pets().pals.reduce((sum,p)=> sum + PET_RATE*happyMult(derive(p,now).happy), 0);
+    const base = pets().pals.reduce((sum,p)=> sum + PET_RATE*happyMult(derive(p,now).happy)*rarityMult(p.rarity), 0);
+    return base * rosterMult();
   }
+  // Per-Pet contribution to the current stable rate (before the collection
+  // multiplier) — used by the UI to show each Pet's share.
+  function petRate(p){ return PET_RATE*happyMult(derive(p,Date.now()).happy)*rarityMult(p.rarity); }
   function idlePending(){ return Math.floor(Math.min(idleElapsedH(), IDLE_CAP_H) * stableRate()); }
   function idleFull(){ return pets().pals.length>0 && idleElapsedH()>=IDLE_CAP_H; }
   function collectIdle(){
@@ -3602,7 +3616,7 @@ const Pets = (function(){
     RARITIES, RARITY, SPECIES, speciesByKey, BOXES, BOX,
     render, renderHero, drawPet,
     derive, commit, moodOf, moodFor, bondPct,
-    idleFrac, idlePending, idleFull, stableRate, collectIdle, happyMult,
+    idleFrac, idlePending, idleFull, stableRate, petRate, collectIdle, happyMult, rarityMult, rosterMult,
     canOpen, openBox, feed, tap, applyGameResult, sellPrice, sell,
     cfg:{ BOX_COST, PITY_THRESHOLD, FEED_COST, FEED_ENERGY_MIN, FEED_ENERGY_COST, PET_RATE, IDLE_CAP_H, DUPE_SHARDS },
     pity(){ return pets().pity; }, shards(){ return pets().shards; }, roster(){ return pets().pals; }
@@ -18610,24 +18624,29 @@ Views.retroPets = function(c){
     wallet.append(shortcuts);
     panel.append(wallet);
 
-    // ---- idle tank (Rig-style capped accrual, scaled by Happiness) ----
+    // ---- idle tank (Rig-style capped accrual: Happiness × Rarity × Collection) ----
     const tankB = el('div',{class:'rig-block'});
     tankB.append(el('h2',{class:'sub', text:'Idle Foraging'}));
     const gauge = el('div',{class:'rig-gauge'}); const fill = el('div',{class:'fill'}); gauge.append(fill);
     const tline = el('div',{class:'rig-line'}); const lRate=el('span',{}), lTank=el('span',{}); tline.append(lRate,lTank);
+    const bline = el('div',{class:'rig-line'}); const lBonus=el('span',{}); bline.append(lBonus);
     const collectRow = el('div',{class:'controls-row'});
     const collect = el('button',{class:'btn primary', html:'🧺 Collect Foraged NetCoin'});
     collect.onclick = ()=>{ const got=Pets.collectIdle(); if(got>0) UI.toast('Collected', '+'+got.toLocaleString()+' NetCoin foraged'); paint(); };
     collectRow.append(collect);
-    tankB.append(gauge, tline, collectRow);
+    tankB.append(gauge, tline, bline, collectRow);
     panel.append(tankB);
     function updateTank(){
       const frac=Pets.idleFrac(), full=Pets.idleFull(), pend=Pets.idlePending();
+      const n=Pets.roster().length, total=Pets.SPECIES.length, rm=Pets.rosterMult();
       fill.style.width=Math.round(frac*100)+'%'; gauge.classList.toggle('full', full);
-      lRate.innerHTML = `Rate: <b>${Pets.stableRate().toFixed(1)}/hr</b> · Happiness-scaled`;
-      lTank.innerHTML = Pets.roster().length===0 ? `Adopt a Pet to start foraging`
+      lRate.innerHTML = `Rate: <b>${Pets.stableRate().toFixed(1)}/hr</b> · Happiness × Rarity × Collection`;
+      lTank.innerHTML = n===0 ? `Adopt a Pet to start foraging`
         : (full ? `<b style="color:var(--neon-3)">TANK FULL</b> · <b>${pend.toLocaleString()}</b> ready`
                 : `Tank <b>${Math.round(frac*100)}%</b> · <b>${pend.toLocaleString()}</b> ready · cap ${Pets.cfg.IDLE_CAP_H}h`);
+      if(n===0) lBonus.innerHTML='';
+      else if(n>=total) lBonus.innerHTML = `Collection <b style="color:var(--neon-3)">×${rm.toFixed(2)}</b> · 🏆 <b>FULL STABLE</b> capstone active`;
+      else lBonus.innerHTML = `Collection <b>×${rm.toFixed(2)}</b> · ${n}/${total} species · Full Stable → <b style="color:var(--neon-3)">×${(2).toFixed(2)}</b>`;
       collect.disabled = pend<1;
     }
 
@@ -18663,7 +18682,7 @@ Views.retroPets = function(c){
       const canvas = document.createElement('canvas');
       card.append(canvas);
       card.append(el('div',{class:'pet-name', text:pal.name}));
-      card.append(el('div',{class:'pet-sub', html:`<span class="pet-rarity">${rk.label}</span> · ${Pets.speciesByKey(pal.species).name}`}));
+      card.append(el('div',{class:'pet-sub', html:`<span class="pet-rarity">${rk.label}</span> · ${Pets.speciesByKey(pal.species).name} · <span title="Rarity earn multiplier">⛏×${Pets.rarityMult(pal.rarity)}</span>`}));
       const meters = el('div',{class:'pet-meters'});
       function meter(cls, lbl){ const m=el('div',{class:'pet-meter '+cls}); m.innerHTML=`<span class="lbl">${lbl}</span><span class="bar"><i></i></span>`; meters.append(m); return m.querySelector('i'); }
       const hi=meter('hunger','🍖'), pi=meter('happy','💖'), ei=meter('energy','⚡');
