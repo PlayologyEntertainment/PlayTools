@@ -161,12 +161,20 @@ payout** (illustrative base **100 NetCoin**).
   stays exciting without ballooning.
 * **Missing a day clears the streak bonus** — the streak counter resets to day 1
   (the *balance* and *rig* are untouched; only the escalating bonus resets).
-* **Milestones (recurring):** the **weekly** milestone pays a lump bonus + a
-  cosmetic reward; the **monthly** milestone pays a larger lump + an **exclusive
-  part/badge**. Both **re-arm and run again** off the same active streak: the
-  weekly fires at days **7, 14, 21, 28, …** and the monthly at days **30, 60, 90,
-  …** — so on day 8 a fresh weekly milestone begins, and on day 31 a fresh
-  monthly one. A missed day **resets the streak to day 1**, restarting both clocks.
+* **Milestones (recurring, cycle-based):** the streak runs in repeating **30-day
+  cycles**, and the bonuses fire relative to the day-within-cycle (1–30). The
+  **weekly** milestone pays a lump bonus + a cosmetic reward at cycle days **7,
+  14, 21, 28**; the **monthly** milestone pays a larger lump + an **exclusive
+  part/badge** at cycle day **30**, after which the cycle (and the Daily Payout
+  calendar) **resets** to day 1 and both clocks re-arm. Because bonuses key off
+  the cycle day rather than the absolute streak count, they always land on the
+  same calendar positions every cycle (e.g. the next weekly after day 30 is at
+  absolute day 37 = cycle day 7). A missed day **resets the streak to day 1**.
+* **Daily Payout calendar (UI):** the Rig screen shows a relative 30-day calendar
+  beside the Daily Payout — **green** for collected days in the current streak,
+  **purple** for upcoming 7-day bonuses, **orange** for the upcoming 30-day bonus,
+  with today's cell outlined (and pulsing while a claim is available). It is not
+  tied to a real month and resets with the cycle.
 
 ### 5.3 Activity multiplier ("Overclock")
 Showing up is good; **using the tools is better.** Using **N distinct applets**

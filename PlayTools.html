@@ -52,6 +52,9 @@
     --neon-3:#ffd23d;    /* arcade gold */
     --neon-4:#7c5cff;    /* violet */
     --neon-5:#37e35b;    /* go-green */
+    --cal-green:#19e68a;   /* Daily Payout calendar — collected streak days */
+    --cal-purple:#b14dff;  /* Daily Payout calendar — upcoming 7-day bonuses */
+    --cal-orange:#ff8c2b;  /* Daily Payout calendar — upcoming 30-day bonus */
     --danger:#ff4d6d;
     --grid:rgba(124,92,255,0.10);
     --line:rgba(124,92,255,0.30);
@@ -743,6 +746,27 @@
   .rig-oc.on{color:var(--neon-3);}
   .rig-streak{display:flex; align-items:baseline; gap:8px;}
   .rig-streak .d{font-family:var(--pixel); font-size:30px; font-weight:800; color:var(--neon);}
+  /* Daily Payout: streak/claim content on the left, the 30-day streak calendar on
+     the right. The flex row wraps so the calendar drops below on narrow screens. */
+  .rig-daily-grid{display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;}
+  .rig-daily-main{flex:1 1 260px; min-width:240px;}
+  .rig-daily-cal{flex:0 0 auto; border:1px solid var(--line); border-radius:8px; background:var(--bg-2); padding:12px;}
+  .rig-daily-cal .cal-head{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim); margin:0 0 9px; text-align:center;}
+  .cal-grid{display:grid; grid-template-columns:repeat(6, 26px); gap:5px; justify-content:center;}
+  .cal-cell{width:26px; height:26px; border-radius:5px; display:flex; align-items:center; justify-content:center;
+            font-size:11px; font-weight:700; font-family:var(--pixel); color:var(--ink-dim);
+            background:var(--panel); border:1px solid var(--line); position:relative;}
+  .cal-cell.collected{background:var(--cal-green); border-color:var(--cal-green); color:#04120a; box-shadow:0 0 7px rgba(25,230,138,0.45);}
+  .cal-cell.weekly{background:rgba(177,77,255,0.16); border-color:var(--cal-purple); color:var(--cal-purple);}
+  .cal-cell.monthly{background:rgba(255,140,43,0.16); border-color:var(--cal-orange); color:var(--cal-orange);}
+  .cal-cell.today{outline:2px solid var(--ink); outline-offset:1px;}
+  .cal-cell.today.claimable{outline-color:var(--neon-3); animation:rigPulse 1.4s ease-in-out infinite;}
+  .cal-legend{display:flex; flex-wrap:wrap; gap:4px 12px; justify-content:center; margin:11px 0 0; font-size:10px; color:var(--ink-dim);}
+  .cal-legend span{display:inline-flex; align-items:center; gap:5px;}
+  .cal-legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+  .cal-legend i.g{background:var(--cal-green);}
+  .cal-legend i.p{background:var(--cal-purple);}
+  .cal-legend i.o{background:var(--cal-orange);}
   .rig-scene{border:1px solid var(--line); border-radius:8px; background:linear-gradient(180deg,#0a0e22,#070912); padding:10px; margin:14px 0; text-align:center;}
   .rig-scene svg{width:100%; max-width:440px; height:auto;}
   /* Inside the CRT bezel the screen IS the frame, so drop the scene's own chrome. */
@@ -2947,8 +2971,11 @@ const Rig = (function(){
   const CAP_PCT    = 150;   // streak bonus cap (+150% -> 2.5x, ~day 11)
   const OC_THRESH  = 3;     // distinct applets/day to overclock
   const OC_BONUS   = 25;    // +% mining rate while overclocked
-  const MS_WEEKLY  = 750;   // lump at streak day 7 / 14 / 21 ...
-  const MS_MONTHLY = 5000;  // lump at streak day 30 / 60 / 90 ...
+  const MS_WEEKLY  = 750;   // lump at cycle day 7 / 14 / 21 / 28
+  const MS_MONTHLY = 5000;  // lump at cycle day 30 (then the cycle resets)
+  const CYCLE_LEN  = 30;    // the streak runs in repeating 30-day cycles; bonuses
+                            // re-arm relative to the cycle so they always land on
+                            // calendar days 7/14/21/28 (weekly) and 30 (monthly).
 
   // ---- Hardware catalog (functional parts, §6.1). 'rate' adds to the rig
   // multiplier (base 1.0); 'cap' adds offline-cap hours; 'score' feeds the Rig
@@ -3067,17 +3094,53 @@ const Rig = (function(){
   }
 
   // ---- daily streak payout (§5.1 / §5.2). Strict reset: a missed day drops the
-  // streak to 1 (balance & rig untouched). Milestones re-arm every 7 / 30. ----
+  // streak to 1 (balance & rig untouched). The streak runs in repeating 30-day
+  // cycles: the day-within-cycle is 1..30, and the bonuses re-arm relative to the
+  // cycle so the weekly lump always lands on cycle days 7/14/21/28 and the monthly
+  // on day 30 — at which point the cycle (and the Daily Payout calendar) resets. ----
   function dailyAvailable(){ return rig().lastClaimDay !== today(); }
   function dailyMultiplier(streak){ return 1 + Math.min(CAP_PCT, STEP_PCT*Math.max(0,streak-1))/100; }
+  // The 1..CYCLE_LEN position of a given streak count (0 when nothing is claimed yet).
+  function cycleDayOf(streak){ return streak<=0 ? 0 : ((streak-1)%CYCLE_LEN)+1; }
   // Preview the payout for the claim currently available (the streak it would become).
   function dailyPreview(){
     const r = rig();
     const streak = (r.lastClaimDay===yesterday()) ? (r.streak+1) : 1;
+    const cycleDay = cycleDayOf(streak);
     const base = Math.round(DAILY_BASE*dailyMultiplier(streak));
-    const weekly  = (streak%7===0)  ? MS_WEEKLY  : 0;
-    const monthly = (streak%30===0) ? MS_MONTHLY : 0;
-    return { streak, base, weekly, monthly, total:base+weekly+monthly };
+    const weekly  = (cycleDay%7===0)      ? MS_WEEKLY  : 0;   // cycle days 7/14/21/28
+    const monthly = (cycleDay===CYCLE_LEN) ? MS_MONTHLY : 0;  // cycle day 30
+    return { streak, cycleDay, base, weekly, monthly, total:base+weekly+monthly };
+  }
+  // ---- Daily Payout calendar (relative, not tied to a real month). Describes a
+  // single 30-day cycle for the UI widget: which cells are already collected in the
+  // current streak, which cell is "today", and where the upcoming bonuses sit. ----
+  function dailyCalendar(){
+    const r = rig();
+    const claimedToday = r.lastClaimDay === today();
+    const onStreak     = r.lastClaimDay === yesterday();   // an unbroken streak we can extend
+    let collected, todayCell;
+    if(claimedToday){
+      collected = cycleDayOf(r.streak);   // streak already includes today
+      todayCell = collected;              // today's cell is the latest collected one
+    } else if(onStreak){
+      collected = cycleDayOf(r.streak);   // collected through yesterday
+      todayCell = cycleDayOf(r.streak+1); // today is claimable and extends the streak
+    } else {
+      collected = 0;                      // streak broken (or never started) — fresh cycle
+      todayCell = 1;                      // today is claimable as day 1
+    }
+    const cells = [];
+    for(let d=1; d<=CYCLE_LEN; d++){
+      const isCollected = d<=collected;
+      const isWeekly    = (d%7===0);          // 7/14/21/28
+      const isMonthly   = (d===CYCLE_LEN);    // 30
+      // Collected wins (green); otherwise upcoming bonus cells are coloured.
+      const kind = isCollected ? 'collected' : isMonthly ? 'monthly' : isWeekly ? 'weekly' : 'empty';
+      cells.push({ day:d, kind, isToday:(d===todayCell), claimable:(d===todayCell && !claimedToday),
+                   isBonus:(isWeekly||isMonthly), bonus:isMonthly?'monthly':isWeekly?'weekly':null });
+    }
+    return { cycleLen:CYCLE_LEN, collected, todayCell, claimedToday, cells };
   }
   function claimDaily(){
     if(!dailyAvailable()) return null;
@@ -3175,10 +3238,10 @@ const Rig = (function(){
     rate, rigMultiplier, capHours, computeRigScore,
     pending, tankFrac, tankFull, collectIdle,
     overclocked, ocTools,
-    dailyAvailable, dailyPreview, claimDaily, dailyMultiplier,
+    dailyAvailable, dailyPreview, claimDaily, dailyMultiplier, cycleDayOf, dailyCalendar,
     canAfford, buy,
     CREDIT_PACKS, jackInCredits, addJackInCredits, consumeJackInCredits, buyCredits,
-    cfg:{ BASE_RATE, BASE_CAP_H, DAILY_BASE, STEP_PCT, CAP_PCT, OC_THRESH, OC_BONUS, MS_WEEKLY, MS_MONTHLY }
+    cfg:{ BASE_RATE, BASE_CAP_H, DAILY_BASE, STEP_PCT, CAP_PCT, OC_THRESH, OC_BONUS, MS_WEEKLY, MS_MONTHLY, CYCLE_LEN }
   };
 })();
 window.Rig = Rig;
@@ -18182,27 +18245,57 @@ Views.rig = function(c){
     timer = setInterval(updateTank, 1000);
 
     // ---- daily payout + streak ----
+    // Builds the relative 30-day streak calendar (one repeating cycle, not a real
+    // month). Green = collected days, purple = upcoming 7-day bonuses, orange = the
+    // upcoming 30-day bonus; today's cell is outlined (and pulses while claimable).
+    function buildDailyCalendar(){
+      const cal = Rig.dailyCalendar();
+      const wrap = el('div',{class:'rig-daily-cal'});
+      let html = `<div class="cal-head">${cal.cycleLen}-day streak · day ${cal.todayCell}/${cal.cycleLen}</div><div class="cal-grid">`;
+      cal.cells.forEach(c=>{
+        const cls = ['cal-cell', c.kind];
+        if(c.isToday) cls.push('today');
+        if(c.claimable) cls.push('claimable');
+        let title = `Day ${c.day}`;
+        if(c.kind==='collected') title += ' · collected';
+        else if(c.bonus==='weekly') title += ' · 7-day bonus';
+        else if(c.bonus==='monthly') title += ' · 30-day bonus';
+        if(c.isToday) title += c.claimable ? ' · claim today!' : ' · today';
+        html += `<div class="${cls.join(' ')}" title="${title}">${c.day}</div>`;
+      });
+      html += `</div><div class="cal-legend">`
+        + `<span><i class="g"></i>Collected</span>`
+        + `<span><i class="p"></i>7-day bonus</span>`
+        + `<span><i class="o"></i>30-day bonus</span></div>`;
+      wrap.innerHTML = html;
+      return wrap;
+    }
     const dailyB = el('div',{class:'rig-block'});
     dailyB.append(el('h2',{class:'sub', text:'Daily Payout'}));
+    // Two columns: streak/claim on the left, the 30-day streak calendar on the right.
+    const dailyGrid = el('div',{class:'rig-daily-grid'});
+    const dailyMain = el('div',{class:'rig-daily-main'});
     const streakWrap = el('div',{class:'rig-streak'});
     streakWrap.innerHTML = `<span class="d">${r.streak}</span><span class="sub-stat">day streak${r.bestStreak>r.streak?` · best ${r.bestStreak}`:''}</span>`;
-    dailyB.append(streakWrap);
+    dailyMain.append(streakWrap);
     if(Rig.dailyAvailable()){
       const p = Rig.dailyPreview();
       const note = el('p',{class:'muted', style:'margin:8px 0;'});
       let txt = `Claim today to ${p.streak===1?'start':'extend'} your streak — <b>+${p.base.toLocaleString()} NetCoin</b> (day ${p.streak}, ${Math.round(Rig.dailyMultiplier(p.streak)*100)}%).`;
-      if(p.weekly)  txt += ` <b style="color:var(--neon-3)">Weekly milestone +${p.weekly.toLocaleString()}!</b>`;
-      if(p.monthly) txt += ` <b style="color:var(--neon-2)">Monthly milestone +${p.monthly.toLocaleString()}!</b>`;
+      if(p.weekly)  txt += ` <b style="color:var(--cal-purple)">7-day bonus +${p.weekly.toLocaleString()}!</b>`;
+      if(p.monthly) txt += ` <b style="color:var(--cal-orange)">30-day bonus +${p.monthly.toLocaleString()}!</b>`;
       note.innerHTML = txt;
       const row = el('div',{class:'controls-row'});
       const claim = el('button',{class:'btn primary', html:`🎁 Collect Daily (+${p.total.toLocaleString()})`});
       claim.onclick = ()=>{ const res=Rig.claimDaily(); if(res){ UI.toast('Daily Payout', `+${res.total.toLocaleString()} NetCoin · ${res.streak}-day streak`); } paint(); UI.syncRail&&UI.syncRail(); };
       row.append(claim);
-      dailyB.append(note, row);
+      dailyMain.append(note, row);
     } else {
-      dailyB.append(el('p',{class:'muted', style:'margin:8px 0;',
+      dailyMain.append(el('p',{class:'muted', style:'margin:8px 0;',
         html:`Claimed today. Come back tomorrow to keep the streak alive — <span class="muted">miss a day and the bonus resets to day 1 (your balance & rig are never touched).</span>`}));
     }
+    dailyGrid.append(dailyMain, buildDailyCalendar());
+    dailyB.append(dailyGrid);
     panel.append(dailyB);
 
     // ---- battlestation render ----

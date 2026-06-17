@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test:browser": "node test/smoke.mjs",
+    "test:daily": "node test/daily-calendar.mjs",
     "test:touchpad": "node test/touchpad.mjs",
     "test:tuner": "node test/tuner.mjs",
     "browser": "node test/browser.mjs",
