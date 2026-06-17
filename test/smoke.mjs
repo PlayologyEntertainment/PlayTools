@@ -89,8 +89,12 @@ for (const c of cases) {
   if (c.drive === 'pets') {
     await page.evaluate(() => {
       if (window.Rig) window.Rig.grant(20000);
-      // Open enough boxes to trip the pity timer and likely a duplicate.
-      if (window.Pets) for (let i = 0; i < 14; i++) window.Pets.openBox();
+      // Open enough boxes to trip the pity timer and likely a duplicate, plus a
+      // few of the pricier Uncommon box so the multi-box catalog path executes.
+      if (window.Pets) {
+        for (let i = 0; i < 14; i++) window.Pets.openBox();
+        for (let i = 0; i < 3; i++) window.Pets.openBox('uncommon');
+      }
       window.location.hash = '#/pets';
     });
     await page.waitForTimeout(300);

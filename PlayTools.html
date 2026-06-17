@@ -3216,6 +3216,22 @@ const Pets = (function(){
   // the rolled rarity (a pull is never wasted — DD §7).
   const DUPE_SHARDS = { common:5, uncommon:12, rare:30, epic:75, legendary:200 };
 
+  // ---- loot-box catalog. Each box carries its own cost + rarity weights, so the
+  // store just renders one block per entry and adding a higher tier later is a
+  // single object here. The Common box's odds mirror the base RARITIES weights;
+  // pricier boxes drop the floor and skew toward the top end. `art` selects the
+  // chest illustration variant. BOX_COST stays the Common price (the sell-value
+  // anchor — DD §7). ----
+  const BOXES = [
+    { key:'common',   name:'Common Loot Box',   cost:BOX_COST, art:'common',
+      blurb:'A reliable starter pull — every tier in play.',
+      odds:{ common:62, uncommon:24, rare:10, epic:3.4, legendary:0.6 } },
+    { key:'uncommon', name:'Uncommon Loot Box', cost:BOX_COST*2, art:'uncommon',
+      blurb:'No Commons, and far richer odds at the high end.',
+      odds:{ common:0, uncommon:62, rare:24, epic:11, legendary:3 } }
+  ];
+  const BOX = Object.fromEntries(BOXES.map(b=>[b.key,b]));
+
   // ---- species roster (DD §3.1). Original creatures, procedurally rendered.
   // Any species can roll at any rarity; `Full Stable` = collect them all. Each
   // entry only carries silhouette/personality params — the seed perturbs the
@@ -3476,27 +3492,40 @@ const Pets = (function(){
   }
 
   // ---- gacha (DD §7) ----
-  function rollRarity(rnd, forceRare){
-    const pool = forceRare ? RARITIES.filter(r=>r.tier>=2) : RARITIES;
-    const total = pool.reduce((s,r)=>s+r.weight,0);
+  // Roll a rarity using a box's per-tier weights (falling back to the base
+  // RARITIES weights). Pity zeroes out everything below Rare so a guaranteed
+  // pull still respects the box (it can only land on tiers the box can drop).
+  function rollRarity(rnd, forceRare, box){
+    const odds = box && box.odds;
+    let total = 0;
+    const weighted = RARITIES.map(r=>{
+      let w = odds ? (odds[r.key]||0) : r.weight;
+      if(forceRare && r.tier < 2) w = 0;
+      total += w; return { r, w };
+    });
+    if(total <= 0){ const hi = RARITIES.filter(r=>r.tier>=2); return hi[0] || RARITIES[RARITIES.length-1]; }
     let t = rnd()*total;
-    for(const r of pool){ if((t-=r.weight)<=0) return r; }
-    return pool[pool.length-1];
+    for(const x of weighted){ if(x.w>0 && (t-=x.w)<=0) return x.r; }
+    for(let i=weighted.length-1;i>=0;i--){ if(weighted[i].w>0) return weighted[i].r; }
+    return RARITIES[0];
   }
   function ownedSpecies(key){ return pets().pals.find(p=>p.species===key) || null; }
-  function canOpen(){ return Store.get().rig.netcoin >= BOX_COST; }
-  // Open one Loot Box. Returns a result describing the pull for the reveal UI.
-  function openBox(){
-    if(!canOpen()) return null;
+  function boxOf(boxKey){ return BOX[boxKey] || BOXES[0]; }
+  function canOpen(boxKey){ return Store.get().rig.netcoin >= boxOf(boxKey).cost; }
+  // Open one Loot Box of the given type (defaults to Common). Returns a result
+  // describing the pull for the reveal UI.
+  function openBox(boxKey){
+    const box = boxOf(boxKey);
+    if(Store.get().rig.netcoin < box.cost) return null;
     const rnd = Math.random;
     const seed = (Math.random()*0xFFFFFFFF)>>>0;
     const sp = SPECIES[Math.floor(rnd()*SPECIES.length)];
     const force = pets().pity+1 >= PITY_THRESHOLD;
-    const rarity = rollRarity(rnd, force);
+    const rarity = rollRarity(rnd, force, box);
     let result;
     Store.update(s=>{
       const pt = s.pets;
-      s.rig.netcoin -= BOX_COST;
+      s.rig.netcoin -= box.cost;
       pt.pulls = (pt.pulls||0)+1;
       // pity: reset on rare-or-better, otherwise advance
       pt.pity = (rarity.tier>=2) ? 0 : (pt.pity+1);
@@ -3515,6 +3544,7 @@ const Pets = (function(){
       }
     });
     Ach.evaluate({ pets:true });   // First Hatch / Full Stable / First Legendary (pays NetCoin)
+    if(result) result.box = box.key;
     return result;
   }
 
@@ -3569,7 +3599,7 @@ const Pets = (function(){
   }
 
   return {
-    RARITIES, RARITY, SPECIES, speciesByKey,
+    RARITIES, RARITY, SPECIES, speciesByKey, BOXES, BOX,
     render, renderHero, drawPet,
     derive, commit, moodOf, moodFor, bondPct,
     idleFrac, idlePending, idleFull, stableRate, collectIdle, happyMult,
@@ -18425,20 +18455,50 @@ function petsHead(c, title, desc){
   c.append(panel);
   return panel;
 }
-function petRarityOdds(){
+// Render a box's drop odds. Pass a per-rarity weight map (e.g. a box's `odds`);
+// omit it to use the base RARITIES weights. Tiers a box can't drop (weight 0)
+// are hidden so a higher-tier box reads as cleanly skewed upward.
+function petRarityOdds(odds){
   const wrap = el('div',{class:'pets-rarity-odds'});
-  const total = Pets.RARITIES.reduce((s,r)=>s+r.weight,0);
-  Pets.RARITIES.forEach(r=>{
-    const pct = (r.weight/total*100);
+  const weights = Pets.RARITIES.map(r => odds ? (odds[r.key]||0) : r.weight);
+  const total = weights.reduce((s,w)=>s+w,0) || 1;
+  Pets.RARITIES.forEach((r,i)=>{
+    const w = weights[i]; if(w<=0) return;
+    const pct = (w/total*100);
     wrap.append(el('span',{html:`<i style="background:${r.color}"></i> ${r.label} <b style="color:${r.color}">${pct<1?pct.toFixed(1):Math.round(pct)}%</b>`}));
   });
   return wrap;
 }
-// Animated vector treasure chest for the Common Loot Box. Self-contained inline
-// SVG with a gold glow shimmer, a lid that rattles like it's about to burst, and
-// twinkling sparkles. All CSS is scoped to .pchest-* classes inside the <style>
-// so it adds nothing to the global sheet; motion is dropped under reduced-motion.
-function petChestArt(){
+// Animated vector treasure chest for a Loot Box. Self-contained inline SVG: a
+// glow shimmer, a lid that rattles like it's about to burst, and twinkling
+// sparkles. `variant` selects a palette + ornamentation tier so pricier boxes
+// look richer ('common' = wood + steel; 'uncommon' = emerald wood, gold bands,
+// rivets, a lid gem + green glow). Higher tiers can add their own entry later.
+// Gradient ids are namespaced per-variant so two chests can share a page; all
+// CSS is scoped to .pchest-* and dropped under reduced-motion.
+function petChestArt(variant){
+  const C = (variant==='uncommon') ? {
+    id:'U', wood:['#2f8c6e','#15402f'], plank:'#0e3324',
+    lid:['#37977a','#1b4a39'], lidSheen:'#8affd0',
+    band:['#ffe49a','#b3801f'], bandEdge:'#fff3c4', bandRim:'#7a5410',
+    glow:['#bdffe6','#37e35b'], rivets:true, brackets:true, lidGem:'#37e35b', sparkN:5
+  } : {
+    id:'C', wood:['#a9712f','#5c3a18'], plank:'#3c2511',
+    lid:['#c08436','#7a4d20'], lidSheen:'#ffce7a',
+    band:['#586676','#1f2731'], bandEdge:'#8b97a6', bandRim:'#10151b',
+    glow:['#ffe9a8','#ffcf57'], rivets:false, brackets:false, lidGem:null, sparkN:3
+  };
+  const I = C.id;
+  const SPK = [[58,64,7],[164,72,6],[110,38,5],[40,100,5],[182,104,5]];
+  let sparks='';
+  for(let i=0;i<C.sparkN;i++){ const [x,y,r]=SPK[i]; const k=(r*0.243).toFixed(2);
+    sparks += `<g class="pchest-spark${i?' s'+(i+1):''}" transform="translate(${x},${y})"><path d="M0,${-r} L${k},${-k} L${r},0 L${k},${k} L0,${r} L${-k},${k} L${-r},0 L${-k},${-k} Z" fill="${C.lidGem?'#eafff4':'#fff4cf'}"/></g>`; }
+  const rivets = C.rivets ? [[74.5,100],[74.5,142],[145.5,100],[145.5,142],[52,98],[168,98],[52,146],[168,146]]
+    .map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.4" fill="${C.bandEdge}" stroke="${C.bandRim}" stroke-width="0.6"/>`).join('') : '';
+  const lidRivets = C.rivets ? `<circle cx="74.5" cy="56" r="2.4" fill="${C.bandEdge}" stroke="${C.bandRim}" stroke-width="0.6"/><circle cx="145.5" cy="56" r="2.4" fill="${C.bandEdge}" stroke="${C.bandRim}" stroke-width="0.6"/>` : '';
+  const brackets = C.brackets ? `<path d="M50,150 L50,140 M50,150 L60,150" stroke="url(#pchGold${I})" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M170,150 L170,140 M170,150 L160,150" stroke="url(#pchGold${I})" stroke-width="3" stroke-linecap="round" fill="none"/>` : '';
+  const lidGem = C.lidGem ? `<circle cx="110" cy="63" r="9" fill="url(#pchGold${I})" stroke="#9c6a14" stroke-width="1.5"/><path d="M110,56 L116.5,63 L110,71 L103.5,63 Z" fill="${C.lidGem}"/><path d="M110,56 L116.5,63 L110,63 Z" fill="#d6ffe9" opacity="0.85"/>` : '';
+
   const wrap = el('div',{class:'pet-chest'});
   wrap.innerHTML = `
   <svg class="pchest-svg" viewBox="0 0 220 180" role="img" aria-label="Treasure chest" xmlns="http://www.w3.org/2000/svg">
@@ -18448,7 +18508,7 @@ function petChestArt(){
       .pchest-lid{transform-box:fill-box;transform-origin:50% 100%;animation:pchest-rattle 2.6s ease-in-out infinite;}
       .pchest-glow{transform-box:fill-box;transform-origin:center;animation:pchest-glow 2.6s ease-in-out infinite;}
       .pchest-spark{transform-box:fill-box;transform-origin:center;animation:pchest-spark 2.6s ease-in-out infinite;}
-      .pchest-spark.s2{animation-delay:.5s;} .pchest-spark.s3{animation-delay:1.05s;}
+      .pchest-spark.s2{animation-delay:.45s;} .pchest-spark.s3{animation-delay:.9s;} .pchest-spark.s4{animation-delay:1.35s;} .pchest-spark.s5{animation-delay:1.8s;}
       @keyframes pchest-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
       @keyframes pchest-rattle{0%,70%,100%{transform:rotate(0)}77%{transform:rotate(-6deg)}85%{transform:rotate(4deg)}92%{transform:rotate(-2deg)}}
       @keyframes pchest-glow{0%,100%{opacity:.4;transform:scale(.95)}50%{opacity:.85;transform:scale(1.05)}}
@@ -18456,62 +18516,64 @@ function petChestArt(){
       @media (prefers-reduced-motion: reduce){.pchest-all,.pchest-lid,.pchest-glow,.pchest-spark{animation:none}}
     </style>
     <defs>
-      <linearGradient id="pchWood" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#a9712f"/><stop offset="1" stop-color="#5c3a18"/></linearGradient>
-      <linearGradient id="pchLid" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#c08436"/><stop offset="1" stop-color="#7a4d20"/></linearGradient>
-      <linearGradient id="pchMetal" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#586676"/><stop offset="1" stop-color="#1f2731"/></linearGradient>
-      <radialGradient id="pchGold" cx="0.4" cy="0.35" r="0.8">
+      <linearGradient id="pchWood${I}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${C.wood[0]}"/><stop offset="1" stop-color="${C.wood[1]}"/></linearGradient>
+      <linearGradient id="pchLid${I}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${C.lid[0]}"/><stop offset="1" stop-color="${C.lid[1]}"/></linearGradient>
+      <linearGradient id="pchBand${I}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${C.band[0]}"/><stop offset="1" stop-color="${C.band[1]}"/></linearGradient>
+      <radialGradient id="pchGold${I}" cx="0.4" cy="0.35" r="0.8">
         <stop offset="0" stop-color="#fff2bf"/><stop offset="0.5" stop-color="#ffd24a"/><stop offset="1" stop-color="#c9881d"/></radialGradient>
-      <radialGradient id="pchGlow" cx="0.5" cy="0.5" r="0.5">
-        <stop offset="0" stop-color="#ffe9a8" stop-opacity="0.9"/>
-        <stop offset="0.45" stop-color="#ffcf57" stop-opacity="0.5"/>
-        <stop offset="1" stop-color="#ffcf57" stop-opacity="0"/></radialGradient>
+      <radialGradient id="pchGlow${I}" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stop-color="${C.glow[0]}" stop-opacity="0.9"/>
+        <stop offset="0.45" stop-color="${C.glow[1]}" stop-opacity="0.5"/>
+        <stop offset="1" stop-color="${C.glow[1]}" stop-opacity="0"/></radialGradient>
     </defs>
 
-    <ellipse class="pchest-glow" cx="110" cy="92" rx="104" ry="84" fill="url(#pchGlow)"/>
+    <ellipse class="pchest-glow" cx="110" cy="92" rx="104" ry="84" fill="url(#pchGlow${I})"/>
     <ellipse cx="110" cy="155" rx="80" ry="9" fill="rgba(0,0,0,0.35)"/>
 
     <g class="pchest-all">
       <!-- base body -->
-      <rect x="46" y="92" width="128" height="58" rx="9" fill="url(#pchWood)" stroke="#3c2511" stroke-width="2"/>
-      <line x1="50" y1="112" x2="170" y2="112" stroke="#3c2511" stroke-width="2" opacity="0.55"/>
-      <line x1="50" y1="132" x2="170" y2="132" stroke="#3c2511" stroke-width="2" opacity="0.55"/>
-      <!-- base metal straps -->
-      <rect x="69" y="92" width="11" height="58" fill="url(#pchMetal)"/>
-      <rect x="140" y="92" width="11" height="58" fill="url(#pchMetal)"/>
-      <line x1="70.5" y1="92" x2="70.5" y2="150" stroke="#8b97a6" stroke-width="1" opacity="0.7"/>
-      <line x1="141.5" y1="92" x2="141.5" y2="150" stroke="#8b97a6" stroke-width="1" opacity="0.7"/>
+      <rect x="46" y="92" width="128" height="58" rx="9" fill="url(#pchWood${I})" stroke="${C.plank}" stroke-width="2"/>
+      <line x1="50" y1="112" x2="170" y2="112" stroke="${C.plank}" stroke-width="2" opacity="0.55"/>
+      <line x1="50" y1="132" x2="170" y2="132" stroke="${C.plank}" stroke-width="2" opacity="0.55"/>
+      <!-- base bands -->
+      <rect x="69" y="92" width="11" height="58" fill="url(#pchBand${I})"/>
+      <rect x="140" y="92" width="11" height="58" fill="url(#pchBand${I})"/>
+      <line x1="70.5" y1="92" x2="70.5" y2="150" stroke="${C.bandEdge}" stroke-width="1" opacity="0.7"/>
+      <line x1="141.5" y1="92" x2="141.5" y2="150" stroke="${C.bandEdge}" stroke-width="1" opacity="0.7"/>
+      ${brackets}
       <!-- coins peeking over the rim, behind the lid -->
       <g>
-        <circle cx="90" cy="86" r="8" fill="url(#pchGold)" stroke="#9c6a14" stroke-width="1.2"/>
-        <circle cx="110" cy="83" r="9" fill="url(#pchGold)" stroke="#9c6a14" stroke-width="1.2"/>
-        <circle cx="130" cy="86" r="8" fill="url(#pchGold)" stroke="#9c6a14" stroke-width="1.2"/>
+        <circle cx="90" cy="86" r="8" fill="url(#pchGold${I})" stroke="#9c6a14" stroke-width="1.2"/>
+        <circle cx="110" cy="83" r="9" fill="url(#pchGold${I})" stroke="#9c6a14" stroke-width="1.2"/>
+        <circle cx="130" cy="86" r="8" fill="url(#pchGold${I})" stroke="#9c6a14" stroke-width="1.2"/>
       </g>
       <!-- rim band where lid meets base -->
-      <rect x="44" y="88" width="132" height="11" rx="3" fill="url(#pchMetal)" stroke="#10151b" stroke-width="1"/>
+      <rect x="44" y="88" width="132" height="11" rx="3" fill="url(#pchBand${I})" stroke="${C.bandRim}" stroke-width="1"/>
+      ${rivets}
       <!-- lock plate -->
-      <rect x="99" y="104" width="22" height="24" rx="4" fill="url(#pchGold)" stroke="#9c6a14" stroke-width="1.5"/>
+      <rect x="99" y="104" width="22" height="24" rx="4" fill="url(#pchGold${I})" stroke="#9c6a14" stroke-width="1.5"/>
       <circle cx="110" cy="113" r="3.6" fill="#6b440f"/>
       <rect x="108.4" y="114" width="3.2" height="8" rx="1.4" fill="#6b440f"/>
 
       <!-- lid (rattles) -->
       <g class="pchest-lid">
-        <path d="M46,92 L46,80 Q46,46 110,46 Q174,46 174,80 L174,92 Z" fill="url(#pchLid)" stroke="#3c2511" stroke-width="2"/>
-        <path d="M52,70 Q72,53 110,52" fill="none" stroke="#ffce7a" stroke-width="3" opacity="0.45" stroke-linecap="round"/>
-        <rect x="69" y="50" width="11" height="42" fill="url(#pchMetal)"/>
-        <rect x="140" y="50" width="11" height="42" fill="url(#pchMetal)"/>
-        <line x1="70.5" y1="51" x2="70.5" y2="92" stroke="#8b97a6" stroke-width="1" opacity="0.7"/>
-        <line x1="141.5" y1="51" x2="141.5" y2="92" stroke="#8b97a6" stroke-width="1" opacity="0.7"/>
+        <path d="M46,92 L46,80 Q46,46 110,46 Q174,46 174,80 L174,92 Z" fill="url(#pchLid${I})" stroke="${C.plank}" stroke-width="2"/>
+        <path d="M52,70 Q72,53 110,52" fill="none" stroke="${C.lidSheen}" stroke-width="3" opacity="0.45" stroke-linecap="round"/>
+        <rect x="69" y="50" width="11" height="42" fill="url(#pchBand${I})"/>
+        <rect x="140" y="50" width="11" height="42" fill="url(#pchBand${I})"/>
+        <line x1="70.5" y1="51" x2="70.5" y2="92" stroke="${C.bandEdge}" stroke-width="1" opacity="0.7"/>
+        <line x1="141.5" y1="51" x2="141.5" y2="92" stroke="${C.bandEdge}" stroke-width="1" opacity="0.7"/>
+        ${lidRivets}
+        ${lidGem}
         <!-- lock hasp on the lid -->
-        <rect x="103" y="84" width="14" height="10" rx="3" fill="url(#pchGold)" stroke="#9c6a14" stroke-width="1.3"/>
+        <rect x="103" y="84" width="14" height="10" rx="3" fill="url(#pchGold${I})" stroke="#9c6a14" stroke-width="1.3"/>
       </g>
 
       <!-- sparkles -->
-      <g class="pchest-spark" transform="translate(58,64)"><path d="M0,-7 L1.7,-1.7 L7,0 L1.7,1.7 L0,7 L-1.7,1.7 L-7,0 L-1.7,-1.7 Z" fill="#fff4cf"/></g>
-      <g class="pchest-spark s2" transform="translate(164,72)"><path d="M0,-6 L1.4,-1.4 L6,0 L1.4,1.4 L0,6 L-1.4,1.4 L-6,0 L-1.4,-1.4 Z" fill="#fff4cf"/></g>
-      <g class="pchest-spark s3" transform="translate(110,40)"><path d="M0,-5 L1.2,-1.2 L5,0 L1.2,1.2 L0,5 L-1.2,1.2 L-5,0 L-1.2,-1.2 Z" fill="#fff4cf"/></g>
+      ${sparks}
     </g>
   </svg>`;
   return wrap;
@@ -18683,47 +18745,59 @@ Views.petsStore = function(c){
     wallet.append(w);
     panel.append(wallet);
 
-    const box = el('div',{class:'rig-block'});
-    box.append(el('h2',{class:'sub', text:'Common Loot Box'}));
-    box.append(petChestArt());
-    box.append(petRarityOdds());
-    const pityNote = el('p',{class:'muted', style:'font-size:12px; margin:4px 0 12px;',
-      html:`<b>${Pets.cfg.PITY_THRESHOLD - Pets.pity()}</b> pull(s) until a guaranteed Rare-or-better.`});
-    box.append(pityNote);
-    const row = el('div',{class:'controls-row'});
-    const open = el('button',{class:'btn primary', html:`🎁 Open Common Loot Box — ${Pets.cfg.BOX_COST} NetCoin`});
-    open.disabled = !Pets.canOpen();
-    row.append(open);
-    box.append(row);
-    if(!Pets.canOpen()) box.append(el('p',{class:'muted', style:'font-size:12px; margin-top:8px;', html:`Earn more NetCoin in The Rig or by foraging & training your stable.`}));
-    const reveal = el('div',{style:'margin-top:14px;'});
-    box.append(reveal);
-    panel.append(box);
-
-    open.onclick = ()=>{
-      const res = Pets.openBox();
-      if(!res) return;
-      reveal.innerHTML='';
-      const wrap = el('div',{class:'pets-reveal'});
-      const cv = document.createElement('canvas'); Pets.render(res.pal, cv, 320, 'happy', 0);
-      wrap.append(cv);
-      const rk = Pets.RARITY[(res.kind==='dupe')?res.rarity:res.pal.rarity];
-      wrap.append(el('div',{class:'pet-rarity', style:'font-size:13px', html:rk.label}));
-      if(res.kind==='new')      wrap.append(el('div',{html:`<b>${res.pal.name}</b> joined your stable! 🎉`}));
-      else if(res.kind==='upgrade') wrap.append(el('div',{html:`<b>${res.pal.name}</b> evolved — ${Pets.RARITY[res.from].label} → <b style="color:${rk.color}">${rk.label}</b>!`}));
-      else                      wrap.append(el('div',{html:`Duplicate ${Pets.speciesByKey(res.species).name} — recycled into <b>+${res.shards} Shards</b>.`}));
-      reveal.append(wrap);
-      paint.preserveReveal = reveal.innerHTML;
-      // refresh balances/pity without nuking the reveal we just drew
-      w.querySelector('.bal .n').textContent = Store.get().rig.netcoin.toLocaleString();
+    // One block per box in the catalog; pity + wallet are shared, so opening any
+    // box refreshes every block. Adding a higher tier is just another BOXES entry.
+    const blocks = [];
+    function refreshAll(){
+      const rr = Store.get().rig;
+      w.querySelector('.bal .n').textContent = rr.netcoin.toLocaleString();
       w.querySelectorAll('b')[0].textContent = Pets.shards().toLocaleString();
       w.querySelectorAll('b')[1].textContent = Pets.pity()+' / '+Pets.cfg.PITY_THRESHOLD;
-      pityNote.innerHTML = `<b>${Pets.cfg.PITY_THRESHOLD - Pets.pity()}</b> pull(s) until a guaranteed Rare-or-better.`;
-      open.disabled = !Pets.canOpen();
-      const after = el('div',{class:'controls-row', style:'margin-top:10px; justify-content:center;'});
-      const toStable = el('button',{class:'btn ghost', html:'🐾 View Stable'}); toStable.onclick=()=>Router.go('#/pets');
-      after.append(toStable); wrap.append(after);
-    };
+      blocks.forEach(bl=>bl.refresh());
+    }
+    function makeBoxBlock(box){
+      const blk = el('div',{class:'rig-block'});
+      blk.append(el('h2',{class:'sub', text:box.name}));
+      blk.append(petChestArt(box.art));
+      if(box.blurb) blk.append(el('p',{class:'muted', style:'font-size:12px; margin:0 0 8px;', text:box.blurb}));
+      blk.append(petRarityOdds(box.odds));
+      const pityNote = el('p',{class:'muted', style:'font-size:12px; margin:4px 0 12px;'});
+      blk.append(pityNote);
+      const row = el('div',{class:'controls-row'});
+      const open = el('button',{class:'btn primary', html:`🎁 Open ${box.name} — ${box.cost.toLocaleString()} NetCoin`});
+      row.append(open); blk.append(row);
+      const broke = el('p',{class:'muted', style:'font-size:12px; margin-top:8px;', html:`Earn more NetCoin in The Rig or by foraging &amp; training your stable.`});
+      blk.append(broke);
+      const reveal = el('div',{style:'margin-top:14px;'});
+      blk.append(reveal);
+      function refresh(){
+        pityNote.innerHTML = `<b>${Pets.cfg.PITY_THRESHOLD - Pets.pity()}</b> pull(s) until a guaranteed Rare-or-better.`;
+        const can = Pets.canOpen(box.key);
+        open.disabled = !can; broke.style.display = can ? 'none' : '';
+      }
+      open.onclick = ()=>{
+        const res = Pets.openBox(box.key);
+        if(!res) return;
+        reveal.innerHTML='';
+        const wrap = el('div',{class:'pets-reveal'});
+        const cv = document.createElement('canvas'); Pets.render(res.pal, cv, 320, 'happy', 0);
+        wrap.append(cv);
+        const rk = Pets.RARITY[(res.kind==='dupe')?res.rarity:res.pal.rarity];
+        wrap.append(el('div',{class:'pet-rarity', style:'font-size:13px', html:rk.label}));
+        if(res.kind==='new')      wrap.append(el('div',{html:`<b>${res.pal.name}</b> joined your stable! 🎉`}));
+        else if(res.kind==='upgrade') wrap.append(el('div',{html:`<b>${res.pal.name}</b> evolved — ${Pets.RARITY[res.from].label} → <b style="color:${rk.color}">${rk.label}</b>!`}));
+        else                      wrap.append(el('div',{html:`Duplicate ${Pets.speciesByKey(res.species).name} — recycled into <b>+${res.shards} Shards</b>.`}));
+        reveal.append(wrap);
+        refreshAll();
+        const after = el('div',{class:'controls-row', style:'margin-top:10px; justify-content:center;'});
+        const toStable = el('button',{class:'btn ghost', html:'🐾 View Stable'}); toStable.onclick=()=>Router.go('#/pets');
+        after.append(toStable); wrap.append(after);
+      };
+      refresh();
+      blocks.push({refresh});
+      return blk;
+    }
+    Pets.BOXES.forEach(box=> panel.append(makeBoxBlock(box)));
   }
   paint();
 };
