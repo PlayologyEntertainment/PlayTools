@@ -2583,7 +2583,7 @@ const Ach = (function(){
       test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=>p.rarity==='legendary')) },
     { id:'pets_best_friends', name:'Best Friends', icon:'💞', desc:'Raise a Pet to 100% Bond.',
       test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=> (p.bond||0)>=100)) },
-    { id:'pets_rhythm_ace', name:'Rhythm Ace', icon:'🎵', desc:'Earn an A grade or better at Tap Feed.',
+    { id:'pets_rhythm_ace', name:'Rhythm Ace', icon:'🎵', desc:'Earn an A grade or better at Tap.',
       test:(d,c)=> c && c.tool==='pet_rhythm' && (c.grade==='A'||c.grade==='S') },
     { id:'pets_dodge_ace', name:'Quick Reflexes', icon:'🖐️', desc:'Earn an A grade or better at Tag.',
       test:(d,c)=> c && c.tool==='pet_dodge' && (c.grade==='A'||c.grade==='S') },
@@ -3351,7 +3351,7 @@ window.Rig = Rig;
    A NetCoin sink + care layer that proves the loop end-to-end: gacha Loot Boxes
    (pity + dupe→Shard), a stable of procedurally-rendered Pets, 3-meter Light
    care (Hunger/Happiness/Energy) with Tap affection, Rig-style capped idle
-   earning scaled by Happiness, and skill mini-games (Tap Feed, Tag, Fetch) that
+   earning scaled by Happiness, and skill mini-games (Tap, Tag, Fetch) that
    post to GamerDNA through the SAME recording path the labs use. Honesty guardrail
    (DD §1.2): money buys content, never skill — only the mini-games touch
    attributes; gacha/care/idle never move Gamer Score. The spendable balance is
@@ -3886,7 +3886,7 @@ const CABINETS = [
   { id:'rig',        lab:'The MetaGame', name:'The Rig', railName:'The Rig', icon:RIG_ICON, tag:'mvp', route:'#/rig',
     desc:'Mine NetCoin, build your battlestation & climb your Rig Score.', dna:'Idle · NetCoin · Rig Score' },
   { id:'pets',       lab:'The MetaGame', name:'RetroPets', railName:'RetroPets', icon:'🐾', tag:'mvp', route:'#/pets',
-    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Train (Tap Feed · Tag · Fetch)' },
+    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Train (Tap · Tag · Fetch)' },
   { id:'friends',    lab:'The MetaGame', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
@@ -18832,7 +18832,7 @@ Views.retroPets = function(c){
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     c.innerHTML='';
     const panel = petsHead(c, '🐾 RetroPets',
-      'Crack Loot Boxes for original animal Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away — and your Pets show how they feel. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the training mini-games (Tap Feed, Tag, Fetch) do.</span>');
+      'Crack Loot Boxes for original animal Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away — and your Pets show how they feel. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the training mini-games (Tap, Tag, Fetch) do.</span>');
 
     // ---- wallet / shards / shortcuts ----
     const r = Store.get().rig;
@@ -18889,10 +18889,10 @@ Views.retroPets = function(c){
       empty.append(b); rosterB.append(empty);
     } else {
       // Stable-wide actions: train a Pet via one of the three care mini-games.
-      // Each is a separate GamerDNA on-ramp (DD §5) — Tap Feed → Consistency/
+      // Each is a separate GamerDNA on-ramp (DD §5) — Tap → Consistency/
       // Speed, Tag → Reflex/Focus, Fetch → Precision/Control.
       const trainRow = el('div',{class:'controls-row', style:'margin-bottom:12px;'});
-      const feedBtn = el('button',{class:'btn', html:'🎵 Tap Feed'});
+      const feedBtn = el('button',{class:'btn', html:'🎵 Tap'});
       feedBtn.onclick = ()=> Router.go('#/pets/feed');
       const tagBtn = el('button',{class:'btn', html:'🖐️ Tag'});
       tagBtn.onclick = ()=> Router.go('#/pets/play');
@@ -19061,9 +19061,9 @@ Views.petsStore = function(c){
   paint();
 };
 
-/* ---- Tap Feed: rhythm care mini-game → Consistency/Speed (DD §5) ---- */
+/* ---- Tap: rhythm care mini-game → Consistency/Speed (DD §5) ---- */
 Views.petsFeed = function(c){
-  const panel = petsHead(c, '🎵 Tap Feed',
+  const panel = petsHead(c, '🎵 Tap',
     'Feed your Pet <b>on the beat</b>. Tap the target line as each note lands — steady, well-timed feeding sharpens your <b>Consistency</b> &amp; <b>Speed</b> on your real Gamer DNA.');
   const back = el('div',{class:'controls-row'});
   const bk = el('button',{class:'btn', html:'← Back to Stable'}); bk.onclick=()=>Router.go('#/pets'); back.append(bk); panel.append(back);
@@ -19171,7 +19171,7 @@ Views.petsFeed = function(c){
       `<div class="result-tile"><div class="k">DNA</div><div class="v">Consistency · Speed</div></div>`;
     result.append(res);
     result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} feasted on the beat — Happiness & Bond up, ⚡${Pets.cfg.FEED_ENERGY_COST} energy spent.`}));
-    result.append(shareRow({ lab:'RETROPETS', tool:'Tap Feed', glyph:'🎵', grade,
+    result.append(shareRow({ lab:'RETROPETS', tool:'Tap', glyph:'🎵', grade,
       metric:[{k:'Avg Timing', v:Math.round(avgErr)+' ms'},{k:'NetCoin', v:'+'+reward}],
       designation: grade==='S'?'Beat Master': grade==='A'?'In the Pocket':'Finding the Groove',
       badge: grade==='S'?'Perfect Rhythm':null }));

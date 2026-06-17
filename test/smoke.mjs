@@ -115,7 +115,7 @@ for (const c of cases) {
       }
     });
     await page.waitForTimeout(200);
-    // Play Tap Feed: start, then tap the bar a dozen times.
+    // Play Tap: start, then tap the bar a dozen times.
     await page.evaluate(() => { window.location.hash = '#/pets/feed'; });
     await page.waitForTimeout(200);
     await page.evaluate(() => {
