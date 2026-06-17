@@ -3351,8 +3351,32 @@ const Pets = (function(){
 
     // ears (mood rotates them)
     function ear(s){ ctx.save(); ctx.rotate(s*(M.earRot)+sway*s*0.5);
-      if(sp.ears==='pointed'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.moveTo(s*16,-B.ry+8); ctx.lineTo(s*40,-B.ry-28); ctx.lineTo(s*43,-B.ry+8); ctx.closePath(); ctx.fill();
-        ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.moveTo(s*22,-B.ry+4); ctx.lineTo(s*36,-B.ry-18); ctx.lineTo(s*38,-B.ry+4); ctx.closePath(); ctx.fill(); }
+      if(sp.ears==='pointed'){
+        // Soft cat/fox ear: the base is a chord seated on the head's curve (the
+        // two base ends sit on the head ellipse, dipped slightly in so there's no
+        // seam); a straighter inner edge and a convex outer edge meet at a lightly
+        // rounded tip that leans outward. earRot/sway still tilt the whole ear.
+        const RX=B.rx, RY=B.ry;
+        const hy = ax => -RY*Math.sqrt(Math.max(0, 1-(ax/RX)*(ax/RX)));  // head-top y at |x|
+        const ix=0.14*RX, ox=0.60*RX;            // base ends, on the head…
+        const iy=hy(ix)+4, oy=hy(ox)+4;          // …dipped 4px in so the base reads as attached
+        const tx=0.74*RX, ty=-1.55*RY;           // apex, angled outward past the base
+        ctx.fillStyle=P.ear; ctx.beginPath();
+        ctx.moveTo(s*ix, iy);
+        ctx.quadraticCurveTo(s*0.30*RX, (iy+ty)*0.5, s*(tx-4), ty+7);     // inner edge → tip
+        ctx.quadraticCurveTo(s*(tx+3), ty-2, s*(tx+7), ty+10);           // rounded tip
+        ctx.quadraticCurveTo(s*(ox+0.22*RX), (oy+ty)*0.5, s*ox, oy);     // convex outer edge → base
+        ctx.closePath(); ctx.fill();
+        // inner ear: same shape shrunk toward the centroid, base lifted a touch
+        const cx=(ix+ox+tx)/3, cy=(iy+oy+ty)/3, f=0.36;
+        const L=(px,py)=>[px+(cx-px)*f, py+(cy-py)*f];
+        const [aix,aiy]=L(ix,iy), [aox,aoy]=L(ox,oy), [atx,aty]=L(tx,ty);
+        ctx.fillStyle=P.earIn; ctx.beginPath();
+        ctx.moveTo(s*aix, aiy);
+        ctx.quadraticCurveTo(s*0.30*RX, (aiy+aty)*0.5, s*atx, aty+3);
+        ctx.quadraticCurveTo(s*(aox+0.12*RX), (aoy+aty)*0.5, s*aox, aoy);
+        ctx.closePath(); ctx.fill();
+      }
       else if(sp.ears==='round'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,17,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,9,0,7); ctx.fill(); }
       else if(sp.ears==='floppy'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(s*(B.rx-2),-8,15,32,s*0.35,0,7); ctx.fill(); }
       else if(sp.ears==='long'){ ctx.translate(s*18,-B.ry); ctx.rotate(s*0.1); ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(0,-26,12,34,0,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.ellipse(0,-26,6,25,0,0,7); ctx.fill(); }
@@ -18618,9 +18642,7 @@ Views.retroPets = function(c){
     const shortcuts = el('div',{class:'controls-row'});
     const storeBtn = el('button',{class:'btn primary', html:'🎁 Loot Box Store'});
     storeBtn.onclick = ()=> Router.go('#/pets/store');
-    const trainBtn = el('button',{class:'btn', html:'🎵 Rhythm-Feed'});
-    trainBtn.onclick = ()=> Router.go('#/pets/feed');
-    shortcuts.append(storeBtn, trainBtn);
+    shortcuts.append(storeBtn);
     wallet.append(shortcuts);
     panel.append(wallet);
 
@@ -18660,6 +18682,12 @@ Views.retroPets = function(c){
       const b = el('button',{class:'btn primary', html:'🎁 Open the Loot Box Store'}); b.onclick=()=>Router.go('#/pets/store');
       empty.append(b); rosterB.append(empty);
     } else {
+      // Stable-wide action: train a Pet via the Rhythm-Feed mini-game.
+      const trainRow = el('div',{class:'controls-row', style:'margin-bottom:12px;'});
+      const trainBtn = el('button',{class:'btn', html:'🎵 Rhythm-Feed'});
+      trainBtn.onclick = ()=> Router.go('#/pets/feed');
+      trainRow.append(trainBtn);
+      rosterB.append(trainRow);
       const grid = el('div',{class:'pets-grid'});
       Pets.roster().forEach(pal=> grid.append(makeCard(pal, cards)));
       rosterB.append(grid);
