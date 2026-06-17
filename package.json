@@ -9,6 +9,7 @@
     "test:daily": "node test/daily-calendar.mjs",
     "test:touchpad": "node test/touchpad.mjs",
     "test:tuner": "node test/tuner.mjs",
+    "test:arcade-coins": "node test/arcade-grade-coins.mjs",
     "browser": "node test/browser.mjs",
     "rig:preview": "node tools/rig-preview.mjs",
     "rig:edit": "node tools/rig-edit.mjs",
