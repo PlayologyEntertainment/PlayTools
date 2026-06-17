@@ -83,13 +83,16 @@ not on your talent. Building a monster rig makes you *richer and cooler*, never
 | **Daily payout** | once per local calendar day | Escalates with streak (§5) |
 | **Streak milestones** | at 7 & 30 consecutive days | Lump NetCoin + an exclusive part/cosmetic |
 | **Achievements** | once per unlock | Lump NetCoin per achievement — gives the existing achievement system real purpose (see below) |
+| **Arcade grade clears** | once per cabinet per local day | Clearing an Arcade cabinet at **A** pays 50, at **S** pays 100. Below A pays nothing; capped to once per cabinet per day so an easy cabinet can't be farmed |
 | **Jack-In winnings** | per session, **net-negative** | Two-way: stake NetCoin, win NetCoin — but the house edge makes it a **sink in aggregate** and bounded per day (§3.4) |
 
-> **No per-applet drips.** Using a tool does **not** pay NetCoin directly — that
-> path is reserved for the **Overclock multiplier** (§5.3), which rewards
-> engagement by boosting the *mining rate*. Direct NetCoin instead comes from
-> **achievements**, which turns the achievement system from a vanity list into a
-> meaningful, paying objective board.
+> **No idle per-applet drips.** Merely *opening* a tool does **not** pay NetCoin —
+> general engagement is rewarded by the **Overclock multiplier** (§5.3), which
+> boosts the *mining rate*. The only direct per-play payout is the **Arcade grade
+> clear** above, which pays for a genuinely good result (A/S) and is capped once
+> per cabinet per day. This still respects the core guardrail: the payout reads
+> the grade but **never alters it, your attributes, or your Gamer Score** — money
+> can never buy skill, and skill is rewarded only for an honestly-earned grade.
 
 ### 3.2 Sinks
 | Sink | Notes |

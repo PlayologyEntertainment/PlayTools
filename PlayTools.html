@@ -1855,7 +1855,9 @@ const Store = (function(){
         overclock: { day:null, tools:[] }, // distinct applets used today (§5.3)
         jackInCredits: 0,      // persistent Jack-In bankroll bought with NetCoin (§7 Phase 2)
         achInit: false,        // one-time founder back-pay of past achievements done
-        achPaidIds: []         // achievement ids already paid NetCoin (no double-pay)
+        achPaidIds: [],        // achievement ids already paid NetCoin (no double-pay)
+        gradeDay: null,        // local day key for the per-cabinet A/S grade payout cap
+        gradePaid: []          // arcade cabinet tool-ids already paid the grade bonus today
       },
       // RetroPets (RetroMall_DD.md) — collect/raise/care creatures ("Pets").
       // A pure ECONOMY + care layer: only the skill mini-game writes attributes;
@@ -2554,6 +2556,9 @@ const Ach = (function(){
     if(window.Rig){
       if(newly.length) Rig.payAchievements(newly);
       if(ctx && ctx.tool) Rig.noteTool(ctx.tool);
+      // Arcade A/S clears pay NetCoin (once per cabinet per day) — Rig filters to
+      // the Arcade lab and ignores B/C/F and non-arcade graded applets.
+      if(ctx && ctx.tool && ctx.grade) Rig.payArcadeGrade(ctx.tool, ctx.grade);
     }
     return newly;
   }
@@ -2980,6 +2985,8 @@ const Rig = (function(){
   const CYCLE_LEN  = 30;    // the streak runs in repeating 30-day cycles; bonuses
                             // re-arm relative to the cycle so they always land on
                             // calendar days 7/14/21/28 (weekly) and 30 (monthly).
+  const GRADE_A    = 50;    // NetCoin for an A-grade Arcade clear (once/cabinet/day)
+  const GRADE_S    = 100;   // NetCoin for an S-grade Arcade clear (once/cabinet/day)
 
   // ---- Hardware catalog (functional parts, §6.1). 'rate' adds to the rig
   // multiplier (base 1.0); 'cap' adds offline-cap hours; 'score' feeds the Rig
@@ -3214,6 +3221,37 @@ const Rig = (function(){
     if(window.UI) UI.toast('NetCoin Earned', '+'+total.toLocaleString()+' NetCoin from achievements');
   }
 
+  // ---- Arcade grade payout. Clearing an Arcade cabinet with an A grade pays
+  // GRADE_A NetCoin, an S grade pays GRADE_S — once per cabinet per local
+  // calendar day (anti-farm: replaying the same cabinet that day pays nothing).
+  // Driven from the universal Ach.evaluate({tool,grade}) chokepoint. Only the
+  // Arcade lab counts; the cabinet allowlist is derived from the CABINETS
+  // registry so new cabinets are covered automatically. A pure economy payout —
+  // it never touches the grade itself, attributes or Gamer Score. ----
+  let _arcadeIds = null;
+  function arcadeToolIds(){
+    if(_arcadeIds) return _arcadeIds;
+    _arcadeIds = new Set();
+    if(typeof CABINETS!=='undefined'){
+      CABINETS.forEach(c=>{ if(c.lab==='Arcade' && c.route){ const m=/#\/arcade\/(.+)$/.exec(c.route); if(m) _arcadeIds.add(m[1]); } });
+    }
+    return _arcadeIds;
+  }
+  function payArcadeGrade(toolId, grade){
+    if(!toolId || (grade!=='A' && grade!=='S')) return 0;
+    if(!arcadeToolIds().has(toolId)) return 0;   // Arcade-lab cabinets only
+    const r = rig();
+    const fresh = (r.gradeDay !== today());       // a new local calendar day resets the cap
+    const paid = fresh ? [] : (r.gradePaid || []);
+    if(paid.includes(toolId)) return 0;           // already paid this cabinet today
+    const amt = (grade==='S') ? GRADE_S : GRADE_A;
+    Store.update(s=>{ const g=s.rig;
+      if(g.gradeDay!==today()){ g.gradeDay=today(); g.gradePaid=[]; }
+      g.gradePaid.push(toolId); g.netcoin+=amt; g.totalEarned+=amt; });
+    if(window.UI) UI.toast('NetCoin Earned', '+'+amt+' NetCoin · '+grade+'-grade clear');
+    return amt;
+  }
+
   // ---- boot: one-time founder back-pay of already-earned achievements, then
   // seed the mine clock. Runs once at startup, before Router.start. ----
   function init(){
@@ -3237,7 +3275,7 @@ const Rig = (function(){
     Store.update(s=>{ s.rig.netcoin+=n; s.rig.totalEarned+=n; }); return n; }
 
   return {
-    PARTS, COSMETICS, SURFACES, partById, surfaceById, owns, init, noteTool, payAchievements, grant,
+    PARTS, COSMETICS, SURFACES, partById, surfaceById, owns, init, noteTool, payAchievements, payArcadeGrade, grant,
     ownsSurface, surfacesByKind, equippedFloor, equippedWall, equipSurface,
     rate, rigMultiplier, capHours, computeRigScore,
     pending, tankFrac, tankFull, collectIdle,
@@ -3245,7 +3283,7 @@ const Rig = (function(){
     dailyAvailable, dailyPreview, claimDaily, dailyMultiplier, cycleDayOf, dailyCalendar,
     canAfford, buy,
     CREDIT_PACKS, jackInCredits, addJackInCredits, consumeJackInCredits, buyCredits,
-    cfg:{ BASE_RATE, BASE_CAP_H, DAILY_BASE, STEP_PCT, CAP_PCT, OC_THRESH, OC_BONUS, MS_WEEKLY, MS_MONTHLY, CYCLE_LEN }
+    cfg:{ BASE_RATE, BASE_CAP_H, DAILY_BASE, STEP_PCT, CAP_PCT, OC_THRESH, OC_BONUS, MS_WEEKLY, MS_MONTHLY, CYCLE_LEN, GRADE_A, GRADE_S }
   };
 })();
 window.Rig = Rig;
