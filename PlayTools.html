@@ -3416,8 +3416,17 @@ const Pets = (function(){
       else if(sp.tail==='stub'){ ctx.fillStyle=P.lo; ctx.beginPath(); ctx.ellipse(s*0,-4,8,13,s*0.4,0,7); ctx.fill(); }
       ctx.restore(); })();
 
-    // ears (mood rotates them)
-    function ear(s){ ctx.save(); ctx.rotate(s*(M.earRot)+sway*s*0.5);
+    // Per-Pet ear placement (pointed/round only): slide each ear along the head's
+    // curve, from near the top down toward the side — never dead-centre on top.
+    // Seeded per ear so individuals differ and the two ears sit a touch
+    // asymmetrically. Floppy/long keep their hand-tuned spot, and we skip their RNG
+    // draw entirely so those species' palette/markings stay byte-for-byte unchanged.
+    const earVaries = (sp.ears==='pointed' || sp.ears==='round');
+    const EAR_DROP_MIN=0.12, EAR_DROP_SPAN=0.78;   // radians: ~7° (near top) … ~52° (side)
+    const dropL = earVaries ? EAR_DROP_MIN + rnd()*EAR_DROP_SPAN : 0;
+    const dropR = earVaries ? EAR_DROP_MIN + rnd()*EAR_DROP_SPAN : 0;
+    // ears (mood rotates them; per-Pet drop slides them down toward the side)
+    function ear(s, drop){ ctx.save(); ctx.rotate(s*(M.earRot+drop)+sway*s*0.5);
       if(sp.ears==='pointed'){
         // Soft cat/fox ear: the base is a chord seated on the head's curve (the
         // two base ends sit on the head ellipse, dipped slightly in so there's no
@@ -3448,7 +3457,7 @@ const Pets = (function(){
       else if(sp.ears==='floppy'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(s*(B.rx-2),-8,15,32,s*0.35,0,7); ctx.fill(); }
       else if(sp.ears==='long'){ ctx.translate(s*18,-B.ry); ctx.rotate(s*0.1); ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(0,-26,12,34,0,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.ellipse(0,-26,6,25,0,0,7); ctx.fill(); }
       ctx.restore(); }
-    ear(-1); ear(1);
+    ear(-1, dropL); ear(1, dropR);
 
     // paws / feet
     if(sp.paws){ ctx.fillStyle=P.lo; [-1,1].forEach(s=>{ ctx.beginPath(); ctx.ellipse(s*18,B.ry-2,12,9,0,0,7); ctx.fill();
