@@ -97,8 +97,10 @@ skin and the NetCoin/GamerDNA plumbing make it unmistakably PlayTools.
 ### 3.1 Identity
 Each MallPal is an original, procedurally-rendered pixel creature with:
 - **Species + variant** (the procedural seed → silhouette, palette, animation).
-- **Rarity** (Common → Uncommon → Rare → Epic → Legendary) — drives drop rate and
-  cosmetic flourish *only*, **not** combat or earning power beyond cosmetic feel.
+- **Rarity** (Common → Uncommon → Rare → Epic → Legendary) — drives drop rate,
+  cosmetic flourish, and a **per-pet idle earn multiplier** (Common 1× → Legendary
+  5×). Rarity affects *NetCoin earning only*; it **never** touches skill, grades,
+  or Gamer Score.
 - **Name** (player-set) and **adoption date**.
 - **Bond level** — raised purely by *care actions over time* (tapping, mini-games,
   feeding). Bond unlocks cosmetic emotes/poses and small idle bonuses.
@@ -110,8 +112,11 @@ Each MallPal is an original, procedurally-rendered pixel creature with:
 | **Happiness** | neglect | tapping/affection, play, mini-games | **idle earn multiplier** |
 | **Energy** | activities/arena | rest (idle), sleep | gates arena/mini-game performance |
 
-- **Happiness** is the economic lever: a happy stable earns at full idle rate; a
-  neglected one earns less. That is the *whole* stake.
+- **Happiness** is the per-pet care lever: a happy stable earns at full idle rate;
+  a neglected one earns less. The full idle rate stacks three multipliers —
+  **Happiness × Rarity (per pet)**, then a stable-wide **Collection bonus**
+  (+8% per unique species owned, replaced by a **2× Full-Stable capstone** once
+  every species is collected). Care, rarity, and breadth all pay off.
 - **Hunger/Energy** gate participation — a starving or exhausted MallPal can't
   perform well in the arena or mini-games until cared for.
 - **No death, no permanent loss.** Meters floor out; affection always recovers.
