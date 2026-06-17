@@ -3686,14 +3686,17 @@ const Pets = (function(){
     });
   }
 
-  // ---- sell (liquidate a Pet for NetCoin). A fully-happy pet fetches the Loot
-  // Box cost plus a bond bonus (bond% × box cost); lower Happiness scales the
-  // whole price down toward a 50% floor. e.g. bond 10% + full Happiness → 275
-  // (250 + 25); the same pet at 50% Happiness → ~206. ----
+  // ---- sell (liquidate a Pet for NetCoin). Each rarity has a sale-value cap —
+  // the price a fully-bonded, fully-happy Pet fetches: Common 500, Uncommon 750,
+  // Rare 1000, Epic 2000, Legendary 3000. Bond scales the ceiling from half-cap
+  // up toward the cap; lower Happiness then scales the whole price down toward a
+  // 50% floor. e.g. a Common at bond 10% + full Happiness → 275; the same pet at
+  // 50% Happiness → ~206. ----
   function sellPrice(pal){
     if(!pal) return 0;
     const m = derive(pal, Date.now());
-    const max = BOX_COST + Math.round(BOX_COST * (bondPct(pal)/100));   // fully-happy price
+    const cap = ({ common:500, uncommon:750, rare:1000, epic:2000, legendary:3000 })[pal.rarity] || 500;
+    const max = cap * (0.5 + 0.5*(bondPct(pal)/100));   // bond scales toward the rarity cap
     return Math.round(max * (0.5 + 0.5*(clamp100(m.happy)/100)));
   }
   function sell(id){
