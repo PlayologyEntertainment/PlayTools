@@ -1195,10 +1195,15 @@
   .modal-backdrop{
     position:fixed; inset:0; z-index:200; background:rgba(2,4,12,0.82);
     display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px);
+    overflow-y:auto;
   }
   .modal{
     background:var(--panel); border:1px solid var(--neon); border-radius:10px; padding:22px;
     max-width:520px; width:100%; box-shadow:0 0 40px rgba(22,242,200,0.25); position:relative;
+    /* Never taller than the viewport — long frames (the help/onboarding modal in
+       particular) scroll inside their own box so the action button at the bottom
+       is always reachable, including on short / mobile screens. */
+    max-height:calc(100vh - 40px); overflow-y:auto;
   }
   .modal h3{font-family:var(--pixel); color:var(--neon); margin:0 0 14px; letter-spacing:1px;}
   .modal canvas{display:block; width:100%; max-width:440px; margin:0 auto 16px; border-radius:8px; border:1px solid var(--line);}
@@ -1540,6 +1545,18 @@
     /* Reclaim horizontal room on phones so wide panels (the Rig, NetStore)
        have more to work with down to ~360px-wide screens. */
     .frame{ padding-left:12px; padding-right:12px; }
+
+    /* Modals fill the whole small display rather than floating in a centred,
+       padded box that can overflow off-screen. The backdrop pins the frame to
+       the top and the frame itself fills the dynamic viewport height (dvh keeps
+       the bottom button clear of mobile browser chrome) while scrolling its
+       content, so the action button at the bottom can always be reached. */
+    .modal-backdrop{ padding:0; align-items:stretch; }
+    .modal{
+      max-width:none; border-radius:0; border-left:none; border-right:none;
+      min-height:100vh; min-height:100dvh;
+      max-height:100vh; max-height:100dvh;
+    }
     /* Stack the status strip so the action buttons sit ABOVE the stats and
        both rows are centred (DD UX pass). */
     .controls{ flex-direction:column; align-items:center; gap:10px; flex-wrap:nowrap; }
@@ -4996,6 +5013,7 @@ function openHelp(){
   const moreList = el('ul',{class:'help-steps', style:'list-style:none; padding-left:0;'});
   moreList.append(el('li',{html:'<b>🕹️ The Arcade</b> — a whole wall of bite-size retro cabinets (Mac Pan, StarDodger, Defrag and a bunch more). Easy to pick up, hard to put down — and every hi-score feeds your Gamer DNA.'}));
   moreList.append(el('li',{html:'<b>🖥️ The Rig</b> — show up, play, and watch your very own battlestation roar to life. There\'s a whole meta-game humming under the hood… jack in and find out. 😏'}));
+  moreList.append(el('li',{html:'<b>🐾 RetroPets</b> — crack open Loot Boxes and hatch a stable of pixel critters all your own. Keep \'em fed, happy and trained and they\'ll earn NetCoin while you\'re away. Collect all eight species. 🥚'}));
   moreSec.append(moreList);
   modal.append(moreSec);
 
