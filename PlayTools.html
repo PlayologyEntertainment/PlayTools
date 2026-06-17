@@ -827,6 +827,13 @@
   .rhythm-target{position:absolute; top:8px; bottom:8px; left:calc(50% - 4px); width:8px; border-radius:5px; background:var(--neon-3); box-shadow:0 0 12px var(--neon-3);}
   .rhythm-note{position:absolute; top:18px; width:30px; height:84px; border-radius:7px; background:linear-gradient(180deg,var(--neon),var(--neon-2)); box-shadow:0 0 10px var(--neon); transform:translateX(-50%);}
   .rhythm-judge{position:absolute; left:0; right:0; top:46px; text-align:center; font-family:var(--pixel); font-size:18px; pointer-events:none; opacity:0; transition:opacity .1s;}
+  /* Dodge-Play reuses the lab .stage (flex/centred + .go/.foul/.wait states); it
+     only needs a shorter height than the full-screen reflex labs. */
+  .stage.pets-dodge{min-height:180px; padding:24px;}
+  /* Aim-Groom: a stage where shrinking grooming sparkles drift onto the Pet. */
+  .groom-stage{position:relative; height:200px; border:1px solid var(--line); border-radius:10px; background:radial-gradient(120% 90% at 50% 120%, #241046, var(--bg-2)); overflow:hidden; margin:12px 0; cursor:crosshair; touch-action:none;}
+  .groom-spot{position:absolute; border-radius:50%; background:radial-gradient(circle at 38% 32%, #fff, var(--neon) 55%, var(--neon-2) 100%); box-shadow:0 0 14px var(--neon); transform:translate(-50%,-50%); pointer-events:none;}
+  .groom-judge{position:absolute; font-family:var(--pixel); font-size:14px; pointer-events:none; transform:translate(-50%,-50%); opacity:0; transition:opacity .12s, top .12s;}
 
   .seg{display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
   .seg button{
@@ -2551,6 +2558,10 @@ const Ach = (function(){
       test:(d)=> !!(d.pets && d.pets.pals && d.pets.pals.some(p=> (p.bond||0)>=100)) },
     { id:'pets_rhythm_ace', name:'Rhythm Ace', icon:'🎵', desc:'Earn an A grade or better at Rhythm-Feed.',
       test:(d,c)=> c && c.tool==='pet_rhythm' && (c.grade==='A'||c.grade==='S') },
+    { id:'pets_dodge_ace', name:'Quick Reflexes', icon:'🎾', desc:'Earn an A grade or better at Dodge-Play.',
+      test:(d,c)=> c && c.tool==='pet_dodge' && (c.grade==='A'||c.grade==='S') },
+    { id:'pets_groom_ace', name:'Master Groomer', icon:'✨', desc:'Earn an A grade or better at Aim-Groom.',
+      test:(d,c)=> c && c.tool==='pet_groom' && (c.grade==='A'||c.grade==='S') },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -3847,7 +3858,7 @@ const CABINETS = [
   { id:'rig',        lab:'The MetaGame', name:'The Rig', railName:'The Rig', icon:RIG_ICON, tag:'mvp', route:'#/rig',
     desc:'Mine NetCoin, build your battlestation & climb your Rig Score.', dna:'Idle · NetCoin · Rig Score' },
   { id:'pets',       lab:'The MetaGame', name:'RetroPets', railName:'RetroPets', icon:'🐾', tag:'mvp', route:'#/pets',
-    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Rhythm-Feed' },
+    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Train (Rhythm · Dodge · Groom)' },
   { id:'friends',    lab:'The MetaGame', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
@@ -18793,7 +18804,7 @@ Views.retroPets = function(c){
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     c.innerHTML='';
     const panel = petsHead(c, '🐾 RetroPets',
-      'Crack Loot Boxes for original animal Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away — and your Pets show how they feel. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the Rhythm-Feed mini-game does.</span>');
+      'Crack Loot Boxes for original animal Pets, then feed, pet and train your stable. A happy, well-fed stable earns more NetCoin while you\'re away — and your Pets show how they feel. <span class="muted">Caring & collecting never affect your skill or Gamer Score — only the training mini-games (Rhythm-Feed, Dodge-Play, Aim-Groom) do.</span>');
 
     // ---- wallet / shards / shortcuts ----
     const r = Store.get().rig;
@@ -18849,11 +18860,17 @@ Views.retroPets = function(c){
       const b = el('button',{class:'btn primary', html:'🎁 Open the Loot Box Store'}); b.onclick=()=>Router.go('#/pets/store');
       empty.append(b); rosterB.append(empty);
     } else {
-      // Stable-wide action: train a Pet via the Rhythm-Feed mini-game.
+      // Stable-wide actions: train a Pet via one of the three care mini-games.
+      // Each is a separate GamerDNA on-ramp (DD §5) — Rhythm-Feed → Consistency/
+      // Speed, Dodge-Play → Reflex/Focus, Aim-Groom → Precision/Control.
       const trainRow = el('div',{class:'controls-row', style:'margin-bottom:12px;'});
-      const trainBtn = el('button',{class:'btn', html:'🎵 Rhythm-Feed'});
-      trainBtn.onclick = ()=> Router.go('#/pets/feed');
-      trainRow.append(trainBtn);
+      const rhythmBtn = el('button',{class:'btn', html:'🎵 Rhythm-Feed'});
+      rhythmBtn.onclick = ()=> Router.go('#/pets/feed');
+      const dodgeBtn = el('button',{class:'btn', html:'🎾 Dodge-Play'});
+      dodgeBtn.onclick = ()=> Router.go('#/pets/play');
+      const groomBtn = el('button',{class:'btn', html:'✨ Aim-Groom'});
+      groomBtn.onclick = ()=> Router.go('#/pets/groom');
+      trainRow.append(rhythmBtn, dodgeBtn, groomBtn);
       rosterB.append(trainRow);
       const grid = el('div',{class:'pets-grid'});
       Pets.roster().forEach(pal=> grid.append(makeCard(pal, cards)));
@@ -19139,6 +19156,231 @@ Views.petsFeed = function(c){
   return ()=>{ if(raf) cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); };
 };
 
+/* ---- Shared scaffolding for the care mini-games (DD §5). Builds the header,
+   a Back-to-Stable link, and an Energy-gated Pet picker; each game layers its
+   own stage + scoring on top. Returns null when the stable is empty (the caller
+   then has nothing to mount). `selId()` is the currently chosen Pet; `refresh()`
+   re-renders the picker so spent-energy state shows after a run. ---- */
+function petsTrainScaffold(c, opts){
+  const panel = petsHead(c, opts.title, opts.desc);
+  const back = el('div',{class:'controls-row'});
+  const bk = el('button',{class:'btn', html:'← Back to Stable'}); bk.onclick=()=>Router.go('#/pets'); back.append(bk); panel.append(back);
+
+  if(Pets.roster().length===0){
+    panel.append(el('p',{class:'pets-empty', html:'You need a Pet first. <a href="#/pets/store">Open a Loot Box →</a>'}));
+    return null;
+  }
+
+  let selId = Pets.roster()[0].id;
+  const pick = el('div',{class:'rig-block'});
+  pick.append(el('h2',{class:'sub', text:'Pick a Pet to train'}));
+  const seg = el('div',{class:'controls-row'});
+  function refresh(){
+    seg.innerHTML='';
+    Pets.roster().forEach(p=>{
+      const m=Pets.derive(p,Date.now()); const ok=m.energy>=Pets.cfg.FEED_ENERGY_MIN;
+      const btn=el('button',{class:'btn'+(p.id===selId?' primary':'')+(ok?'':' ghost'), html:`${p.name} <span class="sub-stat">⚡${Math.round(m.energy)}</span>`});
+      btn.disabled = !ok && p.id!==selId;
+      btn.title = ok?'':'Needs ⚡'+Pets.cfg.FEED_ENERGY_MIN+'+ energy — let it rest first.';
+      btn.onclick = ()=>{ selId=p.id; refresh(); };
+      seg.append(btn);
+    });
+  }
+  refresh();
+  pick.append(seg);
+  pick.append(el('p',{class:'muted', style:'font-size:11px; margin:6px 0 0;', html:`Training costs ⚡${Pets.cfg.FEED_ENERGY_COST} energy. Energy rests back over time.`}));
+  panel.append(pick);
+
+  const game = el('div',{class:'rig-block'}); panel.append(game);
+  // Energy gate shared by all three games: a tired Pet can't train (DD §3.2).
+  function energyOk(){ const p=Pets.roster().find(x=>x.id===selId); return p && Pets.derive(p,Date.now()).energy >= Pets.cfg.FEED_ENERGY_MIN; }
+  return { panel, game, selId:()=>selId, sel:()=>Pets.roster().find(p=>p.id===selId), refresh, energyOk };
+}
+
+/* ---- Dodge-Play: a reaction mini-game → Reflex/Focus (DD §5). Toss neon
+   mall-toys at your Pet; it dodges on the cue. Across several rounds the stage
+   arms after a RANDOM delay then flashes NEON GREEN — react fast. Random delays
+   + a false-start foul make sustained attention (Focus) matter, not just raw
+   reflex. Mirrors the Reaction Trainer's input + DNA weighting for honesty. ---- */
+Views.petsDodge = function(c){
+  const S = petsTrainScaffold(c, {
+    title:'🎾 Dodge-Play',
+    desc:'Play fetch with neon mall-toys — your Pet <b>dodges on the cue</b>. Wait for the stage to flash <b>NEON GREEN</b>, then hit <b>SPACE</b> or tap as fast as you can. Sharp, attentive reactions train your <b>Reflex</b> &amp; <b>Focus</b>. <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5).</span>' });
+  if(!S) return;
+  const { game, sel, refresh, energyOk } = S;
+
+  game.append(el('h2',{class:'sub', text:'Read the Cue'}));
+  const stage = el('div',{class:'stage pets-dodge'});
+  game.append(stage);
+  const ctrls = el('div',{class:'controls-row'});
+  const start = el('button',{class:'btn primary', html:'▶ Start Dodging'});
+  ctrls.append(start); game.append(ctrls);
+  const result = el('div',{}); game.append(result);
+
+  const ROUNDS=8, MIN_DELAY=800, MAX_DELAY=2500, FOUL_MS=600, MISS_MS=1200, GAP=850;
+  let state='idle', round=0, times=[], goAt=0, armTimer=null, missTimer=null, gapTimer=null, running=false;
+  function setStage(cls, big, small){ stage.className='stage pets-dodge'+(cls?' '+cls:''); stage.innerHTML=`<div class="big">${big}</div>`+(small?`<div class="small">${small}</div>`:''); }
+  function clearTimers(){ [armTimer,missTimer,gapTimer].forEach(t=>{ if(t) clearTimeout(t); }); armTimer=missTimer=gapTimer=null; }
+  function arm(){
+    if(round>=ROUNDS){ finish(); return; }
+    state='wait'; setStage('wait','WAIT FOR NEON GREEN…', `Round ${round+1}/${ROUNDS} — hold steady, don't jump early.`);
+    armTimer=setTimeout(()=>{ state='go'; goAt=performance.now(); setStage('go','DODGE!','Hit SPACE or tap — now!');
+      missTimer=setTimeout(()=>register(MISS_MS,'slow'), 1100); }, MIN_DELAY+Math.random()*(MAX_DELAY-MIN_DELAY));
+  }
+  function register(val, kind){
+    clearTimers(); times.push(val); round++;
+    const big = kind==='foul'?'TOO SOON · FOUL': kind==='slow'?'TOO SLOW': val+' ms';
+    const cls = (kind==='foul'||kind==='slow')?'foul':'';
+    setStage(cls, big, round>=ROUNDS?'Last one — tallying…':'Nice. Next toy incoming…');
+    state='shown'; gapTimer=setTimeout(arm, GAP);
+  }
+  function react(){
+    if(!running) return;
+    if(state==='wait'){ register(FOUL_MS,'foul'); return; }   // jumped before the cue
+    if(state==='go'){ register(Math.round(performance.now()-goAt)); return; }
+  }
+  function begin(){
+    if(!energyOk()){ const p=sel(); UI.toast('Too tired', `${p?p.name:'Your Pet'} needs to rest before training.`); return; }
+    result.innerHTML=''; times=[]; round=0; running=true; start.disabled=true; arm();
+  }
+  function finish(){
+    if(!running) return; running=false; clearTimers();
+    const avg = times.reduce((s,e)=>s+e,0)/times.length;
+    const quality = clamp01((520-avg)/(520-180));
+    const grade = avg<220?'S':avg<280?'A':avg<360?'B':avg<460?'C':'F';
+    const reward = Math.round(18 + 62*quality);
+    const pal = sel();
+    // GamerDNA via the SAME path the labs use (honest skill bridge, DD §5)
+    recordRun('pet_dodge', {best:'min', value:Math.round(avg)});
+    Attr.applyVector({reflex:12, focus:4}, quality);
+    Pets.applyGameResult(pal.id, quality, reward);
+    Ach.evaluate({tool:'pet_dodge', grade, avg:Math.round(avg)});
+    setStage('','Done!','');
+    result.innerHTML='';
+    const res = el('div',{class:'results'});
+    res.innerHTML = `<div class="result-tile"><div class="k">Avg Reaction</div><div class="v">${Math.round(avg)} ms</div></div>`+
+      `<div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${grade}">${grade}</div></div>`+
+      `<div class="result-tile"><div class="k">NetCoin</div><div class="v">+${reward}</div></div>`+
+      `<div class="result-tile"><div class="k">DNA</div><div class="v">Reflex · Focus</div></div>`;
+    result.append(res);
+    result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} darted away from every toy — Happiness & Bond up, ⚡${Pets.cfg.FEED_ENERGY_COST} energy spent.`}));
+    result.append(shareRow({ lab:'RETROPETS', tool:'Dodge-Play', glyph:'🎾', grade,
+      metric:[{k:'Avg Reaction', v:Math.round(avg)+' ms'},{k:'NetCoin', v:'+'+reward}],
+      designation: grade==='S'?'Untouchable': grade==='A'?'Lightning Paws':'Quick on the Draw',
+      badge: grade==='S'?'Perfect Reflexes':null }));
+    refresh();
+    start.disabled=false; start.innerHTML='▶ Dodge Again';
+  }
+  function onKey(e){ if(e.code==='Space'){ e.preventDefault(); react(); } }
+  setStage('','🎾 Ready?','Press Start, then react when the stage flashes NEON GREEN. Jumping early is a foul.');
+  start.onclick = begin;
+  stage.addEventListener('pointerdown', react);
+  window.addEventListener('keydown', onKey);
+  return ()=>{ clearTimers(); window.removeEventListener('keydown', onKey); };
+};
+
+/* ---- Aim-Groom: a fine-pointer mini-game → Precision/Control (DD §5). Grooming
+   sparkles drift onto your Pet and shrink as they fade; click each one before it
+   vanishes. Closer-to-centre clicks score higher (Precision); the drift + shrink
+   make steady tracking matter (Control). Mirrors the Precision Trainer's DNA
+   weighting. Outcome is pure input quality — rarity/NetCoin never touch it. ---- */
+Views.petsGroom = function(c){
+  const S = petsTrainScaffold(c, {
+    title:'✨ Aim-Groom',
+    desc:'Grooming sparkles drift across your Pet and shrink as they fade — <b>click each one before it vanishes</b>, as close to centre as you can. Fine, controlled aiming trains your <b>Precision</b> &amp; <b>Control</b>. <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5).</span>' });
+  if(!S) return;
+  const { game, sel, refresh, energyOk } = S;
+
+  game.append(el('h2',{class:'sub', text:'Groom the Sparkles'}));
+  const stage = el('div',{class:'groom-stage'});
+  const spot = el('div',{class:'groom-spot', style:'display:none'});
+  const judge = el('div',{class:'groom-judge'});
+  stage.append(spot, judge);
+  game.append(stage);
+  const hint = el('p',{class:'muted', style:'font-size:12px;', html:'Click directly on each sparkle — the smaller it has shrunk, the more precise you must be.'});
+  game.append(hint);
+  const ctrls = el('div',{class:'controls-row'});
+  const start = el('button',{class:'btn primary', html:'▶ Start Grooming'});
+  ctrls.append(start); game.append(ctrls);
+  const result = el('div',{}); game.append(result);
+
+  const SPOTS=12, LIFE=1400, R_MAX=26, R_MIN=7, MARGIN=32;
+  let raf=null, running=false, done=0, qSum=0, cur=null;
+  function spawn(){
+    const w=stage.clientWidth, h=stage.clientHeight;
+    const x=MARGIN+Math.random()*(w-2*MARGIN), y=MARGIN+Math.random()*(h-2*MARGIN);
+    const ang=Math.random()*Math.PI*2, sp=18+Math.random()*22;   // gentle drift px/s
+    cur={ x, y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp, born:performance.now() };
+    spot.style.display='block';
+  }
+  function loop(now){
+    if(!running) return;
+    const dt=Math.min(0.05,(now-(cur.last||now))/1000); cur.last=now;
+    const age=now-cur.born;
+    if(age>=LIFE){ flash(cur.x, cur.y, 'MISS', '#ff4d6d'); next(0); return; }
+    const w=stage.clientWidth, h=stage.clientHeight;
+    cur.x+=cur.vx*dt; cur.y+=cur.vy*dt;
+    if(cur.x<MARGIN||cur.x>w-MARGIN) cur.vx*=-1; if(cur.y<MARGIN||cur.y>h-MARGIN) cur.vy*=-1;
+    cur.x=Math.max(MARGIN,Math.min(w-MARGIN,cur.x)); cur.y=Math.max(MARGIN,Math.min(h-MARGIN,cur.y));
+    cur.r=R_MAX-(R_MAX-R_MIN)*(age/LIFE);
+    spot.style.left=cur.x+'px'; spot.style.top=cur.y+'px'; spot.style.width=spot.style.height=(cur.r*2)+'px';
+    raf=requestAnimationFrame(loop);
+  }
+  function flash(x,y,txt,col){ judge.textContent=txt; judge.style.color=col; judge.style.left=x+'px'; judge.style.top=(y-cur.r-6)+'px'; judge.style.opacity='1'; setTimeout(()=>{ judge.style.opacity='0'; }, 260); }
+  function click(e){
+    if(!running||!cur) return;
+    const rect=stage.getBoundingClientRect();
+    const cx=(e.clientX!=null?e.clientX:rect.left+cur.x)-rect.left, cy=(e.clientY!=null?e.clientY:rect.top+cur.y)-rect.top;
+    const dist=Math.hypot(cx-cur.x, cy-cur.y);
+    if(dist<=cur.r+8){
+      const q=clamp01(1-dist/R_MAX);            // centre hit ≈1; edge of a big spot lower
+      flash(cur.x, cur.y, q>0.85?'PERFECT':q>0.6?'GREAT':'OK', q>0.85?'#16f2c8':q>0.6?'#37e35b':'#ffd23d');
+      next(q);
+    } // stray clicks (outside the spot) are ignored — no penalty, no progress
+  }
+  function next(q){
+    if(raf) cancelAnimationFrame(raf); raf=null;
+    qSum+=q; done++;
+    if(done>=SPOTS){ finish(); return; }
+    cur=null; spawn(); raf=requestAnimationFrame(loop);
+  }
+  function begin(){
+    if(!energyOk()){ const p=sel(); UI.toast('Too tired', `${p?p.name:'Your Pet'} needs to rest before training.`); return; }
+    result.innerHTML=''; done=0; qSum=0; running=true; start.disabled=true;
+    spawn(); raf=requestAnimationFrame(loop);
+  }
+  function finish(){
+    if(!running) return; running=false; if(raf) cancelAnimationFrame(raf); raf=null; spot.style.display='none';
+    const accuracy=Math.round(100*qSum/SPOTS);
+    const quality=clamp01(accuracy/100);
+    const grade = accuracy>=92?'S':accuracy>=80?'A':accuracy>=66?'B':accuracy>=50?'C':'F';
+    const reward = Math.round(18 + 62*quality);
+    const pal = sel();
+    // GamerDNA via the SAME path the labs use (honest skill bridge, DD §5)
+    recordRun('pet_groom', {best:'max', value:accuracy});
+    Attr.applyVector({precision:16, control:6}, quality);
+    Pets.applyGameResult(pal.id, quality, reward);
+    Ach.evaluate({tool:'pet_groom', grade, accuracy});
+    result.innerHTML='';
+    const res = el('div',{class:'results'});
+    res.innerHTML = `<div class="result-tile"><div class="k">Accuracy</div><div class="v">${accuracy}%</div></div>`+
+      `<div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${grade}">${grade}</div></div>`+
+      `<div class="result-tile"><div class="k">NetCoin</div><div class="v">+${reward}</div></div>`+
+      `<div class="result-tile"><div class="k">DNA</div><div class="v">Precision · Control</div></div>`;
+    result.append(res);
+    result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} is groomed to a neon shine — Happiness & Bond up, ⚡${Pets.cfg.FEED_ENERGY_COST} energy spent.`}));
+    result.append(shareRow({ lab:'RETROPETS', tool:'Aim-Groom', glyph:'✨', grade,
+      metric:[{k:'Accuracy', v:accuracy+'%'},{k:'NetCoin', v:'+'+reward}],
+      designation: grade==='S'?'Show-Ring Ready': grade==='A'?'Steady Hand':'Tidying Up',
+      badge: grade==='S'?'Master Groomer':null }));
+    refresh();
+    start.disabled=false; start.innerHTML='▶ Groom Again';
+  }
+  start.onclick = begin;
+  stage.addEventListener('pointerdown', click);
+  return ()=>{ running=false; if(raf) cancelAnimationFrame(raf); };
+};
+
 /* ============================================================================
    BOOT
    ============================================================================ */
@@ -19155,6 +19397,8 @@ Router.add('#/rig/store', Views.rigStore);
 Router.add('#/pets', Views.retroPets);
 Router.add('#/pets/store', Views.petsStore);
 Router.add('#/pets/feed', Views.petsFeed);
+Router.add('#/pets/play', Views.petsDodge);
+Router.add('#/pets/groom', Views.petsGroom);
 Router.add('#/dna', Views.dna);
 Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);
