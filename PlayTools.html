@@ -3520,8 +3520,17 @@ const Pets = (function(){
     const EAR_DROP_MIN=0.12, EAR_DROP_SPAN=0.78;   // radians: ~7° (near top) … ~52° (side)
     const dropL = earVaries ? EAR_DROP_MIN + rnd()*EAR_DROP_SPAN : 0;
     const dropR = earVaries ? EAR_DROP_MIN + rnd()*EAR_DROP_SPAN : 0;
-    // ears (mood rotates them; per-Pet drop slides them down toward the side)
-    function ear(s, drop){ ctx.save(); ctx.rotate(s*(M.earRot+drop)+sway*s*0.5);
+    // Hound (floppy) ears get a seeded hang length per ear: ~0.6 reads like a
+    // Beagle, ~1.5 like a long-eared Basset — and the two ears differ a touch so
+    // an individual looks hand-drawn. Only floppy consumes this RNG (nothing
+    // downstream in drawPet draws from rnd()), so other species stay unchanged.
+    const floppy = sp.ears==='floppy';
+    const lenL = floppy ? 0.6 + rnd()*0.92 : 1;
+    const lenR = floppy ? 0.6 + rnd()*0.92 : 1;
+    // ears (mood rotates them; per-Pet drop slides them down toward the side).
+    // Most ears draw behind the head; the floppy hound ear instead draws in a
+    // later `front` pass so its leather drapes over the sides of the face.
+    function ear(s, drop, len, front){ ctx.save(); ctx.rotate(s*(M.earRot+drop)+sway*s*0.5);
       if(sp.ears==='pointed'){
         // Soft cat/fox ear: the base is a chord seated on the head's curve (the
         // two base ends sit on the head ellipse, dipped slightly in so there's no
@@ -3549,10 +3558,38 @@ const Pets = (function(){
         ctx.closePath(); ctx.fill();
       }
       else if(sp.ears==='round'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,17,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,9,0,7); ctx.fill(); }
-      else if(sp.ears==='floppy'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(s*(B.rx-2),-8,15,32,s*0.35,0,7); ctx.fill(); }
+      else if(front && sp.ears==='floppy'){
+        // Hound ear: a long, heavy lobe that pins high on the side of the head
+        // and drapes down past the jaw, widening to a rounded weighted bottom —
+        // the floppy silhouette of a Beagle/Basset rather than a flat oval. It
+        // pivots at the attachment (high on the head) and swings a touch with the
+        // idle sway so it reads as soft and weighted. `len` (seeded) sets how far
+        // it hangs; this draws in the `front` pass so the leather laps the face.
+        ctx.translate(s*B.rx*0.66, -B.ry*0.52);          // pin high on the head's side
+        ctx.rotate(s*(0.40 + sway*1.1));                 // angle outward + gentle swing
+        const L = 30 + 40*len;                           // hang length (seeded)
+        const wT = 9, wB = 15;                           // half-width: narrow base → heavy lobe
+        ctx.fillStyle=P.ear; ctx.beginPath();
+        ctx.moveTo(s*-wT, 0);
+        ctx.quadraticCurveTo(s*-wB*1.05, L*0.45, s*-wB, L*0.82);  // outer edge → lobe
+        ctx.quadraticCurveTo(s*-wB*0.55, L,      s*0,    L);       // round the bottom
+        ctx.quadraticCurveTo(s*wB*0.7,   L,      s*wB,   L*0.80);  // … back up the inner side
+        ctx.quadraticCurveTo(s*wB*0.95,  L*0.40, s*wT,   0);
+        ctx.quadraticCurveTo(s*0, -wT*1.2, s*-wT, 0);             // rounded cap where it meets the head
+        ctx.closePath(); ctx.fill();
+        // inner-ear shading: a small lobe near the top fold only, so most of the
+        // hanging leather stays the ear's outer colour like a real hound ear
+        ctx.fillStyle=P.earIn; ctx.beginPath();
+        ctx.moveTo(s*-wT*0.3, L*0.12);
+        ctx.quadraticCurveTo(s*-wB*0.5, L*0.32, s*-wB*0.38, L*0.50);
+        ctx.quadraticCurveTo(s*0,       L*0.62, s*wB*0.38, L*0.48);
+        ctx.quadraticCurveTo(s*wB*0.5,  L*0.30, s*wT*0.4,  L*0.12);
+        ctx.quadraticCurveTo(s*0,       L*0.02, s*-wT*0.3, L*0.12);
+        ctx.closePath(); ctx.fill();
+      }
       else if(sp.ears==='long'){ ctx.translate(s*18,-B.ry); ctx.rotate(s*0.1); ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(0,-26,12,34,0,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.ellipse(0,-26,6,25,0,0,7); ctx.fill(); }
       ctx.restore(); }
-    ear(-1, dropL); ear(1, dropR);
+    ear(-1, dropL, lenL); ear(1, dropR, lenR);
 
     // paws / feet
     if(sp.paws){ ctx.fillStyle=P.lo; [-1,1].forEach(s=>{ ctx.beginPath(); ctx.ellipse(s*18,B.ry-2,12,9,0,0,7); ctx.fill();
@@ -3574,6 +3611,10 @@ const Pets = (function(){
 
     ctx.save(); ctx.strokeStyle='rgba(110,231,255,0.42)'; ctx.lineWidth=3; ctx.shadowColor='#6ee7ff'; ctx.shadowBlur=6; ctx.beginPath(); ctx.ellipse(0,2,B.rx,B.ry,0,Math.PI*0.92,Math.PI*1.5); ctx.stroke(); ctx.restore();
     ctx.save(); ctx.strokeStyle='rgba(255,206,150,0.55)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(0,2,B.rx,B.ry,0,Math.PI*1.5,Math.PI*1.97); ctx.stroke(); ctx.restore();
+
+    // Hound ears drape over the head: draw them on top of the body but under the
+    // face so the long leather frames the cheeks the way a real floppy ear does.
+    if(floppy){ ear(-1, dropL, lenL, true); ear(1, dropR, lenR, true); }
 
     // muzzle
     if(sp.snout==='muzzle'||sp.snout==='long'){ const mY=(sp.snout==='long'?7:3)+muzY, mRx=sp.snout==='long'?15:18, mRy=sp.snout==='long'?16:13; ctx.fillStyle=P.muzzle; ctx.beginPath(); ctx.ellipse(0,mY,mRx,mRy,0,0,7); ctx.fill(); }
