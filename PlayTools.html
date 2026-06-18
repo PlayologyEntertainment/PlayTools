@@ -3568,7 +3568,10 @@ const Pets = (function(){
     // pivots at the attachment — so the two ears stay off to the sides, never lap
     // the face, and can never swing inward to cross each other.
     function floppyEar(s, theta, len){ ctx.save();
-      ctx.translate(s*B.rx*Math.sin(theta), 2 - B.ry*Math.cos(theta));
+      // Pin near the head's side, then stand the ear off the body's edge so it
+      // clearly sticks out past the left/right sides, and hang straight DOWN.
+      const ax = B.rx*Math.sin(theta) + B.rx*0.22;     // push outward off the side
+      ctx.translate(s*ax, 2 - B.ry*Math.cos(theta));
       ctx.rotate(sway*s*0.5);                          // faint pendulum at the attach point
       const L = 24 + 24*len;                           // short hang (seeded)
       const wT = 8, wB = 13;                           // narrow base → modest rounded lobe
