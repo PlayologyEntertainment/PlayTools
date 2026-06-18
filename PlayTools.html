@@ -797,7 +797,7 @@
   /* "Equipped" reads neon green so it pops apart from the gold "Owned" tag. */
   .rig-store-row.owned .own-tag.equipped{color:var(--neon-5); text-shadow:0 0 8px rgba(55,227,91,0.5);}
   .rig-store-row.locked{opacity:0.55;}
-  nav.rail a .rail-dot{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--neon-3); box-shadow:0 0 8px var(--neon-3); animation:rigPulse 1.3s ease-in-out infinite;}
+  nav.rail a .rail-dot{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--neon-5); box-shadow:0 0 8px var(--neon-5); animation:rigPulse 1.3s ease-in-out infinite;}
 
   /* ---- RetroPets (RetroMall_DD.md) ---- */
   .pets-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:12px; margin-top:6px;}
@@ -16492,6 +16492,27 @@ const UI = (function(){
     if(opts.color) a.classList.add('rail-cat');
     return a;
   }
+  // Neon-green "ready to collect" rail dot. Lit for a destination that has
+  // NetCoin waiting to be banked: The Rig's daily payout or its full idle tank,
+  // RetroPets' full idle tank. Returns the tooltip to show, or null for no dot.
+  // (A RetroPets daily payout, if one is ever added, just ORs in below.)
+  function railCollectAlert(route){
+    if(route==='#/rig' && window.Rig){
+      if(Rig.dailyAvailable()) return 'Daily payout ready';
+      if(Rig.tankFull())       return 'Idle NetCoin ready to collect';
+      return null;
+    }
+    if(route==='#/pets' && window.Pets){
+      if(Pets.idleFull())      return 'Idle NetCoin ready to collect';
+      return null;
+    }
+    return null;
+  }
+  function railDot(link, route){
+    if(!link) return;
+    const title = railCollectAlert(route);
+    if(title) link.append(el('span',{class:'rail-dot', title}));
+  }
   function buildRail(){
     rail.innerHTML='';
     // Standing destinations (no category header). Friends & Platforms used to
@@ -16500,10 +16521,12 @@ const UI = (function(){
     rail.append(railLink({ href:'#/',               icon:'🏠', label:'Lobby' }));
     // The Rig — top-level meta-progression, directly under the Lobby (Rig_DD §9).
     const rigLink = railLink({ href:'#/rig', icon:RIG_ICON, label:'The Rig' });
-    if(window.Rig && Rig.dailyAvailable()) rigLink.append(el('span',{class:'rail-dot', title:'Daily payout ready'}));
+    railDot(rigLink, '#/rig');
     rail.append(rigLink);
     // RetroPets — top-level collect/care world, alongside The Rig (RetroMall_DD §9).
-    rail.append(railLink({ href:'#/pets', icon:'🐾', label:'RetroPets' }));
+    const petsLink = railLink({ href:'#/pets', icon:'🐾', label:'RetroPets' });
+    railDot(petsLink, '#/pets');
+    rail.append(petsLink);
     rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends',
       count: Store.getFriends().length || null, countColor: FRIENDS_RAIL_COLOR }));
     rail.append(railLink({ href:'#/dna/platforms',  icon:'🔗', label:'Platforms' }));
@@ -16542,17 +16565,24 @@ const UI = (function(){
       badge.textContent = n;
     } else if(badge){ badge.remove(); }
   }
+  // Add/remove/refresh a route's "ready to collect" dot to match its current
+  // state (daily payout or full idle tank). Used by syncRail for The Rig and
+  // RetroPets so the green dot tracks live without a full rebuild.
+  function syncRailDot(route){
+    const link = rail.querySelector('a[data-route="'+route+'"]');
+    if(!link) return;
+    const has = link.querySelector('.rail-dot');
+    const title = railCollectAlert(route);
+    if(title && !has) link.append(el('span',{class:'rail-dot', title}));
+    else if(!title && has) has.remove();
+    else if(title && has) has.title = title;
+  }
   function syncRail(){
     syncCount('#/favorites', Store.favoriteCount());
     syncCount('#/friends',   Store.getFriends().length);
-    // The Rig's "daily payout ready" dot.
-    const rl = rail.querySelector('a[data-route="#/rig"]');
-    if(rl){
-      const has = rl.querySelector('.rail-dot');
-      const want = window.Rig && Rig.dailyAvailable();
-      if(want && !has) rl.append(el('span',{class:'rail-dot', title:'Daily payout ready'}));
-      else if(!want && has) has.remove();
-    }
+    // The Rig (daily payout / full idle tank) and RetroPets (full idle tank) dots.
+    syncRailDot('#/rig');
+    syncRailDot('#/pets');
   }
 
   function refreshStrip(){
@@ -18336,7 +18366,7 @@ Views.rig = function(c){
     const ocLine = el('div',{class:'rig-oc'+(Rig.overclocked()?' on':'')});
     const collectRow = el('div',{class:'controls-row'});
     const collect = el('button',{class:'btn primary', html:'⛏ Collect Mined NetCoin'});
-    collect.onclick = ()=>{ const got=Rig.collectIdle(); if(got>0){ UI.toast('Collected', '+'+got.toLocaleString()+' NetCoin mined'); } paint(); };
+    collect.onclick = ()=>{ const got=Rig.collectIdle(); if(got>0){ UI.toast('Collected', '+'+got.toLocaleString()+' NetCoin mined'); } paint(); UI.syncRail&&UI.syncRail(); };
     collectRow.append(collect);
     tankB.append(gauge, tline, ocLine, collectRow);
     panel.append(tankB);
@@ -18860,7 +18890,7 @@ Views.retroPets = function(c){
     const bline = el('div',{class:'rig-line'}); const lBonus=el('span',{}); bline.append(lBonus);
     const collectRow = el('div',{class:'controls-row'});
     const collect = el('button',{class:'btn primary', html:'🧺 Collect Foraged NetCoin'});
-    collect.onclick = ()=>{ const got=Pets.collectIdle(); if(got>0) UI.toast('Collected', '+'+got.toLocaleString()+' NetCoin foraged'); paint(); };
+    collect.onclick = ()=>{ const got=Pets.collectIdle(); if(got>0) UI.toast('Collected', '+'+got.toLocaleString()+' NetCoin foraged'); paint(); UI.syncRail&&UI.syncRail(); };
     collectRow.append(collect);
     tankB.append(gauge, tline, bline, collectRow);
     panel.append(tankB);
