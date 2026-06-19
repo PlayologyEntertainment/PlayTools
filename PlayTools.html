@@ -3520,6 +3520,22 @@ const Pets = (function(){
     const EAR_DROP_MIN=0.12, EAR_DROP_SPAN=0.78;   // radians: ~7° (near top) … ~52° (side)
     const dropL = earVaries ? EAR_DROP_MIN + rnd()*EAR_DROP_SPAN : 0;
     const dropR = earVaries ? EAR_DROP_MIN + rnd()*EAR_DROP_SPAN : 0;
+    // Floppy (hound) ears are seeded per ear: an attach angle on the head's
+    // upper-side arc — kept toward the side so the ears hang off to the left and
+    // right rather than over the face — plus a short hang length. Only floppy
+    // consumes this RNG (nothing downstream in drawPet draws from rnd()), so
+    // every other species stays byte-for-byte unchanged.
+    const floppy = sp.ears==='floppy';
+    // One attach angle + hang length per puppy, then a small per-ear jitter so
+    // the two ears differ only a touch — never enough to look lopsided. The base
+    // stays in a moderate band on the head's upper-side arc, so the ears sit on
+    // the side and never splay out like arms.
+    const thBase = floppy ? 0.80 + rnd()*0.18 : 0;  // ~46° … ~56° from top-centre
+    const thL = floppy ? thBase + (rnd()-0.5)*0.10 : 0;
+    const thR = floppy ? thBase + (rnd()-0.5)*0.10 : 0;
+    const lnBase = floppy ? 0.50 + rnd()*0.30 : 1;  // short flaps
+    const lenL = floppy ? lnBase + (rnd()-0.5)*0.12 : 1;
+    const lenR = floppy ? lnBase + (rnd()-0.5)*0.12 : 1;
     // ears (mood rotates them; per-Pet drop slides them down toward the side)
     function ear(s, drop){ ctx.save(); ctx.rotate(s*(M.earRot+drop)+sway*s*0.5);
       if(sp.ears==='pointed'){
@@ -3549,10 +3565,40 @@ const Pets = (function(){
         ctx.closePath(); ctx.fill();
       }
       else if(sp.ears==='round'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,17,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.arc(s*30,-B.ry-4,9,0,7); ctx.fill(); }
-      else if(sp.ears==='floppy'){ ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(s*(B.rx-2),-8,15,32,s*0.35,0,7); ctx.fill(); }
       else if(sp.ears==='long'){ ctx.translate(s*18,-B.ry); ctx.rotate(s*0.1); ctx.fillStyle=P.ear; ctx.beginPath(); ctx.ellipse(0,-26,12,34,0,0,7); ctx.fill(); ctx.fillStyle=P.earIn; ctx.beginPath(); ctx.ellipse(0,-26,6,25,0,0,7); ctx.fill(); }
       ctx.restore(); }
+    // Hound ear: a short, soft leather lobe that pins near the outer edge of the
+    // head (on the seeded upper-side arc) and hangs straight DOWN under gravity.
+    // It draws behind the head and uses no mood tilt — only a faint idle sway that
+    // pivots at the attachment — so the two ears stay off to the sides, never lap
+    // the face, and can never swing inward to cross each other.
+    function floppyEar(s, theta, len){ ctx.save();
+      // Pin near the head's side, then stand the ear off the body's edge so it
+      // clearly sticks out past the left/right sides, and hang straight DOWN.
+      const ax = B.rx*Math.sin(theta) + B.rx*0.22;     // push outward off the side
+      ctx.translate(s*ax, 2 - B.ry*Math.cos(theta));
+      ctx.rotate(sway*s*0.5);                          // faint pendulum at the attach point
+      const L = 24 + 24*len;                           // short hang (seeded)
+      const wT = 8, wB = 13;                           // narrow base → modest rounded lobe
+      ctx.fillStyle=P.ear; ctx.beginPath();
+      ctx.moveTo(s*-wT, 0);
+      ctx.quadraticCurveTo(s*-wB,     L*0.5,  s*-wB*0.78, L*0.86);  // outer edge → lobe
+      ctx.quadraticCurveTo(s*-wB*0.4, L,      s*0,        L);       // round the bottom
+      ctx.quadraticCurveTo(s*wB*0.5,  L,      s*wB*0.78,  L*0.84);  // inner side back up
+      ctx.quadraticCurveTo(s*wB,      L*0.5,  s*wT,       0);
+      ctx.quadraticCurveTo(s*0, -wT, s*-wT, 0);                     // rounded top (mostly behind the head)
+      ctx.closePath(); ctx.fill();
+      // inner-ear shading near the top fold only
+      ctx.fillStyle=P.earIn; ctx.beginPath();
+      ctx.moveTo(s*-wT*0.3, L*0.12);
+      ctx.quadraticCurveTo(s*-wB*0.5, L*0.32, s*-wB*0.4, L*0.52);
+      ctx.quadraticCurveTo(s*0,       L*0.64, s*wB*0.4,  L*0.50);
+      ctx.quadraticCurveTo(s*wB*0.5,  L*0.30, s*wT*0.4,  L*0.12);
+      ctx.quadraticCurveTo(s*0,       L*0.02, s*-wT*0.3, L*0.12);
+      ctx.closePath(); ctx.fill();
+      ctx.restore(); }
     ear(-1, dropL); ear(1, dropR);
+    if(floppy){ floppyEar(-1, thL, lenL); floppyEar(1, thR, lenR); }
 
     // paws / feet
     if(sp.paws){ ctx.fillStyle=P.lo; [-1,1].forEach(s=>{ ctx.beginPath(); ctx.ellipse(s*18,B.ry-2,12,9,0,0,7); ctx.fill();
