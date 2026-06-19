@@ -823,6 +823,65 @@
   .pets-rarity-odds i{width:9px; height:9px; border-radius:50%; display:inline-block;}
   .pets-reveal{display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;}
   .pets-reveal canvas{width:184px; height:184px;}
+  /* ---- Loot Box opening ceremony (inline framed stage). A small JS timeline
+     toggles phase classes on .pet-open-stage; all motion is driven from here so
+     the chest's own idle animations are suppressed inside the stage. ---- */
+  .pet-open-stage{position:relative; border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-top:14px; padding:16px 12px 14px;
+    background:radial-gradient(120% 100% at 50% 0%, rgba(255,255,255,0.05), transparent 60%), var(--bg-2);}
+  .pet-open-aura{position:absolute; left:50%; top:44%; width:340px; height:340px; max-width:90%; transform:translate(-50%,-50%) scale(.7);
+    border-radius:50%; background:radial-gradient(circle, var(--po-color,#fff) 0%, transparent 62%); opacity:0; filter:blur(8px); pointer-events:none; transition:opacity .5s ease;}
+  .pet-open-stage.lit .pet-open-aura{opacity:.24; animation:po-aura 2.6s ease-in-out infinite;}
+  @keyframes po-aura{0%,100%{transform:translate(-50%,-50%) scale(.85); opacity:.18}50%{transform:translate(-50%,-50%) scale(1.04); opacity:.3}}
+  .pet-open-rays{position:absolute; left:50%; top:46%; width:300px; height:300px; max-width:96%; transform:translate(-50%,-50%) scale(.4); opacity:0; pointer-events:none; z-index:1; border-radius:50%;
+    background:repeating-conic-gradient(from 0deg, var(--po-color,#fff) 0deg 5deg, transparent 5deg 17deg);
+    -webkit-mask:radial-gradient(circle, #000 0%, transparent 68%); mask:radial-gradient(circle, #000 0%, transparent 68%);}
+  .pet-open-stage.opened .pet-open-rays{animation:po-rays 1.1s ease-out both;}
+  @keyframes po-rays{0%{opacity:0; transform:translate(-50%,-50%) scale(.4) rotate(0)}25%{opacity:.45}100%{opacity:0; transform:translate(-50%,-50%) scale(1.35) rotate(46deg)}}
+  .pet-open-row{position:relative; z-index:2; display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; min-height:210px;}
+  .pet-open-chest{position:relative; width:248px; max-width:62vw;}
+  .pet-open-chest .pet-chest{margin:0;}
+  /* suppress the chest's own idle loops inside the ceremony — phases drive it */
+  .pet-open-stage .pchest-all{animation:none;}
+  .pet-open-stage .pchest-spark{animation:none; opacity:0;}
+  .pet-open-stage .pchest-glow{animation:none; opacity:.45;}
+  .pet-open-stage .pchest-lid{animation:none; transform-origin:50% 100%; transition:transform .6s cubic-bezier(.5,-0.3,.3,1.5);}
+  .pet-open-stage.opened .pchest-lid{transform:rotate(-104deg);}
+  .pet-open-stage.opened .pchest-glow{opacity:.85;}
+  .pet-open-chest-inner{transform-origin:50% 82%; animation:po-enter .6s cubic-bezier(.3,.7,.4,1.5) both;}
+  .pet-open-stage.shaking .pet-open-chest-inner{animation:po-shake var(--po-shakeMs,520ms) ease-in-out var(--po-shakeN,1);}
+  @keyframes po-enter{0%{opacity:0; transform:translateY(-44px) scale(.6)}60%{opacity:1; transform:translateY(6px) scale(1.06)}100%{opacity:1; transform:translateY(0) scale(1)}}
+  @keyframes po-shake{
+    0%,100%{transform:translateX(0) rotate(0)}
+    15%{transform:translateX(calc(-6px*var(--po-amp,1))) rotate(calc(-2deg*var(--po-amp,1)))}
+    30%{transform:translateX(calc(6px*var(--po-amp,1)))  rotate(calc(2deg*var(--po-amp,1)))}
+    45%{transform:translateX(calc(-5px*var(--po-amp,1))) rotate(calc(-1.6deg*var(--po-amp,1)))}
+    60%{transform:translateX(calc(5px*var(--po-amp,1)))  rotate(calc(1.6deg*var(--po-amp,1)))}
+    80%{transform:translateX(calc(-3px*var(--po-amp,1))) rotate(0)}}
+  .pet-open-key{position:absolute; left:50%; top:58%; z-index:4; font-size:30px; line-height:1; opacity:0; pointer-events:none;
+    transform:translate(120px,-44px) rotate(38deg); filter:drop-shadow(0 2px 3px rgba(0,0,0,.55));}
+  .pet-open-stage.keying .pet-open-key{animation:po-key .6s ease-out both;}
+  @keyframes po-key{0%{opacity:0; transform:translate(120px,-44px) rotate(38deg)}35%{opacity:1}80%{transform:translate(-50%,-6px) rotate(-6deg)}100%{opacity:1; transform:translate(-50%,0) rotate(8deg)}}
+  .pet-open-stage.opened .pet-open-key{opacity:0; transition:opacity .3s ease;}
+  .pet-open-burst{position:absolute; left:50%; top:46%; width:8px; height:8px; z-index:3; transform:translate(-50%,-50%); opacity:0; border-radius:50%; pointer-events:none;}
+  .pet-open-stage.opened .pet-open-burst{animation:po-burst .7s ease-out both;}
+  @keyframes po-burst{0%{opacity:0; box-shadow:0 0 0 0 var(--po-color,#fff)}22%{opacity:1; box-shadow:0 0 26px 10px var(--po-color,#fff)}100%{opacity:0; box-shadow:0 0 70px 36px transparent}}
+  .pet-open-prize{position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:150px; opacity:0;}
+  .pet-open-stage.revealed .pet-open-prize{animation:po-prize .75s cubic-bezier(.3,.7,.3,1.55) both;}
+  @keyframes po-prize{0%{opacity:0; transform:translate(-54px,22px) scale(.3)}55%{opacity:1; transform:translate(7px,-9px) scale(1.13)}100%{opacity:1; transform:translate(0,0) scale(1)}}
+  .pet-open-glow{position:absolute; inset:-12%; border-radius:50%; z-index:0; opacity:0; filter:blur(9px);
+    background:radial-gradient(circle, var(--po-color,#fff) 0%, transparent 60%);}
+  .pet-open-stage.revealed .pet-open-glow{opacity:.45; animation:po-glow 2.1s ease-in-out infinite;}
+  @keyframes po-glow{0%,100%{opacity:.32; transform:scale(.92)}50%{opacity:.62; transform:scale(1.07)}}
+  .pet-open-prize canvas{position:relative; z-index:1; width:200px; height:200px;}
+  .pet-open-shards{position:relative; z-index:1; font-size:44px; line-height:1; display:flex; gap:1px;}
+  .pet-open-shard-amt{position:relative; z-index:1; font-family:var(--pixel); font-size:16px; margin-top:6px; color:var(--po-color,var(--ink));}
+  .pet-open-caption{position:relative; z-index:2; text-align:center; margin-top:8px; min-height:22px; opacity:0;}
+  .pet-open-stage.revealed .pet-open-caption{animation:po-caption .5s ease both .15s;}
+  @keyframes po-caption{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:translateY(0)}}
+  .pet-open-actions{position:relative; z-index:2; visibility:hidden;}
+  .pet-open-skip{position:absolute; top:8px; right:8px; z-index:6;}
+  .pet-open-skip .btn{padding:4px 10px; font-size:11px;}
+  @media (prefers-reduced-motion: reduce){.pet-open-stage *{animation:none!important; transition:none!important;}}
   .pets-empty{text-align:center; padding:26px 12px; color:var(--ink-dim);}
   .rhythm-stage{position:relative; height:120px; border:1px solid var(--line); border-radius:10px; background:var(--bg-2); overflow:hidden; margin:12px 0;}
   .rhythm-track{position:absolute; top:0; bottom:0; left:0; right:0;}
@@ -18899,6 +18958,121 @@ function petChestArt(variant){
   return wrap;
 }
 
+// Per-rarity tuning for the open ceremony: shake length/intensity climbs with
+// rarity, and each tier gets a grander procedural fanfare (ascending arpeggio,
+// with a sparkle tail for Epic and a held high shimmer for Legendary).
+const PET_OPEN_TIERS = {
+  common:    { shakeMs:480,  shakes:1, amp:0.7,  fanfare:[523,659,784] },
+  uncommon:  { shakeMs:560,  shakes:2, amp:0.9,  fanfare:[523,659,784,880] },
+  rare:      { shakeMs:680,  shakes:2, amp:1.15, fanfare:[587,740,880,1175] },
+  epic:      { shakeMs:840,  shakes:3, amp:1.45, fanfare:[523,659,784,1047,1319], tail:true },
+  legendary: { shakeMs:1100, shakes:4, amp:1.85, fanfare:[523,659,784,1047,1319,1568], tail:true, big:true }
+};
+function petPlayFanfare(blip, cfg){
+  cfg.fanfare.forEach((f,i)=> setTimeout(()=> blip(f, 0.17, 'square', 0.05), i*115));
+  const base = cfg.fanfare.length*115 + 90;
+  if(cfg.tail){ [1568,1976,2349].forEach((f,i)=> setTimeout(()=> blip(f, 0.13, 'triangle', 0.04), base + i*70)); }
+  if(cfg.big){ setTimeout(()=> blip(2637, 0.5, 'sine', 0.05), base + 260); }
+}
+
+// Cinematic chest-open: frame appears → chest settles in → key slides into the
+// keyhole and clicks → chest shakes (rarity-scaled) → lid bursts open with a
+// light burst + fanfare → the prize bounces out alongside with a rarity glow.
+// The reveal adapts to the pull outcome (new pet / upgrade / duplicate shards).
+// Click anywhere (or Skip) to fast-forward straight to the result.
+function petOpenCeremony(host, box, res){
+  host.innerHTML = '';
+  const rkey = (res.kind==='dupe') ? res.rarity : res.pal.rarity;
+  const rk   = Pets.RARITY[rkey];
+  const cfg  = PET_OPEN_TIERS[rkey] || PET_OPEN_TIERS.common;
+  const blip = makeBlip('petsMute');
+  blip.prime();   // warm the audio context inside the click gesture
+
+  const stage = el('div',{class:'pet-open-stage'});
+  stage.style.setProperty('--po-color', rk.color);
+
+  const aura = el('div',{class:'pet-open-aura'});
+  const rays = el('div',{class:'pet-open-rays'});
+  const row  = el('div',{class:'pet-open-row'});
+
+  // chest column (chest + descending key + open burst)
+  const chestCol   = el('div',{class:'pet-open-chest'});
+  const chestInner = el('div',{class:'pet-open-chest-inner'});
+  chestInner.append(petChestArt(box.art));
+  chestInner.style.setProperty('--po-shakeMs', cfg.shakeMs+'ms');
+  chestInner.style.setProperty('--po-shakeN', cfg.shakes);
+  chestInner.style.setProperty('--po-amp', cfg.amp);
+  const key   = el('div',{class:'pet-open-key', html:'🔑'});
+  const burst = el('div',{class:'pet-open-burst'});
+  chestCol.append(chestInner, key, burst);
+
+  // prize column (the animal, or a shard cluster for duplicates)
+  const prize = el('div',{class:'pet-open-prize'});
+  prize.append(el('div',{class:'pet-open-glow'}));
+  if(res.kind==='dupe'){
+    prize.append(el('div',{class:'pet-open-shards', html:'💎💎💎'}));
+    prize.append(el('div',{class:'pet-open-shard-amt', html:`+${res.shards} Shards`}));
+  } else {
+    const cv = document.createElement('canvas'); Pets.render(res.pal, cv, 240, 'happy', 0);
+    prize.append(cv);
+  }
+  row.append(chestCol, prize);
+
+  const label = el('div',{class:'pet-rarity', style:`font-size:13px; color:${rk.color}; margin-top:10px; text-align:center;`, html:rk.label});
+  const caption = el('div',{class:'pet-open-caption'});
+  if(res.kind==='new')          caption.innerHTML = `<b>${res.pal.name}</b> joined your stable! 🎉`;
+  else if(res.kind==='upgrade') caption.innerHTML = `<b>${res.pal.name}</b> evolved — ${Pets.RARITY[res.from].label} → <b style="color:${rk.color}">${rk.label}</b>!`;
+  else                          caption.innerHTML = `Duplicate ${Pets.speciesByKey(res.species).name} — recycled into <b>+${res.shards} Shards</b>.`;
+
+  const actions  = el('div',{class:'controls-row pet-open-actions', style:'margin-top:12px; justify-content:center; gap:8px;'});
+  const toStable = el('button',{class:'btn ghost', html:'🐾 View Stable'}); toStable.onclick=()=>Router.go('#/pets');
+  actions.append(toStable, soundToggle('petsMute'));
+
+  const skipWrap = el('div',{class:'pet-open-skip'});
+  const skipBtn  = el('button',{class:'btn ghost', html:'Skip ⏭'});
+  skipWrap.append(skipBtn);
+
+  stage.append(skipWrap, aura, rays, row, label, caption, actions);
+  host.append(stage);
+
+  // ---- timeline. Tracked timers are cleared on skip; fanfare uses raw
+  // setTimeout so a skip mid-sequence still gets its full flourish. ----
+  let timers = [], done = false;
+  const at = (ms, fn)=> timers.push(setTimeout(fn, ms));
+  const clearTimers = ()=>{ timers.forEach(clearTimeout); timers = []; };
+
+  function finish(skipped){
+    if(done) return; done = true;
+    clearTimers();
+    stage.classList.remove('shaking','keying');
+    stage.classList.add('lit','opened','revealed');
+    actions.style.visibility = 'visible';
+    skipWrap.style.display = 'none';
+    if(skipped) petPlayFanfare(blip, cfg);
+  }
+  skipBtn.addEventListener('click', e=>{ e.stopPropagation(); finish(true); });
+  stage.addEventListener('click', ()=>{ if(!done) finish(true); });
+
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduce){ finish(false); return; }
+
+  // appear
+  blip(294,0.12,'sine',0.035); at(110,()=> blip(392,0.12,'sine',0.035));
+  requestAnimationFrame(()=> stage.classList.add('lit'));
+  // key slides in, then a lock clunk
+  at(620,  ()=>{ stage.classList.add('keying'); blip(180,0.2,'sawtooth',0.025); });
+  at(1180, ()=>{ blip(150,0.13,'square',0.06); blip(880,0.05,'square',0.045); });
+  // shake (rarity-scaled), with a low tick per oscillation
+  const shakeStart = 1340, shakeDur = cfg.shakeMs*cfg.shakes;
+  at(shakeStart, ()=> stage.classList.add('shaking'));
+  for(let i=0;i<cfg.shakes;i++) at(shakeStart + i*cfg.shakeMs + 70, ()=> blip(110,0.05,'square',0.03));
+  // lid bursts open + fanfare
+  const openAt = shakeStart + shakeDur + 40;
+  at(openAt, ()=>{ stage.classList.remove('shaking'); stage.classList.add('opened'); blip(523,0.08,'sine',0.04); petPlayFanfare(blip, cfg); });
+  // prize bounces out alongside
+  at(openAt + 430, ()=> finish(false));
+}
+
 /* ---- Stable: roster, 3-meter care, Tap affection, capped idle earning ---- */
 Views.retroPets = function(c){
   Pets.commit();   // settle offline meter drain on entry (DD §9 idle calc on load/route)
@@ -19113,20 +19287,8 @@ Views.petsStore = function(c){
       open.onclick = ()=>{
         const res = Pets.openBox(box.key);
         if(!res) return;
-        reveal.innerHTML='';
-        const wrap = el('div',{class:'pets-reveal'});
-        const cv = document.createElement('canvas'); Pets.render(res.pal, cv, 320, 'happy', 0);
-        wrap.append(cv);
-        const rk = Pets.RARITY[(res.kind==='dupe')?res.rarity:res.pal.rarity];
-        wrap.append(el('div',{class:'pet-rarity', style:'font-size:13px', html:rk.label}));
-        if(res.kind==='new')      wrap.append(el('div',{html:`<b>${res.pal.name}</b> joined your stable! 🎉`}));
-        else if(res.kind==='upgrade') wrap.append(el('div',{html:`<b>${res.pal.name}</b> evolved — ${Pets.RARITY[res.from].label} → <b style="color:${rk.color}">${rk.label}</b>!`}));
-        else                      wrap.append(el('div',{html:`Duplicate ${Pets.speciesByKey(res.species).name} — recycled into <b>+${res.shards} Shards</b>.`}));
-        reveal.append(wrap);
-        refreshAll();
-        const after = el('div',{class:'controls-row', style:'margin-top:10px; justify-content:center;'});
-        const toStable = el('button',{class:'btn ghost', html:'🐾 View Stable'}); toStable.onclick=()=>Router.go('#/pets');
-        after.append(toStable); wrap.append(after);
+        refreshAll();                       // wallet/pity update the moment the box is bought
+        petOpenCeremony(reveal, box, res);  // cinematic, rarity-scaled chest-open reveal
       };
       refresh();
       blocks.push({refresh});
