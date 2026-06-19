@@ -3526,11 +3526,16 @@ const Pets = (function(){
     // consumes this RNG (nothing downstream in drawPet draws from rnd()), so
     // every other species stays byte-for-byte unchanged.
     const floppy = sp.ears==='floppy';
-    const EAR_TH_MIN=0.70, EAR_TH_SPAN=0.62;        // radians from top-centre: ~40° … ~75°
-    const thL = floppy ? EAR_TH_MIN + rnd()*EAR_TH_SPAN : 0;
-    const thR = floppy ? EAR_TH_MIN + rnd()*EAR_TH_SPAN : 0;
-    const lenL = floppy ? 0.5 + rnd()*0.55 : 1;     // short flaps
-    const lenR = floppy ? 0.5 + rnd()*0.55 : 1;
+    // One attach angle + hang length per puppy, then a small per-ear jitter so
+    // the two ears differ only a touch — never enough to look lopsided. The base
+    // stays in a moderate band on the head's upper-side arc, so the ears sit on
+    // the side and never splay out like arms.
+    const thBase = floppy ? 0.80 + rnd()*0.18 : 0;  // ~46° … ~56° from top-centre
+    const thL = floppy ? thBase + (rnd()-0.5)*0.10 : 0;
+    const thR = floppy ? thBase + (rnd()-0.5)*0.10 : 0;
+    const lnBase = floppy ? 0.50 + rnd()*0.30 : 1;  // short flaps
+    const lenL = floppy ? lnBase + (rnd()-0.5)*0.12 : 1;
+    const lenR = floppy ? lnBase + (rnd()-0.5)*0.12 : 1;
     // ears (mood rotates them; per-Pet drop slides them down toward the side)
     function ear(s, drop){ ctx.save(); ctx.rotate(s*(M.earRot+drop)+sway*s*0.5);
       if(sp.ears==='pointed'){
