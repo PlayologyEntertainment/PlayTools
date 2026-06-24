@@ -24,7 +24,7 @@ jobs:
       - name: Upload via FTP
         run: |
           set -e
-          BASE="ftp://ftp.playologyentertainment.com/experiments/PlayTools"
+          BASE="ftp://ftp.playologyentertainment.com/PlayTools"
           AUTH="${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
           up() {
             echo "↑ $1"
