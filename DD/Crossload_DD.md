@@ -1,8 +1,8 @@
 # Crossload — Retro Arcade Cabinet Design Spec
 
-**Version:** 0.1 (Draft — for sign-off, pre-code)
+**Version:** 1.0 (Implemented — shipped)
 **Author:** Playology Entertainment
-**Status:** Proposed — not yet built
+**Status:** Implemented (v1) — shipped. Code is live at `PlayTools.html` (~lines 9254-9634, `recordCrossloadRun` ~15518), with 5 achievements wired. (Doc header was left stale after ship; corrected here — see PlayTools ROADMAP.md for current state.)
 **Parent Doc:** `PlayTools_DD.md` (this cabinet extends §5.5 Retro Arcade Module)
 
 > **Why this cabinet.** The Arcade roster covers maze (Mac Pan), snake, paddle
@@ -232,7 +232,7 @@ Add `recordCrossloadRun(score, ctx)` following the exact pattern used by
 | `crossload_firstdock` | First Contact | 🐸 | Dock your first socket. |
 | `crossload_fullboard` | Full Handshake | 🔌 | Fill all five sockets in one board. |
 | `crossload_flawless` | Clean Run | ✨ | Clear a board with zero deaths. |
-| `crossload_overclock` | Overclocked | ⚡ | Score 20,000+ on Overclocked difficulty. |
+| `crossload_overclock` | Overclocked | ⚡ | Score 10,000+ in a single run (shipped without the Overclocked-difficulty gate this doc originally specified — see ROADMAP.md for whether to retune). |
 
 (Wired into the existing achievements array exactly like `pixel_pilot` /
 `dodge_ace` / `macpan_seasoned`.)

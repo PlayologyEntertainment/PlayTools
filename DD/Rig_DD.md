@@ -282,21 +282,34 @@ No new external dependencies; reuses existing plumbing.
 
 ## 10. Build Phasing
 
-**Phase 1 (MVP)** — proves the loop end-to-end:
-1. NetCoin currency + header balance.
-2. Idle mining (rate, cap, offline calc).
-3. Daily payout + escalating streak + **strict** reset + 7/30 milestones.
-4. Overclock activity multiplier (≥N tools/day).
-5. **Achievements pay NetCoin** (wire NetCoin rewards into the existing achievements).
-6. The Rig screen: a handful of functional parts + procedural render.
-7. NetStore (Hardware tab).
-8. Battlestation Share Card.
+**Phase 1 (MVP) — ✅ SHIPPED, exceeding spec:**
+1. ✅ NetCoin currency + header balance.
+2. ✅ Idle mining (rate, cap, offline calc) — `BASE_RATE=10`/hr, 12h cap.
+3. ✅ Daily payout + escalating streak + strict reset + a 30-day recurring
+   streak calendar (beyond the original 7/30-milestone spec).
+4. ✅ Overclock activity multiplier.
+5. ✅ Achievements pay NetCoin; arcade-cabinet A/S grade clears also pay NetCoin
+   directly (`GRADE_A=50`, `GRADE_S=100`, once/cabinet/day) — an addition this
+   doc never specified.
+6. ✅ The Rig screen: a **real, textured Three.js 3D battlestation** (20 actual
+   `.glb` models + real textures + HDRI), not just a procedural render, with an
+   SVG fallback when WebGL is unavailable.
+7. ✅ NetStore (Hardware tab).
+8. ✅ Battlestation Share Card, including a live WebGL capture (shipped —
+   see the correction to §9/tuner notes below).
 
-**Phase 2:** cosmetic/peripheral catalog (incl. the peripherals that carry a
-mining bump); NetCoin → Jack-In credits sink; more tiers.
+**Phase 2 — mostly shipped:**
+1. ✅ Cosmetic/peripheral catalog; ⚠️ tiers still growing incrementally
+   (e.g. RAM up to 128GB) rather than a single "more tiers" pass.
+2. ✅ NetCoin → Jack-In credits sink (`jackInCredits`/`CREDIT_PACKS`), one-way
+   as designed.
+3. ⚠️ **Not part of this doc but adjacent and easy to confuse:** the "Loot Box
+   Store" / cinematic chest-opening ceremony is **RetroPets'** gacha shop, a
+   separate NetCoin sink documented in `RetroMall_DD.md`, not part of The Rig.
 
-**Phase 3 (future):** prestige/rebuild, seasonal events, NetCoin in new games,
-friends' rig comparison.
+**Phase 3 (future) — ❌ NOT STARTED:** prestige/rebuild, seasonal events,
+NetCoin in new games, friends' rig comparison (a numeric Rig Score already
+appears in Friends-compare, but there's no visual side-by-side rig view).
 
 ---
 

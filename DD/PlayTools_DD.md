@@ -1,7 +1,15 @@
 # PlayTools: MVP Product Design Document
 **Version:** 1.0 
 **Author:** Playology Entertainment 
-**Status:** Production-Ready Specification Document
+**Status:** Describes the shipped v1.0 core platform (Gamer DNA, Reflex/Mouse/
+Setup/Fun/Tabletop Labs, Achievements, Share Cards). Three major systems shipped
+*after* this doc and are documented separately: **The Rig** (`Rig_DD.md`,
+idle NetCoin economy + 3D battlestation), **RetroPets** (`RetroMall_DD.md`,
+creature collection/care), and the **Retro Arcade** cabinet line — 7 full games
+with their own specs (`ColdStack_DD.md`, `Overdrive_DD.md`, `JackIn_DD.md`,
+`Ecto_DD.md`, `Crossload_DD.md`, `MacPan_DD.md`, `Defrag_DD.md`), which
+superseded the placeholder roster in §5.5 below. See `ROADMAP.md` for the
+consolidated, audited state of the whole app and v2 planning.
 
 ---
 
@@ -149,6 +157,16 @@ $m$ is the **median-human** anchor ($q=0.5$) and $s$ the steepness. Because the 
 | Dice — luck-normalized $q$ | (already $0$–$1$) | — | 0.5 | — |
 
 ($s$ is derived per row so the floor / elite anchors land at $q\approx0.1$ / $q\approx0.95$.)
+
+> **Implementation status (current code).** Stages 2 and 3 below (diminishing
+> returns, idle decay) are implemented **exactly** as specified, constants
+> included ($k{=}2$, $\eta_{up}{=}0.30$, $\eta_{down}{=}0.10$, $\beta{=}0.5$,
+> $h{=}45$). **Stage 1 is not** — each tool currently computes `quality` via a
+> simple **linear clamp** against its own ad-hoc floor/ceiling (e.g. Reaction
+> Time: `clamp01((320-dt)/(320-150))`; CPS: `clamp01(cps/14)`), not the logistic
+> curve/anchor table above. This is a real gap, not just a rounding difference —
+> the anchors don't match either. Implementing the authored logistic Stage 1 is
+> a tracked v2 candidate (see ROADMAP.md).
 
 **Stage 2 — Form update (diminishing returns).** Per completed run, the attribute eases toward its quality target $A_\star = 100\,q$ with a weight-scaled, headroom-damped step. Let $w \in (0,1]$ be the tool's normalized attribution weight (the legacy per-tool weights divided by the max weight, e.g. Reflex $12/16 = 0.75$):
 
@@ -325,6 +343,10 @@ $$\text{Target Sens} = \text{Source Sens} \times \left( \frac{\text{Source Scali
     * *Archetype Options:* Arena Duelist, Loot Goblin, Tactical Commander, Speedrunner, and variations .
 * **DNA Attribution Vector:** Enriches the local user state with the designated **Gamer Archetype** identity tag . Generates a tailored Share Card .
 
+#### 4.4.3 Shipped Fun Lab tool not covered by this doc
+**Game Night Planner** ships as a routed Fun Lab tool today but was never
+specified in this document. Tracked in ROADMAP.md for a proper future spec pass.
+
 ---
 
 ### 4.5 Tabletop / RPG Lab
@@ -348,6 +370,13 @@ $$q = \frac{\sum_{i}\,r_{i} - n_{\text{kept}}}{n_{\text{kept}} \cdot S - n_{\tex
 
   * To preserve Gamer Score integrity against single-click repetition, a dice session is registered as a *completed tool* only on the first throw, while best totals, the Natural 20 counter, and the Strategy delta continue to update on every subsequent roll .
   * **Achievements:** Unlocks **Natural 20** (roll a natural 20) and **High Roller** (resolve a single throw totalling $\ge 50$) . Generates a tailored Share Card .
+
+#### 4.5.2 Shipped RPG Lab tools not covered by this doc
+The Tabletop/RPG Lab now ships four additional tools beyond the Dice Roller
+that this document never specified: **Character Forge**, **NPC Generator**,
+**Initiative Tracker**, and **Quest & Tavern**. They exist as routed, working
+tools in the app today; a future revision of this doc should give them proper
+spec sections (tracked in ROADMAP.md).
 
 ---
 
@@ -378,11 +407,25 @@ $$q = \frac{\sum_{i}\,r_{i} - n_{\text{kept}}}{n_{\text{kept}} \cdot S - n_{\tex
 * **Loadout Generator:** Creates randomly balanced weapon and loadout combinations for popular tactical shooters to mix up casual gameplay .
 * **Gamer Setup Roast:** A playful interface where users type in their hardware specs and desk setups, and the engine generates a humorous, retro-styled critique card .
 
-### 5.5 Retro Arcade Module
-* **StarDodger:** A retro vertical-scrolling mini-game where the player moves a single-pixel ship left and right to dodge falling block obstacles . Metrics are tied to a total Survival Score .
-* **Asteroid Survival:** A top-down space arena mini-game focusing on continuous multi-directional navigation and obstacle destruction . Outputs a classic high-score value .
-* **Mnemonic:** A rapid-fire grid pattern matching challenge designed around retro chiptune sounds . Evaluates visual memory recall ratings .
-* **Reflex Rush:** A high-speed, multi-key visual matching sequence that tests rapid keyboard responses . Outputs a Reflex Score .
+### 5.5 Retro Arcade Module *(superseded — see below)*
+> **This section is stale.** Only **StarDodger** and **Mnemonic** from the
+> original four-game roster below actually shipped under those names.
+> **Asteroid Survival** and **Reflex Rush** were never built. Instead, the
+> Retro Arcade grew into a much larger roster with individual design docs:
+> **Cold Stack** (Klondike solitaire, `ColdStack_DD.md`), **Overdrive**
+> (pseudo-3D racer, `Overdrive_DD.md`), **Jack-In** (Blackjack, `JackIn_DD.md`),
+> **Ecto** (Galaga-style shooter, `Ecto_DD.md`), **Crossload** (Frogger-style,
+> `Crossload_DD.md`), **Mac Pan** (Pac-Man-style, `MacPan_DD.md`), **Defrag**
+> (match-3, `Defrag_DD.md`) — all fully implemented — plus additional cabinets
+> with no standalone doc yet (Anaconda, Brick Breaker, Hopper Popper, SighMan,
+> Pack Hacker, Sudoku, B0ggle). Arcade A/S-grade clears also pay NetCoin
+> directly (see `Rig_DD.md` §10), a cross-system hook this section predates.
+>
+> Original (partially stale) roster, kept for history:
+* **StarDodger:** A retro vertical-scrolling mini-game where the player moves a single-pixel ship left and right to dodge falling block obstacles . Metrics are tied to a total Survival Score . *(Shipped.)*
+* **Asteroid Survival:** A top-down space arena mini-game focusing on continuous multi-directional navigation and obstacle destruction . Outputs a classic high-score value . *(Never built under this name.)*
+* **Mnemonic:** A rapid-fire grid pattern matching challenge designed around retro chiptune sounds . Evaluates visual memory recall ratings . *(Shipped.)*
+* **Reflex Rush:** A high-speed, multi-key visual matching sequence that tests rapid keyboard responses . Outputs a Reflex Score . *(Never built under this name.)*
 
 ---
 
@@ -425,13 +468,19 @@ The generated media layout strictly follows a classic arcade trading card struct
     * *Reaction Master:* Triggered by securing an S-Grade rating on the visual reaction time test .
     * *Precision Hunter:* Earned by hitting a uniform accuracy score $\ge 98\%$ on the target selection test .
     * *Controller Wizard:* Awarded for completing setup configuration maps across 3 separate platforms .
-    * *Arcade Champion:* Earned by breaking the 10,000-point threshold across the Retro Arcade cabinets .
+    * *Arcade Champion:* Documented here as "10,000 points across the Retro Arcade cabinets," but the shipped condition is actually **total Gamer Score ≥ 10,000** (a global score gate, not an arcade-specific one) — a real semantic drift from this text. Left as-is pending a v2 decision on whether to retune the condition or the wording (see ROADMAP.md).
     * *Speed Demon:* Triggered by maintaining a clicking pace $\ge 12\text{ CPS}$ inside the Reflex Lab .
     * *Tracking Expert:* Earned by keeping path deviation error under 4 pixels on the Mouse Accuracy tracking test .
     * *Setup Specialist:* Unlocked after calculating configurations across all Setup Lab calculators .
     * *Natural 20:* Triggered by rolling a natural 20 on a $d20$ in the Tabletop / RPG Dice Roller .
     * *High Roller:* Earned by resolving a single dice throw totalling $\ge 50$ .
     * *Completionist / Achievement Hunter:* Awarded for unlocking all other core operational milestones .
+* **Beyond this core lineup:** the achievement roster has grown to several
+  dozen entries, one set per expansion tool and per arcade cabinet (e.g. Lift-Off
+  Master, Drag Lord, Jitter Storm, Steady Hand, Hardware Whisperer, Pixel Pilot,
+  Untouchable, Gunslinger, plus a themed set for every Retro Arcade cabinet).
+  These are undocumented here by design — see each cabinet's own DD (§ list
+  above) for its achievement table.
 
 ### 6.3 Interface Art Direction & Presentation Layer
 * **Visual Style Guide:** Heavy emulation of classic arcade machine setups and CRT scanline video behaviors .
