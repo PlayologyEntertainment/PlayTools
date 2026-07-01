@@ -166,8 +166,13 @@ keyed to score against a tuned par (Draw-1 Sprint baseline):
 comp = clamp01( score / 900 )
 ```
 
+**Shipped tuning (supersedes the 900 baseline above):** the constant that landed
+in code is `CS_PAR = { sprint: 1100, zen: 950 }`, retuned upward post-doc and
+never backported here. Treat 1100/950 as the authoritative par values; the 900
+figure below is left for the reasoning trail only.
+
 So ~0 → F, a partial solve (~half the chips home) → C, a clean but slow/loose
-solve → A, and a **fast, efficient STACK CLEAN → S (900+)**. Tuned so that
+solve → A, and a **fast, efficient STACK CLEAN → S (at par)**. Tuned so that
 **finishing the deal is roughly an A** and only **speed + efficiency** pushes
 into S — matching the line's "beat par for an A, smash it for an S" feel. Draw-3
 and Zen scale par via the same constant so the grade reads honestly across the

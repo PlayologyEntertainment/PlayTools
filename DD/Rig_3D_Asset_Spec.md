@@ -180,6 +180,7 @@ agree:
 - ~~**HDRI weight**~~ — *done.* The 1k `.exr` (~5.5 MB) was box-downsampled to 512×256 and
   re-encoded to RGBE `ferndale_studio_04_512.hdr` (~385 KB, −93%) via
   `tools/rig-hdri-encode.mjs`; loaded through three's `HDRLoader`.
-- **Share Card capture** from the WebGL canvas (still uses the SVG/metric card).
+- ~~**Share Card capture** from the WebGL canvas~~ — *done.* Live WebGL capture
+  now feeds the Battlestation Share Card instead of the SVG/metric fallback.
 - **Ownership reach** — books / extra wall posters aren't NetStore items yet, so they don't
-  appear in-app (hero-render flair only).
+  appear in-app (hero-render flair only). Still open — candidate for v2.

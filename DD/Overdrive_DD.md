@@ -1,8 +1,8 @@
 # Overdrive — Retro Arcade Cabinet Design Spec
 
-**Version:** 0.2 (Draft — for sign-off, pre-code)
+**Version:** 1.0 (Implemented — shipped)
 **Author:** Playology Entertainment
-**Status:** Proposed — not yet built
+**Status:** Implemented (v1) — shipped. `Views.overdrive`, `recordOverdriveRun`, and 5 achievements are live in `PlayTools.html`; DNA vector `{reflex:12, control:8}` matches §6 exactly. (Doc header was left stale after ship; corrected here — see PlayTools ROADMAP.md for current state.)
 **Parent Doc:** `PlayTools_DD.md` (this cabinet extends §5.5 Retro Arcade Module)
 
 > **Brainstorm decisions (locked).** Single-player; **pseudo-3D rear-view**
