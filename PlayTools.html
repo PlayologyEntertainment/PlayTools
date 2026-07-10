@@ -302,33 +302,33 @@
      playing and dims to gray once muted (.muted set by the Music engine). */
   #musicBtn{filter:drop-shadow(0 0 5px rgba(124,92,255,0.8)); transition:filter .25s;}
   #musicBtn.muted{filter:grayscale(1) brightness(0.45);}
-  /* Volume popover: anchored under the note button, opened on click. */
+  /* Volume popover: a vertical slider floating directly above the note button,
+     opened on click and dismissed by clicking away (100 at the top, 0 at the
+     bottom). The button stays put in the header below it. */
   .music-control{position:relative; display:inline-block;}
   .music-popover{
-    position:absolute; top:calc(100% + 8px); right:0; z-index:20;
-    display:flex; align-items:center; gap:8px;
-    background:var(--panel); border:1px solid var(--line); border-radius:4px;
-    padding:8px 10px; box-shadow:0 0 16px rgba(124,92,255,0.25), 0 4px 12px rgba(0,0,0,0.4);
-    white-space:nowrap;
+    position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); z-index:20;
+    display:flex; align-items:center; justify-content:center;
+    width:38px; height:132px;
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:12px 0; box-shadow:0 0 16px rgba(124,92,255,0.25), 0 4px 12px rgba(0,0,0,0.4);
   }
-  .music-mute-btn{
-    background:transparent; border:none; color:var(--ink); cursor:pointer;
-    font-size:14px; line-height:1; padding:2px 4px;
-  }
-  .music-mute-btn:hover{color:var(--neon-4);}
+  /* Vertical range: use the standards-based writing-mode plus the legacy
+     `orient`/`slider-vertical` hooks so it renders upright across engines. */
   .music-volume-slider{
-    -webkit-appearance:none; appearance:none; width:100px; height:4px;
-    background:var(--line); border-radius:2px; outline:none; cursor:pointer;
+    -webkit-appearance:none; appearance:none; appearance:slider-vertical;
+    writing-mode:vertical-lr; direction:rtl;
+    width:6px; height:108px;
+    background:var(--line); border-radius:3px; outline:none; cursor:pointer;
   }
   .music-volume-slider::-webkit-slider-thumb{
-    -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%;
+    -webkit-appearance:none; appearance:none; width:15px; height:15px; border-radius:50%;
     background:var(--neon-4); box-shadow:0 0 6px rgba(124,92,255,0.7); cursor:pointer;
   }
   .music-volume-slider::-moz-range-thumb{
-    width:13px; height:13px; border-radius:50%; border:none;
+    width:15px; height:15px; border-radius:50%; border:none;
     background:var(--neon-4); box-shadow:0 0 6px rgba(124,92,255,0.7); cursor:pointer;
   }
-  .music-volume-value{font-family:var(--mono); font-size:11px; color:var(--ink-dim); min-width:32px; text-align:right;}
   .btn.danger{border-color:var(--danger); color:var(--danger);}
   .btn.danger:hover{border-color:var(--danger); color:#fff; background:var(--danger); box-shadow:0 0 12px rgba(255,77,109,0.35);}
 
@@ -1882,9 +1882,7 @@
       <div class="music-control" id="musicControl">
         <button class="btn ghost icon" id="musicBtn" type="button" hidden aria-haspopup="true" aria-expanded="false" aria-controls="musicPopover" aria-label="Music volume" title="Music volume">🎵</button>
         <div class="music-popover" id="musicPopover" hidden>
-          <button class="music-mute-btn" id="musicMuteBtn" type="button" aria-label="Mute music" title="Mute music">🔊</button>
-          <input class="music-volume-slider" id="musicVolumeSlider" type="range" min="0" max="100" step="1" value="50" aria-label="Music volume">
-          <span class="music-volume-value" id="musicVolumeValue">50%</span>
+          <input class="music-volume-slider" id="musicVolumeSlider" type="range" min="0" max="100" step="1" value="50" orient="vertical" aria-label="Music volume" aria-orientation="vertical">
         </div>
       </div>
       <button class="btn ghost icon" id="crtToggle" type="button" aria-label="Turn sign off" title="Turn sign off">💡</button>
@@ -16919,25 +16917,22 @@ window.UI = UI; window.Router = Router;
    BACKGROUND MUSIC — two looping sections sitting next to PlayTools.html.
    "Intro.MP3" loops through the splash sequence (started by the tap-to-begin
    play button); the moment the user leaves the splash into the app we hard-cut
-   to "Body.MP3", which then loops continuously. The header note button opens a
-   popover with a mute toggle and a volume slider for whichever section is
-   active — the note glows violet while playing and dims to gray when silent
-   (muted or volume at 0; the .muted class drives the CSS) — and stays hidden
-   until a track is confirmed playable, so a missing file just means silence
-   with no visible control. Volume and mute state are persisted via
-   Store.prefs so they survive a reload.
+   to "Body.MP3", which then loops continuously. Clicking the header note button
+   opens a vertical volume slider floating above it (100 at the top, 0 at the
+   bottom); clicking away dismisses it, leaving just the note. Volume is the
+   single control — dragging to 0 mutes, and the note dims to gray whenever the
+   level is 0 (the .muted class drives the CSS). The note stays hidden until a
+   track is confirmed playable, so a missing file just means silence with no
+   visible control. The chosen level persists via Store.prefs across reloads.
    ============================================================================ */
 const Music = (function(){
   const INTRO_SRC = 'Intro.MP3';
   const BODY_SRC  = 'Body.MP3';
   const DEFAULT_VOLUME = 0.5;
 
-  const control    = document.getElementById('musicControl');
-  const btn        = document.getElementById('musicBtn');
-  const popover    = document.getElementById('musicPopover');
-  const muteBtn    = document.getElementById('musicMuteBtn');
-  const slider     = document.getElementById('musicVolumeSlider');
-  const valueLabel = document.getElementById('musicVolumeValue');
+  const btn     = document.getElementById('musicBtn');
+  const popover = document.getElementById('musicPopover');
+  const slider  = document.getElementById('musicVolumeSlider');
 
   const intro = new Audio(); intro.loop = true; intro.preload = 'auto';
   const body  = new Audio(); body.loop  = true; body.preload  = 'auto';
@@ -16947,27 +16942,24 @@ const Music = (function(){
   function clampVolume(v){ v = Number(v); return isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULT_VOLUME; }
 
   const savedPrefs = Store.getPrefs();
+  // Volume is the only state now; honour a legacy `musicMuted` pref by starting
+  // silent so an earlier explicit mute still holds after this redesign.
   let volume  = savedPrefs.musicVolume != null ? clampVolume(savedPrefs.musicVolume) : DEFAULT_VOLUME;
-  let muted   = !!savedPrefs.musicMuted; // explicit user mute, independent of the volume level
+  if(savedPrefs.musicMuted) volume = 0;
   let current = null;    // the <audio> currently in charge
 
-  function effectiveVolume(){ return muted ? 0 : volume; }
-  function applyVolume(){ intro.volume = effectiveVolume(); body.volume = effectiveVolume(); }
+  function applyVolume(){ intro.volume = volume; body.volume = volume; }
 
   function render(){
     applyVolume();
-    const silent = muted || volume === 0;
     if(btn){
       btn.textContent = GLYPH_NOTE;
-      btn.classList.toggle('muted', silent); // violet glow when playing, gray + dim when silent
-    }
-    if(muteBtn){
-      muteBtn.textContent = silent ? '🔇' : '🔊';
-      muteBtn.title = muted ? 'Unmute music' : 'Mute music';
-      muteBtn.setAttribute('aria-label', muteBtn.title);
+      btn.classList.toggle('muted', volume === 0); // violet glow when playing, gray + dim at 0
+      const label = volume === 0 ? 'Music muted (volume 0)' : 'Music volume';
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
     }
     if(slider) slider.value = Math.round(volume * 100);
-    if(valueLabel) valueLabel.textContent = Math.round(volume * 100) + '%';
   }
 
   function play(audio){
@@ -16999,38 +16991,19 @@ const Music = (function(){
     render();
   }
 
-  // Slider drag: sets the level and, since the user is clearly asking to hear
-  // it, clears an active mute so the change is actually audible.
+  // Slider drag: set the level (0 mutes). Resume playback if it was paused and
+  // we're moving above silence, so the change is immediately audible.
   function setVolume(v){
     volume = clampVolume(v);
-    if(volume > 0) muted = false;
-    if(current && current.paused && !muted && volume > 0){ const p = current.play(); if(p && p.catch) p.catch(()=>{}); }
+    if(volume > 0 && current && current.paused){ const p = current.play(); if(p && p.catch) p.catch(()=>{}); }
     Store.setPref('musicVolume', volume);
-    Store.setPref('musicMuted', muted);
     render();
   }
-
-  // Popover mute button: silence/restore without touching the remembered level.
-  function toggleMute(){
-    muted = !muted;
-    if(!muted && current && current.paused){ const p = current.play(); if(p && p.catch) p.catch(()=>{}); }
-    Store.setPref('musicMuted', muted);
-    render();
-  }
-
-  // Collapses back down to just the note icon whenever it's not being used:
-  // a short grace period after the pointer/focus leaves the control, so
-  // crossing the gap to the slider or a stray blip doesn't slam it shut.
-  const AUTO_CLOSE_MS = 500;
-  let closeTimer = null;
-  function cancelAutoClose(){ if(closeTimer){ clearTimeout(closeTimer); closeTimer = null; } }
-  function scheduleAutoClose(){ cancelAutoClose(); closeTimer = setTimeout(closePopover, AUTO_CLOSE_MS); }
 
   function onOutsideClick(e){ if(popover && !popover.contains(e.target) && e.target !== btn) closePopover(); }
   function onKeydown(e){ if(e.key === 'Escape') closePopover(); }
   function openPopover(){
     if(!popover || !btn) return;
-    cancelAutoClose();
     popover.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', onOutsideClick, true);
@@ -17038,7 +17011,6 @@ const Music = (function(){
   }
   function closePopover(){
     if(!popover || !btn) return;
-    cancelAutoClose();
     popover.hidden = true;
     btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', onOutsideClick, true);
@@ -17046,26 +17018,8 @@ const Music = (function(){
   }
   function togglePopover(){ if(popover) (popover.hidden ? openPopover() : closePopover()); }
 
-  // On hover-capable devices (mouse/trackpad) hovering the control already
-  // opens it, and a click is always preceded by that hover — so a click
-  // there must not toggle (it would immediately re-close what hover just
-  // opened). It only opens, since leaving/outside-click/Escape close it. On
-  // touch, there's no hover, so the tap has to do the full open/close toggle.
-  const hoverCapable = !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
-
-  if(btn) btn.addEventListener('click', hoverCapable ? openPopover : togglePopover);
-  if(muteBtn) muteBtn.addEventListener('click', toggleMute);
+  if(btn) btn.addEventListener('click', togglePopover);
   if(slider) slider.addEventListener('input', ()=> setVolume(slider.value / 100));
-
-  // Hover reveals the slider and moving away or tabbing out collapses it
-  // back to the icon after the grace period, so it stays out of the way
-  // when not being used. Escape/outside-click (wired above) still apply.
-  if(control && hoverCapable){
-    control.addEventListener('mouseenter', ()=>{ if(!btn.hidden) openPopover(); else cancelAutoClose(); });
-    control.addEventListener('mouseleave', scheduleAutoClose);
-    control.addEventListener('focusin', cancelAutoClose);
-    control.addEventListener('focusout', (e)=>{ if(!control.contains(e.relatedTarget)) scheduleAutoClose(); });
-  }
 
   return { startIntro, startBody };
 })();
