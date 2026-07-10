@@ -313,6 +313,10 @@
     background:var(--panel); border:1px solid var(--line); border-radius:6px;
     padding:12px 0; box-shadow:0 0 16px rgba(124,92,255,0.25), 0 4px 12px rgba(0,0,0,0.4);
   }
+  /* The class's display:flex would otherwise beat the UA [hidden]{display:none}
+     rule (same specificity, author wins), leaving the slider always visible —
+     so hide it explicitly while the `hidden` attribute is present. */
+  .music-popover[hidden]{display:none;}
   /* Vertical range: use the standards-based writing-mode plus the legacy
      `orient`/`slider-vertical` hooks so it renders upright across engines. */
   .music-volume-slider{
