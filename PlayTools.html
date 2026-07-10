@@ -16932,6 +16932,7 @@ const Music = (function(){
   const BODY_SRC  = 'Body.MP3';
   const DEFAULT_VOLUME = 0.5;
 
+  const control    = document.getElementById('musicControl');
   const btn        = document.getElementById('musicBtn');
   const popover    = document.getElementById('musicPopover');
   const muteBtn    = document.getElementById('musicMuteBtn');
@@ -17017,10 +17018,19 @@ const Music = (function(){
     render();
   }
 
+  // Collapses back down to just the note icon whenever it's not being used:
+  // a short grace period after the pointer/focus leaves the control, so
+  // crossing the gap to the slider or a stray blip doesn't slam it shut.
+  const AUTO_CLOSE_MS = 500;
+  let closeTimer = null;
+  function cancelAutoClose(){ if(closeTimer){ clearTimeout(closeTimer); closeTimer = null; } }
+  function scheduleAutoClose(){ cancelAutoClose(); closeTimer = setTimeout(closePopover, AUTO_CLOSE_MS); }
+
   function onOutsideClick(e){ if(popover && !popover.contains(e.target) && e.target !== btn) closePopover(); }
   function onKeydown(e){ if(e.key === 'Escape') closePopover(); }
   function openPopover(){
     if(!popover || !btn) return;
+    cancelAutoClose();
     popover.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', onOutsideClick, true);
@@ -17028,6 +17038,7 @@ const Music = (function(){
   }
   function closePopover(){
     if(!popover || !btn) return;
+    cancelAutoClose();
     popover.hidden = true;
     btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', onOutsideClick, true);
@@ -17035,9 +17046,26 @@ const Music = (function(){
   }
   function togglePopover(){ if(popover) (popover.hidden ? openPopover() : closePopover()); }
 
-  if(btn) btn.addEventListener('click', togglePopover);
+  // On hover-capable devices (mouse/trackpad) hovering the control already
+  // opens it, and a click is always preceded by that hover — so a click
+  // there must not toggle (it would immediately re-close what hover just
+  // opened). It only opens, since leaving/outside-click/Escape close it. On
+  // touch, there's no hover, so the tap has to do the full open/close toggle.
+  const hoverCapable = !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
+
+  if(btn) btn.addEventListener('click', hoverCapable ? openPopover : togglePopover);
   if(muteBtn) muteBtn.addEventListener('click', toggleMute);
   if(slider) slider.addEventListener('input', ()=> setVolume(slider.value / 100));
+
+  // Hover reveals the slider and moving away or tabbing out collapses it
+  // back to the icon after the grace period, so it stays out of the way
+  // when not being used. Escape/outside-click (wired above) still apply.
+  if(control && hoverCapable){
+    control.addEventListener('mouseenter', ()=>{ if(!btn.hidden) openPopover(); else cancelAutoClose(); });
+    control.addEventListener('mouseleave', scheduleAutoClose);
+    control.addEventListener('focusin', cancelAutoClose);
+    control.addEventListener('focusout', (e)=>{ if(!control.contains(e.relatedTarget)) scheduleAutoClose(); });
+  }
 
   return { startIntro, startBody };
 })();
