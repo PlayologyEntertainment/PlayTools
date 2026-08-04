@@ -1948,7 +1948,7 @@ const Store = (function(){
         avatar: { emoji:'', bg:'' },   // Friend Card avatar — emoji overrides the handle initial, bg overrides accent
         archetype: null,   // resolved Gamer Quiz personality tag {key,name,at}
         contacts: { discord:'', email:'', phone:'' },
-        socials: { twitch:'', youtube:'', x:'', tiktok:'', instagram:'' }
+        socials: { youtube:'', x:'', tiktok:'', instagram:'' }
       },
       attributes: { reflex:0, precision:0, speed:0, focus:0, consistency:0, control:0, strategy:0 },
       attrPeaks:  { reflex:0, precision:0, speed:0, focus:0, consistency:0, control:0, strategy:0 }, // all-time peak per vector — anchors the idle-decay floor (DD §3.1.3 Stage 3)
@@ -4034,7 +4034,7 @@ const CABINETS = [
   { id:'friends',    lab:'The MetaGame', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
-    desc:'Link your Steam, Epic, Nintendo, Discord & Twitch profiles — paste or enter by hand.', dna:'Paste import · Manual KPIs' },
+    desc:'Link your Steam, Epic, Nintendo & Discord profiles — paste or enter by hand.', dna:'Paste import · Manual KPIs' },
 
   { id:'calibration',lab:'Reflex', name:'Latency Calibration', railName:'Latency', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
     desc:'3-click baseline to factor out system latency.', dna:'Calibrates t_link' },
@@ -4658,7 +4658,6 @@ Views.dna = function(c){
     ['character','Favorite Character','text',p.character,''],
     ['discord','Discord','text',p.contacts.discord,''],
     ['email','Email','email',p.contacts.email,''],
-    ['twitch','Twitch','text',p.socials.twitch,''],
     ['youtube','YouTube','text',p.socials.youtube,''],
     ['x','X','text',p.socials.x,''],
     ['instagram','Instagram','text',p.socials.instagram,'']
@@ -4696,7 +4695,7 @@ Views.dna = function(c){
       dd.profile.city=g('city'); dd.profile.state=g('state'); dd.profile.country=g('country');
       dd.profile.car=g('car'); dd.profile.character=g('character'); dd.profile.accent=g('accent')||'#16f2c8';
       dd.profile.contacts.discord=g('discord'); dd.profile.contacts.email=emailVal;
-      dd.profile.socials.twitch=g('twitch'); dd.profile.socials.youtube=g('youtube');
+      dd.profile.socials.youtube=g('youtube');
       dd.profile.socials.x=g('x'); dd.profile.socials.instagram=g('instagram');
     });
     UI.applyAccent(Store.get().profile.accent);
@@ -4728,7 +4727,7 @@ Views.dna = function(c){
   const plats = Store.getPlatforms();
   const platIds = Object.keys(plats);
   if(!platIds.length){
-    panel.append(el('p',{class:'muted', html:'No platforms linked yet. Add Steam, Epic, Discord or Twitch on <strong>Platform Link</strong>.'}));
+    panel.append(el('p',{class:'muted', html:'No platforms linked yet. Add Steam, Epic or Discord on <strong>Platform Link</strong>.'}));
   } else {
     panel.append(el('p',{class:'muted', html:`Your ${platIds.length} linked platform${platIds.length>1?'s':''}, pulled from <strong>Platform Link</strong>.`}));
     platIds.forEach(pid=>{
@@ -5452,7 +5451,7 @@ function openCompare(friend){
 /* ============================================================================
    PLATFORM LINK (DD §3.1.2.1) — paste parser + manual KPI panel
    Strictly client-only: parsing runs in-browser via DOMParser / JSON.parse,
-   no backend, no API keys. All four platforms are manual cards. Two
+   no backend, no API keys. All three platforms are manual cards. Two
    archetypes — `game` (library + KPIs) and `social` (handle + verification).
    Brand marks are inlined as single-path SVGs (Simple Icons) so they stay
    crisp, transparent and offline.
@@ -5467,11 +5466,7 @@ const PLATFORMS = [
   { id:'discord',  name:'Discord',    type:'social', color:'#5865F2', parser:false,
     logo:'M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z',
     note:'A social/identity card — your handle, servers, and Nitro status.',
-    social:[['serverCount','Servers','number','How many servers'],['status','Nitro / Boost','text','e.g. Nitro Classic']] },
-  { id:'twitch',   name:'Twitch',     type:'social', color:'#9146FF', parser:false,
-    logo:'M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z',
-    note:'A streamer card — channel, followers, subs and partner/affiliate status.',
-    social:[['avgViewers','Avg Viewers','number','Average concurrent'],['status','Partner / Affiliate','text','e.g. Affiliate']] }
+    social:[['serverCount','Servers','number','How many servers'],['status','Nitro / Boost','text','e.g. Nitro Classic']] }
 ];
 function getPlat(id){ return PLATFORMS.find(p=>p.id===id); }
 // Inline brand mark as a sized, transparent SVG in the platform's colour.

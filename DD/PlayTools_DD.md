@@ -66,14 +66,14 @@ Users can voluntarily enrich their local profile with standard metadata fields .
 * **Favorite Vehicular Class / Car:** String entry used for specific procedural text fields in generators .
 * **Primary Narrative Anchor (Favorite Character):** Open string capture (Game, Anime, Film, TV, Comic universes) .
 * **Direct Contact Handlers:** Multi-field object supporting Discord Handles, verified email structures, and telephone numbers .
-* **Social Handle Arrays:** Profile linking addresses for Twitch, YouTube, X (Twitter), TikTok, and Instagram .
+* **Social Handle Arrays:** Profile linking addresses for YouTube, X (Twitter), TikTok, and Instagram .
 
 #### 3.1.2 Platform Aggregation & Integration Profiles
 Users can manually declare or import their presence profiles across digital gaming ecosystems . The integration supports two distinct processing tracks:
 1. **Manual Entry Panel:** A dedicated retro dashboard interface allowing users to manually fill out key performance indicators (e.g., Total Wins, Kill/Death Ratio, Rank Tier) for individual ecosystems.
 2. **Text-Block Copy/Paste Parsing Layer:** A text import block where users can copy and paste raw console snippets or public profile JSON text dumps. The client parsing engine reads this input string, extracts key performance properties, and maps them to the local profile data structures.
 
-* **Supported Platforms:** Steam, Xbox Live, PlayStation Network, Nintendo Network, Riot Games, Epic Games Store, Twitch, and Discord .
+* **Supported Platforms:** Steam, Xbox Live, PlayStation Network, Nintendo Network, Riot Games, Epic Games Store, and Discord .
 * **Aggregation Processing:** Compiles total games owned, active playtime across major categories (FPS, RPG, RTS, Sim), rare achievements unlocked, and live verification status badges . This aggregated view is compiled directly on the client[cite: 2].
 * **Export & P2P Sharing Pipeline:** The system generates an interactive, styled, self-contained HTML file embedding both the data object payload and custom, inline retro styling .
     * When a user hits the "Share with Friend" button, the engine generates this standalone HTML asset and targets the system's default email client using a structured mail context helper.
@@ -90,14 +90,14 @@ This subsection narrows the vision above into a build-ready specification for th
 
 **Architecture — strictly client-only.** The engine runs entirely in-browser. There is no backend, no proxy server, and no API keys; all data is entered/processed locally, consistent with the product's Browser-Only Execution principle (§1.3). (Any future paste import would parse locally via `DOMParser` / `JSON.parse`.)
 
-**MVP Platform Set.** The first release ships four platforms, split into two card archetypes:
+**MVP Platform Set.** The first release ships three platforms, split into two card archetypes:
 
 | Archetype | Platforms | Emphasis |
 | --- | --- | --- |
 | `game` | **Steam**, **Epic Games** | library + per-title competitive KPIs |
-| `social` | **Discord**, **Twitch** | handle + audience / verification stats |
+| `social` | **Discord** | handle + audience / verification stats |
 
-All four platforms are **manual-entry cards** in v1 (see implementation note below), each shown with its official brand mark (inlined as a transparent single-path SVG so it stays crisp and offline). PlayTools is PC-focused, so the console-only **Nintendo** card was dropped; Xbox Live, PlayStation Network, and Riot Games from the broader vision list (§3.1.2) remain deferred to a later pass.
+All three platforms are **manual-entry cards** in v1 (see implementation note below), each shown with its official brand mark (inlined as a transparent single-path SVG so it stays crisp and offline). PlayTools is PC-focused, so the console-only **Nintendo** card was dropped; Xbox Live, PlayStation Network, and Riot Games from the broader vision list (§3.1.2) remain deferred to a later pass. **Twitch** was dropped from the MVP set after initial launch.
 
 **Implementation note — Steam auto-import (shipped: manual).** The original v1 plan auto-parsed Steam from its public Community XML (`…/?xml=1`, `…/games/?tab=all&xml=1`). In testing this proved unworkable client-side: Steam has deprecated the community XML and now serves logged-in profile owners the new JavaScript-rendered games page (ignoring `xml=1`), while the profile-summary XML never contained the full library. A true "enter your ID → auto-load" experience (à la gameindustry.eu) requires Steam's Web API behind a server/proxy — which violates the strictly-client-only, no-proxy rule above. v1 therefore ships **manual entry for all platforms**, including Steam. The data model keeps `source: 'parser'` reserved so an optional Web-API-key + proxy path can be added later without migration.
 
@@ -108,8 +108,7 @@ platforms: {
   steam:    { type:'game',   source:'parser'|'manual', handle, id, snapshots:[ … ] },
   epic:     { type:'game',   source:'manual',          handle,     snapshots:[ … ] },
   nintendo: { type:'game',   source:'manual',          handle, friendCode, snapshots:[ … ] },
-  discord:  { type:'social', source:'manual',          handle,     snapshots:[ … ] },
-  twitch:   { type:'social', source:'manual',          handle,     snapshots:[ … ] }
+  discord:  { type:'social', source:'manual',          handle,     snapshots:[ … ] }
 }
 // snapshot = { at, identity{}, library{ gamesOwned, totalHours, topGames[] },
 //              kpis[ { game, rank, wins, losses, kd, … } ],
@@ -121,7 +120,7 @@ platforms: {
 **Field Schema.**
 * *Shared (all cards):* handle · profile URL · region · member-since · verification toggle · free-form custom key→value rows.
 * *`game` cards add:* games owned · total hours · an optional Top-Games list · a repeatable per-title KPI block — title, rank/tier, wins, losses, K/D (auto win-rate), plus an **add/remove list of user-defined custom stat fields** per game (e.g. Headshot %, Level, MMR).
-* *`social` cards add:* followers · subscribers · partner/affiliate or Nitro status · average viewers (Twitch) · server count (Discord).
+* *`social` cards add:* followers · subscribers · partner/affiliate or Nitro status · server count (Discord).
 
 **Steam (manual in v1).** See the implementation note above — client-only auto-import is blocked by Steam's deprecation of community XML, so Steam is entered by hand like the other `game` platforms (profile name, library size, total hours, top titles, per-game KPIs). A `DOMParser`/JSON paste parser plus Web-API-key option remains a candidate for a later pass.
 

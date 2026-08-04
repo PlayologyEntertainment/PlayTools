@@ -15,7 +15,7 @@ Everything described below is **live in the app today**. Treat all of it as the 
 | System | Status | Notes |
 |---|---|---|
 | Gamer DNA profile (demographics, persona) | ✅ Shipped | Missing only phone/TikTok fields vs. the original wishlist — minor. |
-| Platform Link (Steam/Epic/Discord/Twitch) | ✅ Shipped | Manual-entry only, exactly per the locked v1 spec. Xbox/PSN/Riot/Nintendo deliberately deferred. |
+| Platform Link (Steam/Epic/Discord) | ✅ Shipped | Manual-entry only, exactly per the locked v1 spec. Xbox/PSN/Riot/Nintendo deliberately deferred. Twitch removed. |
 | Mathematical Attribute Engine (7-vector radar) | ⚠️ Partially shipped | Diminishing-returns easing + idle decay (Stages 2–3) are implemented **exactly** to spec. The logistic benchmark-curve normalization (Stage 1) is **not** — tools use simple linear clamps instead. See §4 below. |
 | Friends List (multi-sort, comparative radar) | ✅ Shipped | |
 | Reflex Lab (Reaction, CPS, Precision Click) | ✅ Shipped | |
