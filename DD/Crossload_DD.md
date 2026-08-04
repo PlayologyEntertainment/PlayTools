@@ -232,7 +232,7 @@ Add `recordCrossloadRun(score, ctx)` following the exact pattern used by
 | `crossload_firstdock` | First Contact | 🐸 | Dock your first socket. |
 | `crossload_fullboard` | Full Handshake | 🔌 | Fill all five sockets in one board. |
 | `crossload_flawless` | Clean Run | ✨ | Clear a board with zero deaths. |
-| `crossload_overclock` | Overclocked | ⚡ | Score 10,000+ in a single run (shipped without the Overclocked-difficulty gate this doc originally specified — see ROADMAP.md for whether to retune). |
+| `crossload_overclock` | Overclocked | ⚡ | Score 10,000+ in a single run, any difficulty. Shipped without the Overclocked-difficulty gate / at half the 20,000 threshold this doc originally specified. **Decided (2026-08-04, see ROADMAP.md):** the shipped version is canon — this is the intended balance, no retune planned. |
 
 (Wired into the existing achievements array exactly like `pixel_pilot` /
 `dodge_ace` / `macpan_seasoned`.)

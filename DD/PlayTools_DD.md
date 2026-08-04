@@ -468,7 +468,7 @@ The generated media layout strictly follows a classic arcade trading card struct
     * *Reaction Master:* Triggered by securing an S-Grade rating on the visual reaction time test .
     * *Precision Hunter:* Earned by hitting a uniform accuracy score $\ge 98\%$ on the target selection test .
     * *Controller Wizard:* Awarded for completing setup configuration maps across 3 separate platforms .
-    * *Arcade Champion:* Documented here as "10,000 points across the Retro Arcade cabinets," but the shipped condition is actually **total Gamer Score ≥ 10,000** (a global score gate, not an arcade-specific one) — a real semantic drift from this text. Left as-is pending a v2 decision on whether to retune the condition or the wording (see ROADMAP.md).
+    * *Arcade Champion:* Documented here as "10,000 points across the Retro Arcade cabinets," but the shipped condition is actually **total Gamer Score ≥ 10,000** (a global score gate, not an arcade-specific one) — a real semantic drift from this text. **Decided (2026-08-04, see ROADMAP.md):** the code will be fixed to gate on actual arcade-cabinet points, matching this description — tracked as a v2 backlog item, not yet implemented.
     * *Speed Demon:* Triggered by maintaining a clicking pace $\ge 12\text{ CPS}$ inside the Reflex Lab .
     * *Tracking Expert:* Earned by keeping path deviation error under 4 pixels on the Mouse Accuracy tracking test .
     * *Setup Specialist:* Unlocked after calculating configurations across all Setup Lab calculators .
