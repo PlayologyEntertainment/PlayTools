@@ -65,6 +65,15 @@ app stays fully anonymous/local-only for every player until then.
    `friend_links` tables, their Row Level Security policies, and the
    `get_friend_dna` function — see `DD/CloudSync_DD.md` for what each piece
    does and why.
+3. If Cloud Account was already live before you ran the migration above (any
+   player already signed in with Discord), also run
+   `supabase/migrations/20260805190000_backfill_profiles_for_existing_users.sql`.
+   The `profiles` row for each player is only created by a trigger on *new*
+   sign-ins — anyone who signed in earlier has a real account but no
+   `profiles` row, which makes Friends v2 search silently find nothing for
+   them even though their username is typed correctly. This migration
+   backfills those rows once; it's a no-op for anyone the trigger already
+   covered. Safe to run any time, and safe to re-run.
 
 ## 6. Hand back two values
 
