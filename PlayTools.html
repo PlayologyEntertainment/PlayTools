@@ -1891,6 +1891,7 @@
       </div>
       <button class="btn ghost icon" id="crtToggle" type="button" aria-label="Turn sign off" title="Turn sign off">💡</button>
       <button class="btn ghost icon" id="helpBtn" type="button" aria-label="What is PlayTools?" title="What is PlayTools?">❓</button>
+      <button class="btn ghost icon" id="cloudAcctBtn" type="button" hidden aria-label="Sign In" title="Sign In">🔑</button>
     </div>
   </div>
 
@@ -17248,6 +17249,19 @@ const UI = (function(){
       count: railLabCount(lab) || null, countColor: labColor(lab)
     })));
   }
+  // Header shortcut mirroring the rail's Cloud Account entry (icon + hidden
+  // state only — no label, matching the other header icon buttons). Hidden
+  // entirely when this deployment has no Supabase config, same as the rail.
+  function updateCloudBtn(){
+    const btn = document.getElementById('cloudAcctBtn');
+    if(!btn) return;
+    if(!(window.Auth && Auth.isConfigured())){ btn.hidden = true; return; }
+    btn.hidden = false;
+    const label = Auth.isSignedIn() ? 'Cloud Account' : 'Sign In';
+    btn.textContent = Auth.isSignedIn() ? '☁️' : '🔑';
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+  }
   function highlightRail(hash){
     // Exact match for filter routes; when inside an applet page, light up the
     // category it belongs to so the rail still shows where you are.
@@ -17325,7 +17339,8 @@ const UI = (function(){
     applySign();
     refreshStrip();
     Store.subscribe(refreshStrip);
-    if(window.Auth) Auth.onChange(()=> buildRail());   // flip Sign In <-> Cloud Account live
+    updateCloudBtn();
+    if(window.Auth) Auth.onChange(()=>{ buildRail(); updateCloudBtn(); });   // flip Sign In <-> Cloud Account live
 
     document.getElementById('crtToggle').onclick=()=>{
       const nowOff = !Store.getPrefs().signOff;
@@ -17335,6 +17350,8 @@ const UI = (function(){
     document.getElementById('dnaBtn').onclick=()=> Router.go('#/dna');
     const helpBtn=document.getElementById('helpBtn');
     if(helpBtn) helpBtn.onclick=()=> openHelp();
+    const cloudAcctBtn=document.getElementById('cloudAcctBtn');
+    if(cloudAcctBtn) cloudAcctBtn.onclick=()=> Router.go('#/account');
     document.getElementById('logoHome').onclick=()=> Router.go('#/');
   }
 
