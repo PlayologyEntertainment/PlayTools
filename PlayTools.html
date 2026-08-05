@@ -1925,6 +1925,23 @@
      Views        - home, dna hub, reflex lab cabinets
      UI           - shell wiring (status strip, rail, CRT, theme)
    ============================================================================ */
+// Canonical-domain redirect: localStorage (and therefore every player's
+// save) is scoped per exact origin, so "www.playologyentertainment.com" and
+// "playologyentertainment.com" are two totally separate, unrelated buckets
+// even though they look like the same site. Bounce any non-canonical
+// playologyentertainment.com variant to the canonical one *before* Store
+// ever reads localStorage below, preserving path/query/hash (including an
+// in-flight Discord OAuth callback) so nothing mid-flow breaks. Scoped to
+// this domain family only — local dev (localhost) and any other host are
+// untouched.
+(function enforceCanonicalHost(){
+  const CANONICAL_HOST = 'www.playologyentertainment.com';
+  const h = location.hostname || '';
+  if(/(^|\.)playologyentertainment\.com$/.test(h) && (h !== CANONICAL_HOST || location.protocol !== 'https:')){
+    location.replace('https://' + CANONICAL_HOST + location.pathname + location.search + location.hash);
+  }
+})();
+
 (function(){
 
 /* ============================================================================
