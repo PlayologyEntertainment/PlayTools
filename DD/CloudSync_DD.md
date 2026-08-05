@@ -4,10 +4,10 @@
 real Discord-identity friend requests — is schema-ready but not yet wired
 into the client; see §7.)
 **Author:** Playology Entertainment
-**Status:** Live in-app under route `#/account`, linked from the rail only
-when a deployment has Supabase configured (`Auth.isConfigured()` in
-`PlayTools.html`). On the shipped default (no config filled in) this
-feature is completely invisible and inert — see §1.
+**Status:** Live in-app under route `#/account`, linked from the rail.
+Supabase is configured for the production deployment
+(`Auth.isConfigured()` in `PlayTools.html` returns `true`); a build with no
+config filled in stays completely invisible and inert instead — see §1.
 **Parent Doc:** `PlayTools_DD.md` §1.3 (Core Principles) and §3.1.2.1
 (Platform Link — a **different, unrelated** feature, see §2 below)
 

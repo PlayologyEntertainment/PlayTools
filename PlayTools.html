@@ -2185,19 +2185,20 @@ const Store = (function(){
 })();
 
 /* ============================================================================
-   AUTH — optional Discord OAuth2 login (Supabase). Fully opt-in: with no
-   SUPABASE_URL/SUPABASE_ANON_KEY configured (the shipped default), every
-   cloud UI surface stays hidden and the app behaves exactly as it always
-   has — 100% anonymous, local-only. See DD/CloudSync_DD.md and
-   docs/CLOUD_SETUP.md for what this is and how to turn it on.
+   AUTH — optional Discord OAuth2 login (Supabase). Fully opt-in: a player who
+   never visits #/account keeps playing exactly as before — 100% anonymous,
+   local-only, nothing synced. With no SUPABASE_URL/SUPABASE_ANON_KEY
+   configured, every cloud UI surface stays hidden entirely. See
+   DD/CloudSync_DD.md and docs/CLOUD_SETUP.md for what this is and how it's
+   configured.
    ============================================================================ */
 const Auth = (function(){
-  // Fill these in per docs/CLOUD_SETUP.md after provisioning a Supabase
-  // project with Discord enabled as an Auth provider. The anon key is safe
-  // to embed client-side — Supabase's security model is Row Level Security
-  // on the database, not secrecy of this key.
-  const SUPABASE_URL = '';
-  const SUPABASE_ANON_KEY = '';
+  // Configured per docs/CLOUD_SETUP.md against a Supabase project with
+  // Discord enabled as an Auth provider. The anon/publishable key is safe to
+  // embed client-side — Supabase's security model is Row Level Security on
+  // the database, not secrecy of this key.
+  const SUPABASE_URL = 'https://nvlbvvsbqpdjbcnmldhz.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_T-_HIYVDH44L3JI4BkVcfw_bhmb7X8P';
 
   let sb = null;         // lazily-created supabase-js client
   let session = null;    // current auth.Session, or null when signed out
