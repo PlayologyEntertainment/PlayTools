@@ -5660,6 +5660,10 @@ Views.friends = function(c){
 // itself since it does its own async fetching/rendering into `box`.
 function renderDiscordFriendsBox(box){
   box.append(el('h3',{class:'sub', style:'margin-top:0;', html:'☁️ Discord Friends'}));
+  box.append(el('p',{class:'muted', style:'font-size:12px; margin:0 0 10px;',
+    html:'Finds other <strong>PlayTools</strong> players who\'ve signed in with Discord — not anyone on Discord itself. '+
+      'A friend who hasn\'t opened <a href="#/account">☁️ Cloud Account</a> and signed in at least once won\'t turn up here yet. '+
+      'For anyone else, use <strong>Import/Export DNA</strong> above instead — no sign-in required.'}));
 
   const reqBox = el('div',{class:'request-list'});
   box.append(reqBox);
@@ -5711,7 +5715,13 @@ function renderDiscordFriendsBox(box){
     Cloud.searchProfiles(q).then(list=>{
       searchBtn.disabled = false;
       results.innerHTML='';
-      if(!list.length){ results.append(el('div',{class:'muted', text:'No players found with that Discord username.'})); return; }
+      if(!list.length){
+        results.append(el('div',{class:'muted', html:
+          'No <strong>signed-in PlayTools player</strong> found with that Discord username. '+
+          'This only searches players who\'ve signed in with Discord here — if they haven\'t opened '+
+          '<a href="#/account">☁️ Cloud Account</a> yet, ask them to sign in once, or use Import/Export DNA instead.'}));
+        return;
+      }
       list.forEach(p=>{
         const row = el('div',{class:'request-row'});
         row.append(el('span',{text:'👤 '+(p.discord_username||p.gamer_tag||'Unknown')}), el('span',{class:'spacer'}));
