@@ -2205,6 +2205,17 @@ const Auth = (function(){
   let ready = null;      // promise resolved once ensureClient() has run at least once
   const listeners = [];
 
+  // PlayTools' own router is hash-based (#/account), and Supabase's OAuth
+  // redirect *also* delivers the session via the URL hash (implicit flow:
+  // #access_token=...) or query string (PKCE: ?code=...). Baking "#/account"
+  // into redirectTo would collide with that — e.g. "#/account&access_token=…"
+  // matches no route AND can swallow a PKCE "?code=" into the fragment where
+  // nothing parses it, so the sign-in silently never completes. Fix: redirect
+  // to a bare URL (no fragment) so Supabase's own tokens/code land cleanly,
+  // capture whether *this* load is such a callback before anything touches
+  // the URL, and hop to #/account ourselves once a session actually lands.
+  const cameFromAuthRedirect = /(^|[#&])access_token=/.test(location.hash) || /[?&]code=/.test(location.search);
+
   function isConfigured(){ return !!(SUPABASE_URL && SUPABASE_ANON_KEY); }
 
   function emit(){ listeners.forEach(fn=>{ try{ fn(session); }catch(e){ console.error(e); } }); }
@@ -2225,6 +2236,7 @@ const Auth = (function(){
     }).then(({data})=>{
       session = data && data.session;
       emit();
+      if(cameFromAuthRedirect && session) location.hash = '#/account';
       return sb;
     });
     return ready;
@@ -2234,7 +2246,7 @@ const Auth = (function(){
     const client = await ensureClient();
     return client.auth.signInWithOAuth({
       provider: 'discord',
-      options: { redirectTo: location.origin + location.pathname + '#/account' }
+      options: { redirectTo: location.origin + location.pathname }
     });
   }
   async function signOut(){

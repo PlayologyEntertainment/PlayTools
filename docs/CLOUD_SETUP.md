@@ -41,14 +41,20 @@ app stays fully anonymous/local-only for every player until then.
 ## 4. Set the Site URL and allowed redirect URLs
 
 1. **Authentication → URL Configuration**.
-2. **Site URL**: the production origin PlayTools is served from (see
-   `.github/workflows/deploy.yml` — currently
-   `https://playologyentertainment.com/PlayTools/`, adjust if that changes).
-3. **Redirect URLs**: add that same origin (PlayTools reconstructs the
-   redirect as `location.origin + location.pathname + '#/account'` — see
-   `Auth.signInWithDiscord()` in `PlayTools.html`). If you test locally via
-   `npm run serve`, also add that local origin (e.g. `http://localhost:8080`)
-   here while testing.
+2. **Site URL**: the exact origin players actually use to reach PlayTools
+   (check your address bar / bookmarks — `www` and bare-domain are two
+   *different* origins with two different local saves, so pick the one
+   that's actually canonical for you, e.g.
+   `https://www.playologyentertainment.com/PlayTools/PlayTools.html`).
+3. **Redirect URLs**: add a wildcard for that same origin, e.g.
+   `https://www.playologyentertainment.com/PlayTools/**` (PlayTools
+   reconstructs the redirect as `location.origin + location.pathname` — see
+   `Auth.signInWithDiscord()` in `PlayTools.html`; it deliberately does
+   **not** append `#/account` here, since Supabase's own callback also uses
+   the URL hash/query to deliver the session — the app hops to `#/account`
+   itself client-side once sign-in actually completes). If you test locally
+   via `npm run serve`, also add that local origin (e.g.
+   `http://localhost:8080/**`) here while testing.
 
 ## 5. Run the database migration
 
