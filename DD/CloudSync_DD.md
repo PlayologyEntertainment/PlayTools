@@ -194,3 +194,19 @@ signed-in players:
 - Explicitly **not** in scope: leaderboards, Discord Rich Presence/status,
   cancelling an outgoing request before the other side responds (decline it
   from their side, or send a fresh request after removing the link).
+
+**Test coverage.** No CI environment can complete a real Discord OAuth
+consent screen or reach the live Supabase project, so the `playtools-friends`
+case in `test/smoke.mjs` fakes out only the Supabase transport (a small
+`.from()`/`.rpc()` emulator over an in-memory `profiles`/`friend_links`/dna
+store) and drives the real `Cloud`/`Views.friends`/`friendCard` code as two
+identities ("alice"/"bob") sharing that store — flipping which id
+`Auth.user()` returns between visits to `#/friends` simulates two separate
+signed-in sessions hitting one backend. It exercises the full round trip:
+search → send request → duplicate-request rejection → incoming request +
+rail dot on the addressee's side → accept → redacted stats + Discord badge
+appear on both sides → unfriend → `friend_links` row removed. This is
+regression coverage for the client logic, not a substitute for a real
+round trip against a live Supabase project + real Discord accounts (RLS
+policies and the OAuth flow itself aren't exercised by the fake transport)
+— see `docs/CLOUD_SETUP.md` §7 for that manual check.

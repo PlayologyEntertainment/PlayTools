@@ -94,6 +94,11 @@ After filling in the two values and deploying:
    Friends" and send a request. Back on the first account, accept it from
    the incoming-requests list — both accounts should now show each other
    in their roster with live (redacted) stats (see `DD/CloudSync_DD.md` §7).
+   This exact round trip is also covered by an automated (mocked-transport)
+   smoke test — `playtools-friends` in `test/smoke.mjs` — but that test
+   fakes out Supabase entirely, so it can't confirm your real project's
+   OAuth setup or RLS policies actually work; step 5 here is the one check
+   only a live project + real Discord accounts can do.
 
 If anything in steps 1-5 doesn't match what's described (dashboard layout
 changes, a renamed setting, etc.), the Supabase and Discord docs are the
