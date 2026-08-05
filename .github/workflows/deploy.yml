@@ -7,6 +7,7 @@ on:
     paths:
       - 'PlayTools.html'
       - 'tools/rig-inapp.bundle.js'
+      - 'tools/cloud-sync.bundle.js'
       - 'assets/rig/**'
   workflow_dispatch:
 
@@ -33,6 +34,7 @@ jobs:
           }
           up PlayTools.html
           up tools/rig-inapp.bundle.js
+          up tools/cloud-sync.bundle.js
           up assets/rig/rig_manifest.json
           for f in assets/rig/models/*; do up "$f"; done
           for f in assets/rig/textures/*.jpg; do up "$f"; done

@@ -22,13 +22,14 @@ consolidated, audited state of the whole app and v2 planning.
 The primary objective of PlayTools is not simply helping users solve a tactical problem (e.g., calculating sensitivity or testing mouse polling rates) . Instead, it is designed to create highly entertaining, friction-free, and memorable experiences that organically leverage competitive psychology to stimulate viral growth and social proof loops . 
 
 ### 1.3 Core Principles
-* **Zero Authentication (No Account Required):** Immediate onboarding . Friction is eliminated by avoiding registration walls; all profile data persists anonymously on the user's client .
-* **Browser-Only Execution:** Absolute zero installation . All operations, diagnostics, calculations, and rendering occur entirely in the client browser .
+* **Zero Authentication by Default (No Account Required):** Immediate onboarding . Friction is eliminated by avoiding registration walls; all profile data persists anonymously on the user's client by default .
+* **Browser-Only Execution by Default:** Absolute zero installation . All operations, diagnostics, calculations, and rendering occur entirely in the client browser by default .
 * **Sub-Second Asset Delivery (Fast Loading):** Exceptionally lightweight bundle footprint utilizing aggressively optimized assets to ensure instant retro arcade rendering .
 * **Immersive Retro Arcade Aesthetics:** Heavy visual adherence to standard 8-bit/16-bit arcade ergonomics, including CRT monitor styling, glowing neon paths, and pixelated glyphs .
 * **Quantifiable Output Engine:** Every tool natively outputs a discrete numeric score, an academic performance grade, or a unique, collectible character profile .
 * **Universal Shareability:** Every micro-experience terminates in a data-rich visual asset designed for single-click export or platform sharing .
 * **Overarching Gamer Metagame:** Individual tool performance feeds upward into a centralized progression matrix, tracking an encompassing Gamer Score and title tier .
+* **Optional Cloud Account (opt-in):** A player may choose to sign in with Discord to sync their Gamer DNA profile, achievements, Rig/RetroPets state, and tool bests across devices, and to add real Discord friends. This is strictly additive — signing in changes nothing about the two principles above for players who never do it, and nothing here reintroduces leaderboards or Discord presence. See `DD/CloudSync_DD.md`.
 
 ---
 
@@ -89,6 +90,8 @@ This subsection narrows the vision above into a build-ready specification for th
 **Customer-Facing Name.** The feature ships to users as **Platform Link** (shorthand **"Link"**) — the manual KPI panel (plus any future paste import). To avoid implying live OAuth/account-linking (the feature is deliberately zero-auth per §1.3), the UI pairs the name with expectation-setting subcopy, e.g. *"no login, no account linking, and nothing ever leaves this browser."*
 
 **Architecture — strictly client-only.** The engine runs entirely in-browser. There is no backend, no proxy server, and no API keys; all data is entered/processed locally, consistent with the product's Browser-Only Execution principle (§1.3). (Any future paste import would parse locally via `DOMParser` / `JSON.parse`.)
+
+> **Not to be confused with Cloud Account.** A separate, unrelated, later-added feature — optional Discord **OAuth2** sign-in for cross-device sync and real friends (`DD/CloudSync_DD.md`, route `#/account`) — also touches Discord. Platform Link's Discord card above stays exactly as specified in this section: manual-entry, local-only, no login. Cloud Account never reads or writes `dna.platforms`.
 
 **MVP Platform Set.** The first release ships three platforms, split into two card archetypes:
 

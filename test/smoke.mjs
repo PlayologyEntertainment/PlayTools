@@ -16,6 +16,7 @@ const cases = [
   { name: 'playtools-crossload', file: 'PlayTools.html', enter: true, hash: '#/arcade/crossload', drive: 'crossload' },
   { name: 'playtools-rig', file: 'PlayTools.html', enter: true, hash: '#/rig', drive: 'rig' },
   { name: 'playtools-pets', file: 'PlayTools.html', enter: true, hash: '#/pets', drive: 'pets' },
+  { name: 'playtools-account', file: 'PlayTools.html', enter: true, hash: '#/account', drive: 'account' },
   { name: 'sharecard-studio', file: 'sharecard-studio.html' },
 ];
 
@@ -24,6 +25,7 @@ let failed = 0;
 
 for (const c of cases) {
   const { page, errors, warnings } = await loadPage(browser, c.file, c);
+  let driveOk = true;
 
   // For real-time cabinets, actually start the game and drive a few inputs so
   // the RAF loop, collision/death/respawn and dock paths get exercised — a
@@ -165,9 +167,25 @@ for (const c of cases) {
     await page.waitForTimeout(400);
   }
 
+  // Cloud Account (opt-in Discord OAuth2 + sync): the shipped build ships
+  // with no Supabase config, so this asserts the feature stays fully hidden
+  // and inert on an unconfigured deployment — the actual acceptance
+  // criterion for "opt-in, additive, degrades gracefully" (DD/CloudSync_DD.md),
+  // not just "the route didn't crash."
+  if (c.drive === 'account') {
+    const state = await page.evaluate(() => ({
+      configured: window.Auth ? window.Auth.isConfigured() : null,
+      railHasAccount: !!document.querySelector('#rail a[data-route="#/account"]'),
+    }));
+    if (state.configured !== false || state.railHasAccount !== false) {
+      driveOk = false;
+      console.log(`   - assertion failed: expected {configured:false, railHasAccount:false}, got ${JSON.stringify(state)}`);
+    }
+  }
+
   const title = await page.title();
   await page.screenshot({ path: outDir + c.name + '.png' });
-  const ok = errors.length === 0 && title.length > 0;
+  const ok = errors.length === 0 && title.length > 0 && driveOk;
   if (!ok) failed++;
   const warnNote = warnings.length ? `  warnings=${warnings.length}` : '';
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.file}  title="${title}"  errors=${errors.length}${warnNote}`);
