@@ -17590,14 +17590,16 @@ const APP_VERSION = '1.0.0';
 
   // ---- Once-a-day gate -------------------------------------------------
   // The animated boot sequence only plays on the day's first launch. Once
-  // it's been shown, later same-day reloads skip straight to the lobby with
-  // no animation and no sound. Resets at local midnight (comparing calendar
-  // date strings, so timezone shifts don't matter beyond "today" changing).
+  // it's been shown, later same-day reloads skip straight to the lobby (no
+  // animation) with the Body track already playing. Resets at local
+  // midnight (comparing calendar date strings, so timezone shifts don't
+  // matter beyond "today" changing).
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   };
   if(Store.getPrefs().lastSplashDate === todayLocal()){
+    Music.startBody();
     splash.remove();
     return;
   }
