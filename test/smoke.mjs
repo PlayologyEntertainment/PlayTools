@@ -169,16 +169,18 @@ for (const c of cases) {
 
   // Cloud Account (opt-in Discord OAuth2 + sync): Supabase is configured in
   // this build, so this asserts the feature surfaces correctly — rail entry
-  // present, route mounts, and (since Auth.ensureClient() has been given a
-  // chance to resolve) no auth-client errors — per DD/CloudSync_DD.md.
+  // and header shortcut both present, route mounts, and (since
+  // Auth.ensureClient() has been given a chance to resolve) no auth-client
+  // errors — per DD/CloudSync_DD.md.
   if (c.drive === 'account') {
     const state = await page.evaluate(() => ({
       configured: window.Auth ? window.Auth.isConfigured() : null,
       railHasAccount: !!document.querySelector('#rail a[data-route="#/account"]'),
+      headerBtnVisible: !document.getElementById('cloudAcctBtn')?.hidden,
     }));
-    if (state.configured !== true || state.railHasAccount !== true) {
+    if (state.configured !== true || state.railHasAccount !== true || state.headerBtnVisible !== true) {
       driveOk = false;
-      console.log(`   - assertion failed: expected {configured:true, railHasAccount:true}, got ${JSON.stringify(state)}`);
+      console.log(`   - assertion failed: expected {configured:true, railHasAccount:true, headerBtnVisible:true}, got ${JSON.stringify(state)}`);
     }
   }
 
