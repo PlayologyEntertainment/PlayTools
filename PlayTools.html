@@ -279,8 +279,11 @@
   .score-strip b#ssScore{color:var(--neon-3);}
   .score-strip .sep{opacity:0.4; margin:0 4px;}
   /* Each RANK/CLASS/SCORE/NetCoin metric is an unbreakable unit, so when the
-     strip wraps on a narrow viewport a label never splits from its value. */
-  .score-strip .seg{display:inline-block; white-space:nowrap;}
+     strip wraps on a narrow viewport a label never splits from its value.
+     Resets border/radius/overflow because they share the .seg class name
+     with the unrelated segmented-button-group widget (line ~931), which
+     would otherwise draw a chip outline around each metric. */
+  .score-strip .seg{display:inline-block; white-space:nowrap; border:none; border-radius:0; overflow:visible;}
   .controls-actions{display:flex; gap:8px; flex-wrap:wrap;}
   .btn{
     font-family:var(--mono); font-size:12px; letter-spacing:1px; cursor:pointer;
