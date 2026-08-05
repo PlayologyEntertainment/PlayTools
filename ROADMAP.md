@@ -16,7 +16,7 @@ Everything described below is **live in the app today**. Treat all of it as the 
 |---|---|---|
 | Gamer DNA profile (demographics, persona) | ✅ Shipped | Missing only phone/TikTok fields vs. the original wishlist — minor. |
 | Platform Link (Steam/Epic/Discord) | ✅ Shipped | Manual-entry only, exactly per the locked v1 spec. Xbox/PSN/Riot/Nintendo deliberately deferred. Twitch removed. **Unrelated to** the separate, later, opt-in Cloud Account Discord login below — Platform Link stays local-only. |
-| Cloud Account (Discord OAuth2 sign-in + cross-device sync) | ✅ Shipped (PR 1) | Opt-in only — app is 100% anonymous/local by default, this is additive. Syncs Gamer DNA/achievements/Rig/RetroPets/tool bests via Supabase. Friends v2 (real Discord friends) is schema-ready but not yet wired into the client — see `DD/CloudSync_DD.md`. No leaderboards, no Discord presence. |
+| Cloud Account (Discord OAuth2 sign-in + cross-device sync) | ✅ Shipped (PR 1 + 2) | Opt-in only — app is 100% anonymous/local by default, this is additive. Syncs Gamer DNA/achievements/Rig/RetroPets/tool bests via Supabase. Friends v2 (real Discord friends — search, request, accept, redacted-stat compare) is now wired into `#/friends` — see `DD/CloudSync_DD.md` §7. No leaderboards, no Discord presence. |
 | Mathematical Attribute Engine (7-vector radar) | ⚠️ Partially shipped | Diminishing-returns easing + idle decay (Stages 2–3) are implemented **exactly** to spec. The logistic benchmark-curve normalization (Stage 1) is **not** — tools use simple linear clamps instead. See §4 below. |
 | Friends List (multi-sort, comparative radar) | ✅ Shipped | |
 | Reflex Lab (Reaction, CPS, Precision Click) | ✅ Shipped | |

@@ -1418,6 +1418,21 @@
   .friend-empty{
     border:1px dashed var(--line); border-radius:10px; padding:30px; text-align:center; color:var(--ink-dim); margin:18px 0;
   }
+  .friend-card .fc-chip.cloud{border-color:#a855f7; color:#a855f7;}
+
+  /* ---- Discord Friends (Cloud Account) — search/add + incoming requests ---- */
+  .discord-friends .discord-add{display:flex; gap:10px; flex-wrap:wrap; margin:10px 0 4px;}
+  .discord-friends .discord-add input[type="text"]{
+    flex:1; min-width:160px; font-family:inherit; font-size:13px; color:var(--ink);
+    background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:9px 11px;
+  }
+  .request-list{display:flex; flex-direction:column; gap:8px; margin:10px 0;}
+  .request-row{
+    display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:8px; padding:8px 12px; font-size:13px;
+  }
+  .request-row .spacer{flex:1;}
+  .request-row .btn{padding:6px 10px; font-size:12px;}
   .compare-legend{display:flex; gap:18px; justify-content:center; margin:0 0 12px; font:12px monospace;}
   .compare-legend span{display:inline-flex; align-items:center; gap:6px;}
   .compare-legend i{width:12px; height:12px; border-radius:3px; display:inline-block;}
@@ -2427,7 +2442,152 @@ const Cloud = (function(){
     };
   }
 
-  return { buildPayload, applyPayload, push, pullAndMerge, resolveDivergence, deleteCloudData, status };
+  /* --------------------------------------------------------------------------
+     FRIENDS v2 (DD/CloudSync_DD.md §7) — real Discord-identity friend
+     requests, layered on the friend_links table + get_friend_dna RPC the
+     migration already ships. pendingCount is a small cache so the rail's
+     "incoming request" dot (railCollectAlert, UI module) doesn't need a
+     network round trip on every rebuild — it's refreshed whenever
+     listIncomingRequests() runs (on sign-in and whenever #/friends mounts).
+     -------------------------------------------------------------------------- */
+  let pendingCount = 0;
+  function pendingRequestCount(){ return pendingCount; }
+
+  async function searchProfiles(query){
+    const client = await Auth.ensureClient();
+    const me = Auth.user().id;
+    const q = String(query||'').trim();
+    if(!q) return [];
+    const { data, error } = await client.from('profiles')
+      .select('id, discord_username, discord_avatar_url, gamer_tag')
+      .ilike('discord_username', '%'+q+'%')
+      .neq('id', me)
+      .limit(10);
+    if(error) throw error;
+    return data||[];
+  }
+
+  async function sendFriendRequest(addresseeId){
+    const client = await Auth.ensureClient();
+    const me = Auth.user().id;
+    if(addresseeId===me) throw new Error("You can't add yourself as a friend.");
+    const { data: existing, error: exErr } = await client.from('friend_links')
+      .select('id, status')
+      .or(`and(requester_id.eq.${me},addressee_id.eq.${addresseeId}),and(requester_id.eq.${addresseeId},addressee_id.eq.${me})`);
+    if(exErr) throw exErr;
+    if(existing && existing.length){
+      const st = existing[0].status;
+      if(st==='accepted') throw new Error('You are already friends.');
+      if(st==='pending') throw new Error('A friend request is already pending.');
+    }
+    const { error } = await client.from('friend_links').insert({ requester_id: me, addressee_id: addresseeId });
+    if(error) throw error;
+  }
+
+  // Fetches incoming (addressed-to-me) pending requests with the requester's
+  // public profile attached, and refreshes pendingRequestCount()/the rail dot
+  // as a side effect — the one place this cache is kept current.
+  async function listIncomingRequests(){
+    const client = await Auth.ensureClient();
+    const me = Auth.user().id;
+    const { data, error } = await client.from('friend_links')
+      .select('id, requester_id, created_at').eq('addressee_id', me).eq('status','pending');
+    if(error) throw error;
+    const rows = data||[];
+    pendingCount = rows.length;
+    if(window.UI && UI.syncRail) UI.syncRail();
+    if(!rows.length) return [];
+    const ids = rows.map(r=> r.requester_id);
+    const { data: profs } = await client.from('profiles')
+      .select('id, discord_username, discord_avatar_url, gamer_tag').in('id', ids);
+    const byId = {}; (profs||[]).forEach(p=> byId[p.id]=p);
+    return rows.map(r=> ({ linkId:r.id, requesterId:r.requester_id, createdAt:r.created_at, profile: byId[r.requester_id]||{} }));
+  }
+
+  async function respondToRequest(linkId, accept){
+    const client = await Auth.ensureClient();
+    const { error } = await client.from('friend_links')
+      .update({ status: accept?'accepted':'declined', responded_at: new Date().toISOString() })
+      .eq('id', linkId);
+    if(error) throw error;
+  }
+
+  // Maps a friend_links row's redacted cloud dna (get_friend_dna RPC) into the
+  // exact same friend-card shape ProfileIO.payloadToFriend() already produces
+  // for imported P2P friends (DD §7), tagged source:'cloud' so friendCard()
+  // and FRIEND_SORTS can treat both kinds identically.
+  function friendFromCloudDna(profileRow, dna){
+    const score = Attr.gamerScore(dna);
+    const f = ProfileIO.payloadToFriend({
+      tag: (profileRow && (profileRow.gamer_tag || profileRow.discord_username))
+        || (dna.profile && dna.profile.gamerTag) || 'Player One',
+      profile: dna.profile || {},
+      attributes: dna.attributes || {},
+      score,
+      rankName: Attr.rankFor(score).name,
+      klass: Attr.classFor(dna),
+      rigScore: (dna.rig && dna.rig.rigScore) || 0,
+      achievements: dna.achievements || [],
+      toolsCompleted: dna.toolsCompleted || 0,
+      runs: dna.runs || 0
+    });
+    f.source = 'cloud';
+    f.cloudId = profileRow && profileRow.id;
+    return f;
+  }
+
+  // Every mutually-accepted friend, fetched fresh each time (DD §7 decision —
+  // no local caching of another player's stats). One get_friend_dna RPC call
+  // per friend; RLS/the RPC itself already enforce the caller only ever sees
+  // an accepted friend's redacted profile, never anyone else's.
+  async function listAcceptedFriends(){
+    const client = await Auth.ensureClient();
+    const me = Auth.user().id;
+    const { data, error } = await client.from('friend_links')
+      .select('id, requester_id, addressee_id')
+      .eq('status','accepted')
+      .or(`requester_id.eq.${me},addressee_id.eq.${me}`);
+    if(error) throw error;
+    const rows = data||[];
+    if(!rows.length) return [];
+    const otherIds = rows.map(r=> r.requester_id===me ? r.addressee_id : r.requester_id);
+    const { data: profs } = await client.from('profiles')
+      .select('id, discord_username, discord_avatar_url, gamer_tag').in('id', otherIds);
+    const byId = {}; (profs||[]).forEach(p=> byId[p.id]=p);
+    const out = [];
+    for(const id of otherIds){
+      try{
+        const { data: dna, error: dnaErr } = await client.rpc('get_friend_dna', { friend_id: id });
+        if(dnaErr || !dna) continue;
+        out.push(friendFromCloudDna(byId[id], dna));
+      }catch(e){ console.warn('[PlayTools] get_friend_dna failed:', e&&e.message||e); }
+    }
+    return out;
+  }
+
+  // Removes the friend_links row in either direction — used both to unfriend
+  // an accepted friend and (implicitly) to let either side clear a pending
+  // request by re-sending, since sendFriendRequest blocks duplicates.
+  async function removeFriendLink(otherId){
+    const client = await Auth.ensureClient();
+    const me = Auth.user().id;
+    const { error } = await client.from('friend_links').delete()
+      .or(`and(requester_id.eq.${me},addressee_id.eq.${otherId}),and(requester_id.eq.${otherId},addressee_id.eq.${me})`);
+    if(error) throw error;
+  }
+
+  // Keep the rail's pending-request dot current on sign-in/out without
+  // requiring a #/friends visit first.
+  Auth.onChange(()=>{
+    if(Auth.isSignedIn()) listIncomingRequests().catch(()=>{});
+    else { pendingCount = 0; if(window.UI && UI.syncRail) UI.syncRail(); }
+  });
+
+  return {
+    buildPayload, applyPayload, push, pullAndMerge, resolveDivergence, deleteCloudData, status,
+    pendingRequestCount, searchProfiles, sendFriendRequest, listIncomingRequests, respondToRequest,
+    listAcceptedFriends, removeFriendLink
+  };
 })();
 
 /* ============================================================================
@@ -5441,18 +5601,22 @@ Views.friends = function(c){
     fileInput.value='';
   };
 
-  // ---- roster ----
-  const friends = Store.getFriends().slice();
-  panel.append(el('h2',{class:'sub', text:'Your Roster ('+friends.length+')'}));
-
-  if(!friends.length){
-    panel.append(el('div',{class:'friend-empty', html:
-      '🕹️ No friends on your roster yet.<br><span class="muted">Ask a friend to <strong>Export their DNA</strong> and send you the file, then hit <strong>Import Friend Profile</strong> above.</span>'}));
-    c.append(panel);
-    return;
+  // ---- Discord Friends (Cloud Account) — search/add + incoming requests.
+  // Only for signed-in players; an unconfigured or signed-out deployment
+  // shows none of this, same guardrail as the rest of Cloud Account
+  // (DD/CloudSync_DD.md §7). The local P2P import/export flow above is
+  // untouched and keeps working for everyone either way.
+  const showCloud = !!(window.Auth && Auth.isConfigured() && Auth.isSignedIn());
+  if(showCloud){
+    const cloudBox = el('div',{class:'legal-section discord-friends'});
+    panel.append(cloudBox);
+    renderDiscordFriendsBox(cloudBox);
   }
 
-  // sort toolbar
+  // ---- roster ----
+  const localFriends = Store.getFriends().slice();
+  const rosterHead = el('h2',{class:'sub'});
+  const emptyBox = el('div',{class:'friend-empty'});
   const toolbar = el('div',{class:'friend-toolbar'});
   toolbar.append(el('span',{class:'spacer'}), el('label',{html:'Sort by'}));
   const sortSel = el('select');
@@ -5460,17 +5624,115 @@ Views.friends = function(c){
   sortSel.value = friendsSort;
   sortSel.onchange = ()=>{ friendsSort = sortSel.value; Router.go('#/friends'); };
   toolbar.append(sortSel);
-  panel.append(toolbar);
-
-  const sorter = (FRIEND_SORTS.find(s=>s.key===friendsSort)||FRIEND_SORTS[0]).cmp;
-  friends.sort(sorter);
-
   const grid = el('div',{class:'friend-grid'});
-  friends.forEach(f=> grid.append(friendCard(f)));
-  panel.append(grid);
+  panel.append(rosterHead, emptyBox, toolbar, grid);
+
+  let cloudFriends = [];
+  function paintRoster(){
+    const all = localFriends.concat(cloudFriends);
+    rosterHead.textContent = 'Your Roster ('+all.length+')';
+    if(!all.length){
+      emptyBox.innerHTML = '🕹️ No friends on your roster yet.<br><span class="muted">Ask a friend to '+
+        '<strong>Export their DNA</strong> and send you the file, then hit <strong>Import Friend Profile</strong> above'+
+        (showCloud?', or add one via Discord above':'')+'.</span>';
+      emptyBox.style.display=''; toolbar.style.display='none'; grid.style.display='none';
+      return;
+    }
+    emptyBox.style.display='none'; toolbar.style.display=''; grid.style.display='';
+    const sorter = (FRIEND_SORTS.find(s=>s.key===friendsSort)||FRIEND_SORTS[0]).cmp;
+    all.sort(sorter);
+    grid.innerHTML='';
+    all.forEach(f=> grid.append(friendCard(f)));
+  }
+  paintRoster();
+
+  if(showCloud){
+    Cloud.listAcceptedFriends()
+      .then(list=>{ cloudFriends = list; paintRoster(); })
+      .catch(err=> console.warn('[PlayTools] cloud friends fetch failed:', err&&err.message||err));
+  }
 
   c.append(panel);
 };
+
+// Discord search/add box + incoming-requests list mounted into #/friends for
+// signed-in players (DD/CloudSync_DD.md §7). Kept separate from Views.friends
+// itself since it does its own async fetching/rendering into `box`.
+function renderDiscordFriendsBox(box){
+  box.append(el('h3',{class:'sub', style:'margin-top:0;', html:'☁️ Discord Friends'}));
+
+  const reqBox = el('div',{class:'request-list'});
+  box.append(reqBox);
+  function loadRequests(){
+    Cloud.listIncomingRequests().then(list=>{
+      reqBox.innerHTML='';
+      if(!list.length) return;
+      reqBox.append(el('div',{class:'muted', style:'font-size:12px;', text:'Incoming friend requests'}));
+      list.forEach(r=>{
+        const name = (r.profile && (r.profile.discord_username || r.profile.gamer_tag)) || 'A player';
+        const row = el('div',{class:'request-row'});
+        row.append(el('span',{text:'👤 '+name}), el('span',{class:'spacer'}));
+        const acc = el('button',{class:'btn primary', html:'✔ Accept'});
+        const dec = el('button',{class:'btn ghost', html:'✕ Decline'});
+        function respond(accept){
+          acc.disabled = true; dec.disabled = true;
+          Cloud.respondToRequest(r.linkId, accept)
+            .then(()=>{
+              if(accept) UI.toast('Friend Added', name+' is now on your roster.');
+              Router.go('#/friends');
+            })
+            .catch(err=>{
+              acc.disabled = false; dec.disabled = false;
+              UI.toast('Failed', err.message||'Could not respond to that request.');
+            });
+        }
+        acc.onclick = ()=> respond(true);
+        dec.onclick = ()=> respond(false);
+        row.append(acc, dec);
+        reqBox.append(row);
+      });
+    }).catch(err=> console.warn('[PlayTools] incoming requests fetch failed:', err&&err.message||err));
+  }
+  loadRequests();
+
+  const searchRow = el('div',{class:'discord-add'});
+  const input = el('input',{type:'text', placeholder:'Discord username'});
+  const searchBtn = el('button',{class:'btn', html:'🔍 Find'});
+  searchRow.append(input, searchBtn);
+  box.append(searchRow);
+
+  const results = el('div',{class:'request-list'});
+  box.append(results);
+
+  function runSearch(){
+    const q = input.value.trim();
+    if(!q) return;
+    searchBtn.disabled = true;
+    Cloud.searchProfiles(q).then(list=>{
+      searchBtn.disabled = false;
+      results.innerHTML='';
+      if(!list.length){ results.append(el('div',{class:'muted', text:'No players found with that Discord username.'})); return; }
+      list.forEach(p=>{
+        const row = el('div',{class:'request-row'});
+        row.append(el('span',{text:'👤 '+(p.discord_username||p.gamer_tag||'Unknown')}), el('span',{class:'spacer'}));
+        const addBtn = el('button',{class:'btn primary', html:'➕ Add Friend'});
+        addBtn.onclick = ()=>{
+          addBtn.disabled = true;
+          Cloud.sendFriendRequest(p.id)
+            .then(()=>{ addBtn.textContent='Request Sent'; UI.toast('Request Sent', 'Waiting for them to accept.'); })
+            .catch(err=>{ addBtn.disabled = false; UI.toast('Could Not Add Friend', err.message||'Something went wrong.'); });
+        };
+        row.append(addBtn);
+        results.append(row);
+      });
+    }).catch(err=>{
+      searchBtn.disabled = false;
+      UI.toast('Search Failed', err.message||'Could not search for players.');
+    });
+  }
+  searchBtn.onclick = runSearch;
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') runSearch(); });
+}
 
 /* ----------------------------------------------------------------------------
    ACCOUNT — optional Discord OAuth2 login + cross-device Cloud Sync
@@ -5799,6 +6061,7 @@ function friendCard(f){
        </div>
      </div>
      <div class="fc-chips">
+       ${f.source==='cloud' ? '<span class="fc-chip cloud">☁ DISCORD</span>' : ''}
        <span class="fc-chip">SCORE <b>${(f.score||0).toLocaleString()}</b></span>
        <span class="fc-chip">RIG <b>${(f.rigScore||0).toLocaleString()}</b></span>
        <span class="fc-chip">TOOLS <b>${f.toolsCompleted||0}</b></span>
@@ -5806,18 +6069,30 @@ function friendCard(f){
      </div>
      <div class="fc-attrs">${attrsHtml}</div>`;
 
-  // local-only contact note (DD §3.2 "manual contact fields")
-  const note = el('textarea',{class:'fc-note', placeholder:'Private note — Discord tag, phone ext, how you know them…'});
-  note.value = f.note || '';
-  note.addEventListener('change', ()=> Store.setFriendNote(f.tag, note.value));
-  card.append(note);
+  // local-only contact note (DD §3.2 "manual contact fields") — only for P2P
+  // imports; a cloud friend has no local roster entry to key the note off.
+  if(f.source!=='cloud'){
+    const note = el('textarea',{class:'fc-note', placeholder:'Private note — Discord tag, phone ext, how you know them…'});
+    note.value = f.note || '';
+    note.addEventListener('change', ()=> Store.setFriendNote(f.tag, note.value));
+    card.append(note);
+  }
 
   const actions = el('div',{class:'fc-actions'});
   const cmpBtn = el('button',{class:'btn primary', html:'⚔ Compare'});
-  const delBtn = el('button',{class:'btn danger ghost', html:'✕ Remove'});
+  const delBtn = el('button',{class:'btn danger ghost', html: f.source==='cloud' ? '💔 Unfriend' : '✕ Remove'});
   cmpBtn.onclick = ()=> openCompare(f);
   delBtn.onclick = ()=>{
-    if(confirm('Remove @'+f.tag+' from your roster?')){ Store.removeFriend(f.tag); Router.go('#/friends'); UI.toast('Removed','@'+f.tag+' left your roster.'); }
+    if(f.source==='cloud'){
+      if(confirm('Unfriend @'+f.tag+'? This removes the connection on both sides.')){
+        delBtn.disabled = true;
+        Cloud.removeFriendLink(f.cloudId)
+          .then(()=>{ Router.go('#/friends'); UI.toast('Unfriended','@'+f.tag+' was removed.'); })
+          .catch(err=>{ delBtn.disabled = false; UI.toast('Failed', err.message||'Could not remove this friend.'); });
+      }
+    } else if(confirm('Remove @'+f.tag+' from your roster?')){
+      Store.removeFriend(f.tag); Router.go('#/friends'); UI.toast('Removed','@'+f.tag+' left your roster.');
+    }
   };
   actions.append(cmpBtn, delBtn);
   card.append(actions);
@@ -17205,6 +17480,10 @@ const UI = (function(){
       if(Pets.idleFull())      return 'Idle NetCoin ready to collect';
       return null;
     }
+    if(route==='#/friends' && window.Cloud){
+      const n = Cloud.pendingRequestCount ? Cloud.pendingRequestCount() : 0;
+      return n>0 ? (n+' incoming friend request'+(n>1?'s':'')) : null;
+    }
     return null;
   }
   function railDot(link, route){
@@ -17226,8 +17505,10 @@ const UI = (function(){
     const petsLink = railLink({ href:'#/pets', icon:'🐾', label:'RetroPets' });
     railDot(petsLink, '#/pets');
     rail.append(petsLink);
-    rail.append(railLink({ href:'#/friends',        icon:'👥', label:'Friends',
-      count: Store.getFriends().length || null, countColor: FRIENDS_RAIL_COLOR }));
+    const friendsLink = railLink({ href:'#/friends', icon:'👥', label:'Friends',
+      count: Store.getFriends().length || null, countColor: FRIENDS_RAIL_COLOR });
+    railDot(friendsLink, '#/friends');
+    rail.append(friendsLink);
     rail.append(railLink({ href:'#/dna/platforms',  icon:'🔗', label:'Platforms' }));
     rail.append(railLink({ href:'#/favorites',      icon:'⭐', label:'Favorites',
       count: Store.favoriteCount() || null }));
@@ -17302,6 +17583,9 @@ const UI = (function(){
     // The Rig (daily payout / full idle tank) and RetroPets (full idle tank) dots.
     syncRailDot('#/rig');
     syncRailDot('#/pets');
+    // Incoming Discord friend requests (DD/CloudSync_DD.md §7) — no-op for
+    // anonymous/signed-out players since Cloud.pendingRequestCount() is 0.
+    syncRailDot('#/friends');
   }
 
   function refreshStrip(){

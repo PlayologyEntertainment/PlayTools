@@ -1,8 +1,8 @@
 # Cloud Account — Discord OAuth2 Login & Cross-Device Sync Design Spec
 
-**Version:** 1.0 (PR 1 shipped: Discord sign-in + DNA sync. Friends v2 —
-real Discord-identity friend requests — is schema-ready but not yet wired
-into the client; see §7.)
+**Version:** 1.1 (PR 1 shipped: Discord sign-in + DNA sync. PR 2 shipped:
+Friends v2 — real Discord-identity friend requests, wired into `#/friends`;
+see §7.)
 **Author:** Playology Entertainment
 **Status:** Live in-app under route `#/account`, linked from the rail.
 Supabase is configured for the production deployment
@@ -117,10 +117,12 @@ module):
   `isSignedIn`, `onChange`). Lazily imports the bundled Supabase SDK only
   once a player actually opens `#/account` or has a session to restore —
   the anonymous default path never downloads it.
-- **`Cloud`** — sync (`push`/`pullAndMerge`) and (from PR 2 onward) friends.
-  Hooks `Store.subscribe()` to debounce-push on every local save; never
-  edits `Store` itself, so `Store` stays dependency-free and the hook is a
-  guaranteed no-op for anonymous/signed-out players.
+- **`Cloud`** — sync (`push`/`pullAndMerge`) and friends (`searchProfiles`,
+  `sendFriendRequest`, `listIncomingRequests`, `respondToRequest`,
+  `listAcceptedFriends`, `removeFriendLink`). Hooks `Store.subscribe()` to
+  debounce-push on every local save; never edits `Store` itself, so `Store`
+  stays dependency-free and the hook is a guaranteed no-op for anonymous/
+  signed-out players.
 
 ---
 
@@ -157,20 +159,38 @@ Function is the natural follow-up if/when that gap needs closing.
 
 ---
 
-## 7. Friends v2 (schema-ready, not yet wired into the client)
+## 7. Friends v2 (shipped)
 
 The migration ships `friend_links` and the `get_friend_dna(friend_id)`
-redacting RPC now (so the project owner only runs one migration), but the
-client-side request/accept/search code and the `Views.friends` integration
-land in a follow-up PR. When it ships, the design is:
-- Search other signed-in players by Discord username (`profiles.discord_username`).
-- Send/accept/decline requests (`friend_links`, state machine
-  `pending → accepted|declined`).
-- An accepted friend's redacted DNA (via `get_friend_dna`, which strips
-  `profile.contacts` before returning anything) is mapped into the exact
-  same entry shape `ProfileIO.payloadToFriend()` already produces for
-  imported P2P friends, tagged `source:'cloud'`, so `Views.friends` renders
-  both kinds side by side rather than needing a parallel UI. The existing
-  P2P Import/Export/Email flow is untouched and keeps working for everyone,
-  signed in or not.
-- Explicitly **not** in scope: leaderboards, Discord Rich Presence/status.
+redacting RPC, and `#/friends` now wires the full flow on top of them for
+signed-in players:
+- Search other signed-in players by Discord username (`profiles.discord_username`)
+  via `Cloud.searchProfiles()`, and send a request via `Cloud.sendFriendRequest()`
+  — which checks both directions first so a duplicate/already-friends/
+  already-pending attempt fails with a clear error instead of a second row.
+- Incoming requests (`Cloud.listIncomingRequests()`) render as an
+  Accept/Decline list at the top of the Discord Friends box on `#/friends`;
+  accepting or declining calls `Cloud.respondToRequest()` (`friend_links`
+  state machine `pending → accepted|declined`) and re-renders the view.
+  `listIncomingRequests()` also refreshes a small pending-count cache
+  (`Cloud.pendingRequestCount()`) that lights a rail dot on Friends — the
+  same "ready to collect" dot mechanism The Rig/RetroPets already use
+  (`UI.railCollectAlert`/`syncRailDot`) — so a player doesn't have to open
+  Friends to notice a pending request. Refreshed on every sign-in and every
+  `#/friends` visit; there's no realtime push.
+- An accepted friend's redacted DNA (`Cloud.listAcceptedFriends()`, via
+  `get_friend_dna`, which strips `profile.contacts` before returning
+  anything) is fetched fresh every time `#/friends` mounts — no local
+  caching of another player's stats — and mapped into the exact same entry
+  shape `ProfileIO.payloadToFriend()` already produces for imported P2P
+  friends, tagged `source:'cloud'`. `Views.friends` merges both kinds into
+  one sorted roster/grid rather than a parallel UI; `friendCard()` shows a
+  "☁ DISCORD" chip and swaps the P2P "Remove" button for "Unfriend"
+  (`Cloud.removeFriendLink()`, which deletes the `friend_links` row so
+  either side can re-request later) on cloud entries, and skips the
+  local-only contact note field for them (there's no local roster row to
+  key a note off). The existing P2P Import/Export/Email flow is untouched
+  and keeps working for everyone, signed in or not.
+- Explicitly **not** in scope: leaderboards, Discord Rich Presence/status,
+  cancelling an outgoing request before the other side responds (decline it
+  from their side, or send a fresh request after removing the link).

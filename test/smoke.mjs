@@ -17,6 +17,7 @@ const cases = [
   { name: 'playtools-rig', file: 'PlayTools.html', enter: true, hash: '#/rig', drive: 'rig' },
   { name: 'playtools-pets', file: 'PlayTools.html', enter: true, hash: '#/pets', drive: 'pets' },
   { name: 'playtools-account', file: 'PlayTools.html', enter: true, hash: '#/account', drive: 'account' },
+  { name: 'playtools-friends', file: 'PlayTools.html', enter: true, hash: '#/friends' },
   { name: 'sharecard-studio', file: 'sharecard-studio.html' },
 ];
 
