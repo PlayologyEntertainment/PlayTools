@@ -2324,11 +2324,23 @@ const Cloud = (function(){
     pushTimer = null; lastPushAt = Date.now(); lastPushError = null;
   }
 
+  // A payload counts as "having progress" if it has anything a player would
+  // be upset to lose. Used to keep an empty/fresh side (e.g. a first sign-in
+  // from a browser that never had local data) from ever silently clobbering
+  // a side with real progress via the timestamp fallback below — an empty
+  // payload can easily carry a *newer* timestamp than a stale-but-real one
+  // simply because it was pushed more recently.
+  function hasProgress(p){
+    return !!(p && (p.toolsCompleted>0 || p.runs>0 || (p.achievements&&p.achievements.length>0)
+      || (p.rig && (p.rig.netcoin>0 || p.rig.totalEarned>0))
+      || (p.pets && p.pets.pals && p.pets.pals.length>0)));
+  }
+
   // Divergence heuristic: both sides have real progress and different
   // achievement sets — surfaces a confirm choice instead of silently
   // discarding either side's data (see resolveDivergence).
   function looksDivergent(local, cloud){
-    const bothHaveProgress = (local.toolsCompleted>0) && (cloud.toolsCompleted>0);
+    const bothHaveProgress = hasProgress(local) && hasProgress(cloud);
     const a = new Set(local.achievements||[]), b = new Set(cloud.achievements||[]);
     const differs = [...a].some(id=>!b.has(id)) || [...b].some(id=>!a.has(id));
     return bothHaveProgress && differs;
@@ -2344,6 +2356,14 @@ const Cloud = (function(){
     firstSyncDone = true;
     if(error || !data){ await push(); return { outcome:'seeded-cloud' }; }
     const local = Store.get();
+    // Real local progress against an empty/default cloud row (e.g. seeded
+    // from a different, emptier browser earlier) always wins outright —
+    // never fall through to the timestamp check below, which could pick
+    // the empty side just because it happens to be newer.
+    if(hasProgress(local) && !hasProgress(data.dna)){
+      await push();
+      return { outcome:'kept-local' };
+    }
     const cloudUpdatedAt = new Date(data.client_updated_at).getTime();
     if(looksDivergent(local, data.dna)){
       return { outcome:'needs-confirm', cloud: data.dna, cloudUpdatedAt };
