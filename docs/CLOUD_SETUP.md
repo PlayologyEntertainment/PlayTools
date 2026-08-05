@@ -89,8 +89,16 @@ After filling in the two values and deploying:
    sync status shows "Synced …".
 4. Open the same account in a second browser/profile, sign in, and confirm
    the progress appears there too.
-5. Manual friend-request round trip is a **later step** — Friends v2 isn't
-   wired into the client yet (see `DD/CloudSync_DD.md` §7).
+5. Friends v2 is wired in: sign in as a second account, go to `#/friends`,
+   search for the first account's Discord username under "☁️ Discord
+   Friends" and send a request. Back on the first account, accept it from
+   the incoming-requests list — both accounts should now show each other
+   in their roster with live (redacted) stats (see `DD/CloudSync_DD.md` §7).
+   This exact round trip is also covered by an automated (mocked-transport)
+   smoke test — `playtools-friends` in `test/smoke.mjs` — but that test
+   fakes out Supabase entirely, so it can't confirm your real project's
+   OAuth setup or RLS policies actually work; step 5 here is the one check
+   only a live project + real Discord accounts can do.
 
 If anything in steps 1-5 doesn't match what's described (dashboard layout
 changes, a renamed setting, etc.), the Supabase and Discord docs are the
