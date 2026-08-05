@@ -167,19 +167,18 @@ for (const c of cases) {
     await page.waitForTimeout(400);
   }
 
-  // Cloud Account (opt-in Discord OAuth2 + sync): the shipped build ships
-  // with no Supabase config, so this asserts the feature stays fully hidden
-  // and inert on an unconfigured deployment — the actual acceptance
-  // criterion for "opt-in, additive, degrades gracefully" (DD/CloudSync_DD.md),
-  // not just "the route didn't crash."
+  // Cloud Account (opt-in Discord OAuth2 + sync): Supabase is configured in
+  // this build, so this asserts the feature surfaces correctly — rail entry
+  // present, route mounts, and (since Auth.ensureClient() has been given a
+  // chance to resolve) no auth-client errors — per DD/CloudSync_DD.md.
   if (c.drive === 'account') {
     const state = await page.evaluate(() => ({
       configured: window.Auth ? window.Auth.isConfigured() : null,
       railHasAccount: !!document.querySelector('#rail a[data-route="#/account"]'),
     }));
-    if (state.configured !== false || state.railHasAccount !== false) {
+    if (state.configured !== true || state.railHasAccount !== true) {
       driveOk = false;
-      console.log(`   - assertion failed: expected {configured:false, railHasAccount:false}, got ${JSON.stringify(state)}`);
+      console.log(`   - assertion failed: expected {configured:true, railHasAccount:true}, got ${JSON.stringify(state)}`);
     }
   }
 
