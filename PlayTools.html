@@ -277,13 +277,25 @@
   .score-strip{font-size:12px; color:var(--ink-dim); letter-spacing:1px;}
   .score-strip b{color:var(--neon); font-family:var(--pixel);}
   .score-strip b#ssScore{color:var(--neon-3);}
-  .score-strip .sep{opacity:0.4; margin:0 4px;}
+  .score-strip .sep{opacity:0.4; margin:0 4px; vertical-align:middle;}
   /* Each RANK/CLASS/SCORE/NetCoin metric is an unbreakable unit, so when the
      strip wraps on a narrow viewport a label never splits from its value.
      Resets border/radius/overflow because they share the .seg class name
      with the unrelated segmented-button-group widget (line ~931), which
-     would otherwise draw a chip outline around each metric. */
-  .score-strip .seg{display:inline-block; white-space:nowrap; border:none; border-radius:0; overflow:visible;}
+     would otherwise draw a chip outline around each metric.
+     inline-flex + align-items:center centers the label against its <b>
+     value regardless of font metrics — the label inherits the page's
+     monospace font while the value uses --pixel, and those two font
+     families don't share a visual baseline, so lining them up via normal
+     text-baseline alignment drifts depending on the browser/OS's actual
+     font substitution.
+     vertical-align:middle on both the seg itself and .seg-pair keeps the
+     four metrics aligned to each other along the strip — the NetCoin seg
+     is taller than the plain-text segs (it also holds the coin icon), so
+     the default baseline alignment of inline-flex boxes would otherwise
+     sit it a few pixels higher than RANK/CLASS/SCORE. */
+  .score-strip .seg{display:inline-flex; align-items:center; gap:0.4em; white-space:nowrap; vertical-align:middle; border:none; border-radius:0; overflow:visible;}
+  .score-strip .seg-pair{vertical-align:middle;}
   .controls-actions{display:flex; gap:8px; flex-wrap:wrap;}
   .btn{
     font-family:var(--mono); font-size:12px; letter-spacing:1px; cursor:pointer;
@@ -759,7 +771,10 @@
   .controls-row{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0;}
 
   /* ---- The Rig — NetCoin meta-progression (Rig_DD.md) ---- */
-  .score-strip .coin-ic{display:inline-block; vertical-align:-0.18em; margin:0 2px 0 0;}
+  /* .seg is now a flex row (align-items:center) that centers this icon
+     against the NetCoin digits itself, so no manual baseline offset or
+     margin is needed here. */
+  .score-strip .coin-ic{display:inline-block;}
   /* Size the coin to the text so it scales with the responsive font clamp and
      never juts past the strip on small screens (overrides the SVG's px attrs). */
   .score-strip .coin-ic svg{width:1.15em; height:1.15em; display:block;}
@@ -1895,9 +1910,9 @@
   <!-- ===================== STATUS STRIP ===================== -->
   <div class="controls">
     <div class="score-strip" id="scoreStrip">
-      <span class="seg">RANK <b id="ssRank">NEWBIE</b></span>
-      <span class="sep">·</span> <span class="seg">CLASS <b id="ssClass">UNRANKED</b></span>
-      <span class="sep sep-pair-lead">·</span> <span class="seg-pair"><span class="seg">SCORE <b id="ssScore">0</b></span> <span class="sep">·</span> <span class="seg"><span id="ssCoinIc" class="coin-ic" aria-hidden="true"></span><b id="ssCoin" title="NetCoin — your spendable economy (separate from Gamer Score)">0</b></span></span>
+      <span class="seg">RANK<b id="ssRank">NEWBIE</b></span>
+      <span class="sep">·</span> <span class="seg">CLASS<b id="ssClass">UNRANKED</b></span>
+      <span class="sep sep-pair-lead">·</span> <span class="seg-pair"><span class="seg">SCORE<b id="ssScore">0</b></span> <span class="sep">·</span> <span class="seg"><span id="ssCoinIc" class="coin-ic" aria-hidden="true"></span><b id="ssCoin" title="NetCoin — your spendable economy (separate from Gamer Score)">0</b></span></span>
     </div>
     <div class="controls-actions">
       <button class="btn" id="dnaBtn">🧬 Gamer DNA</button>
