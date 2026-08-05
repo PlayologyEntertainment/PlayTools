@@ -2427,6 +2427,16 @@ const Cloud = (function(){
       await push();
       return { outcome:'kept-local' };
     }
+    // Mirror image of the branch above: a fresh/empty local store (e.g. right
+    // after a cache clear + re-auth) always gets Date.now() as its updatedAt
+    // (see defaultDNA), which is almost always newer than the cloud's real
+    // client_updated_at. Without this branch that freshness would win the
+    // timestamp race below and silently push the empty local state over real
+    // cloud progress instead of pulling it down.
+    if(hasProgress(data.dna) && !hasProgress(local)){
+      Store.update(d=> applyPayload(d, data.dna));
+      return { outcome:'pulled-cloud' };
+    }
     const cloudUpdatedAt = new Date(data.client_updated_at).getTime();
     if(looksDivergent(local, data.dna)){
       return { outcome:'needs-confirm', cloud: data.dna, cloudUpdatedAt };
@@ -2443,6 +2453,18 @@ const Cloud = (function(){
   async function resolveDivergence(pickCloud, cloudPayload){
     if(pickCloud) Store.update(d=> applyPayload(d, cloudPayload));
     else await push();
+  }
+
+  // Read-only fetch of the cloud row with no merge/overwrite decision — used
+  // by the manual "Pull Cloud Data" button, which always confirms with the
+  // player (showing this snapshot's timestamp) before applying anything.
+  async function fetchCloudSnapshot(){
+    const client = await Auth.ensureClient();
+    const { data, error } = await client.from('dna_states')
+      .select('dna, client_updated_at').eq('user_id', Auth.user().id).maybeSingle();
+    if(error) throw error;
+    if(!data) return null;
+    return { dna: data.dna, updatedAt: new Date(data.client_updated_at).getTime() };
   }
 
   async function deleteCloudData(){
@@ -2602,7 +2624,7 @@ const Cloud = (function(){
   });
 
   return {
-    buildPayload, applyPayload, push, pullAndMerge, resolveDivergence, deleteCloudData, status,
+    buildPayload, applyPayload, push, pullAndMerge, resolveDivergence, fetchCloudSnapshot, deleteCloudData, status,
     pendingRequestCount, searchProfiles, sendFriendRequest, listIncomingRequests, respondToRequest,
     listAcceptedFriends, removeFriendLink
   };
@@ -5825,9 +5847,11 @@ Views.account = function(c){
     body.innerHTML='';
     const signOutBtn = el('button',{class:'btn', html:'Sign Out'});
     signOutBtn.onclick = ()=> Auth.signOut();
+    const pullBtn = el('button',{class:'btn', html:'⬇️ Pull Cloud Data'});
+    pullBtn.onclick = ()=> confirmPull(pullBtn);
     const deleteBtn = el('button',{class:'btn ghost', html:'🗑 Delete My Cloud Data'});
     deleteBtn.onclick = confirmDelete;
-    body.append(signOutBtn, deleteBtn);
+    body.append(signOutBtn, pullBtn, deleteBtn);
 
     const u = Auth.user();
     const meta = (u && u.user_metadata) || {};
@@ -5866,6 +5890,48 @@ Views.account = function(c){
         confirmBtn.disabled = false; confirmBtn.textContent='Delete';
       });
     };
+  }
+
+  // Manual escape hatch for when the automatic pull-on-sign-in didn't fire or
+  // guessed wrong (e.g. after a cache clear + re-auth). Always fetches a
+  // fresh snapshot and always confirms before overwriting local data — no
+  // heuristics, unlike the automatic pullAndMerge() path.
+  function confirmPull(triggerBtn){
+    const root = document.getElementById('modal-root'); if(!root) return;
+    triggerBtn.disabled = true; triggerBtn.textContent='Checking cloud…';
+    Cloud.fetchCloudSnapshot().then(snapshot=>{
+      triggerBtn.disabled = false; triggerBtn.innerHTML='⬇️ Pull Cloud Data';
+      if(!snapshot){
+        UI.toast('No Cloud Data', 'No cloud save was found for this account yet.');
+        return;
+      }
+      root.innerHTML='';
+      const backdrop = el('div',{class:'modal-backdrop'});
+      const modal = el('div',{class:'modal'});
+      modal.append(
+        el('h3',{html:'Pull cloud data?'}),
+        el('p',{html:'This replaces your on-device progress (achievements, Rig, RetroPets, stats) with your cloud save, last synced '+escAttr(new Date(snapshot.updatedAt).toLocaleString())+'. Your current local data on this device will be overwritten.'})
+      );
+      const actions = el('div',{class:'modal-actions'});
+      const cancel = el('button',{class:'btn ghost', html:'Cancel'});
+      const confirmBtn = el('button',{class:'btn primary', html:'Pull Cloud Data'});
+      actions.append(cancel, confirmBtn);
+      modal.append(actions);
+      backdrop.append(modal); root.append(backdrop);
+      function dismiss(){ root.innerHTML=''; }
+      cancel.onclick = dismiss;
+      backdrop.onclick = e=>{ if(e.target===backdrop) dismiss(); };
+      confirmBtn.onclick = ()=>{
+        confirmBtn.disabled = true; confirmBtn.textContent='Pulling…';
+        Store.update(d=> Cloud.applyPayload(d, snapshot.dna));
+        dismiss();
+        UI.toast('Cloud Data Pulled', 'Your device now matches your cloud save.');
+        renderSyncStatus();
+      };
+    }).catch(err=>{
+      triggerBtn.disabled = false; triggerBtn.innerHTML='⬇️ Pull Cloud Data';
+      UI.toast('Pull Failed', err.message||'Could not fetch cloud data.');
+    });
   }
 
   function renderDivergence(result){
