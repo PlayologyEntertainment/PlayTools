@@ -195,6 +195,18 @@ signed-in players:
   cancelling an outgoing request before the other side responds (decline it
   from their side, or send a fresh request after removing the link).
 
+**Known gap, fixed:** `handle_new_user()` only backfills `profiles` via a
+trigger on new `auth.users` inserts. Cloud Account (Discord sign-in) shipped
+before this migration existed, so any player who signed in before the
+project owner actually ran `20260805000000_cloud_sync_and_friends.sql` in
+their Supabase project has a real, working synced account but no `profiles`
+row — search silently finds nothing for them even with the exact right
+Discord username, since `Cloud.searchProfiles()` only reads `profiles`.
+`supabase/migrations/20260805190000_backfill_profiles_for_existing_users.sql`
+is a one-time catch-up insert for exactly that gap (see
+`docs/CLOUD_SETUP.md` §5.3) — a no-op for every sign-in from now on, which
+the trigger already covers.
+
 **Test coverage.** No CI environment can complete a real Discord OAuth
 consent screen or reach the live Supabase project, so the `playtools-friends`
 case in `test/smoke.mjs` fakes out only the Supabase transport (a small
