@@ -2185,6 +2185,201 @@ const Store = (function(){
 })();
 
 /* ============================================================================
+   AUTH — optional Discord OAuth2 login (Supabase). Fully opt-in: with no
+   SUPABASE_URL/SUPABASE_ANON_KEY configured (the shipped default), every
+   cloud UI surface stays hidden and the app behaves exactly as it always
+   has — 100% anonymous, local-only. See DD/CloudSync_DD.md and
+   docs/CLOUD_SETUP.md for what this is and how to turn it on.
+   ============================================================================ */
+const Auth = (function(){
+  // Fill these in per docs/CLOUD_SETUP.md after provisioning a Supabase
+  // project with Discord enabled as an Auth provider. The anon key is safe
+  // to embed client-side — Supabase's security model is Row Level Security
+  // on the database, not secrecy of this key.
+  const SUPABASE_URL = '';
+  const SUPABASE_ANON_KEY = '';
+
+  let sb = null;         // lazily-created supabase-js client
+  let session = null;    // current auth.Session, or null when signed out
+  let ready = null;      // promise resolved once ensureClient() has run at least once
+  const listeners = [];
+
+  function isConfigured(){ return !!(SUPABASE_URL && SUPABASE_ANON_KEY); }
+
+  function emit(){ listeners.forEach(fn=>{ try{ fn(session); }catch(e){ console.error(e); } }); }
+  function onChange(fn){ listeners.push(fn); return ()=>{ const i=listeners.indexOf(fn); if(i>=0) listeners.splice(i,1); }; }
+
+  // Lazy-loads the bundled Supabase SDK (tools/cloud-sync.bundle.js, built
+  // from @supabase/supabase-js — see tools/cloud-sync.mjs) so the client only
+  // downloads for players who actually engage cloud features, mirroring how
+  // the Rig 3D viewer bundle is lazy-imported (Rig's mount3D,
+  // "tools/rig-inapp.bundle.js").
+  function ensureClient(){
+    if(ready) return ready;
+    if(!isConfigured()) return Promise.reject(new Error('Cloud sync is not configured for this deployment.'));
+    ready = import('./tools/cloud-sync.bundle.js').then(({createClient})=>{
+      sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth:{ persistSession:true, autoRefreshToken:true } });
+      sb.auth.onAuthStateChange((_evt, s)=>{ session = s; emit(); });
+      return sb.auth.getSession();
+    }).then(({data})=>{
+      session = data && data.session;
+      emit();
+      return sb;
+    });
+    return ready;
+  }
+
+  async function signInWithDiscord(){
+    const client = await ensureClient();
+    return client.auth.signInWithOAuth({
+      provider: 'discord',
+      options: { redirectTo: location.origin + location.pathname + '#/account' }
+    });
+  }
+  async function signOut(){
+    if(!sb) return;
+    await sb.auth.signOut();
+    session = null; emit();
+  }
+
+  function user(){ return session && session.user; }
+  function isSignedIn(){ return !!user(); }
+  function client(){ return sb; }
+
+  // Restores an existing session (returning signed-in visitor) without
+  // forcing a redirect. Called once from the boot sequence; fire-and-forget —
+  // it never blocks first paint, the account UI just updates reactively via
+  // onChange() once it resolves.
+  function restoreIfConfigured(){
+    if(!isConfigured()) return;
+    ensureClient().catch(e=> console.warn('[PlayTools] cloud session restore failed:', e&&e.message||e));
+  }
+
+  return { isConfigured, ensureClient, onChange, signInWithDiscord, signOut, user, isSignedIn, client, restoreIfConfigured };
+})();
+
+/* ============================================================================
+   CLOUD — optional cross-device sync, layered on top of Store via
+   Store.subscribe() (no changes to Store itself). Sync scope is a
+   deliberate whitelist (see buildPayload) — Platform Link cards, local
+   friend notes, device calibration/sensitivity, and UI favorites never
+   leave the browser even for signed-in players. See DD/CloudSync_DD.md.
+   ============================================================================ */
+const Cloud = (function(){
+  const PUSH_DEBOUNCE_MS = 1500;
+  let pushTimer = null;
+  let lastPushAt = null;
+  let lastPushError = null;
+  let firstSyncDone = false;
+
+  // ---- payload whitelist (DD/CloudSync_DD.md "What syncs") ----
+  function buildPayload(){
+    const d = Store.get();
+    return {
+      version: d.version, updatedAt: d.updatedAt,
+      profile: d.profile, attributes: d.attributes, attrPeaks: d.attrPeaks, attrActiveAt: d.attrActiveAt,
+      toolsCompleted: d.toolsCompleted, runs: d.runs, arcadePoints: d.arcadePoints,
+      bests: d.bests, counters: d.counters, achievements: d.achievements,
+      rig: d.rig, pets: d.pets
+    };
+  }
+  // Mutator form (for Store.update) — applies a pulled cloud payload onto the
+  // live dna object in-place. Never touches platforms/friends/favorites/
+  // calibration/sensitivity, which stay whatever they already are locally.
+  function applyPayload(d, payload){
+    Object.assign(d, {
+      profile: payload.profile, attributes: payload.attributes, attrPeaks: payload.attrPeaks,
+      attrActiveAt: payload.attrActiveAt, toolsCompleted: payload.toolsCompleted, runs: payload.runs,
+      arcadePoints: payload.arcadePoints, bests: payload.bests, counters: payload.counters,
+      achievements: payload.achievements, rig: payload.rig, pets: payload.pets
+    });
+  }
+
+  function schedulePush(){
+    if(!Auth.isConfigured() || !Auth.isSignedIn()) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(()=>{
+      push().catch(e=>{ lastPushError=e; console.warn('[PlayTools] cloud push failed:', e&&e.message||e); });
+    }, PUSH_DEBOUNCE_MS);
+  }
+  // Store.save() fires on every mutation across the whole app; subscribing
+  // here (rather than editing Store) keeps Store dependency-free and makes
+  // this hook a no-op for anonymous/signed-out players.
+  Store.subscribe(()=> schedulePush());
+
+  async function push(){
+    const client = await Auth.ensureClient();
+    const d = Store.get();
+    const { error } = await client.from('dna_states').upsert({
+      user_id: Auth.user().id,
+      dna: buildPayload(),
+      client_updated_at: new Date(d.updatedAt).toISOString()
+    });
+    if(error) throw error;
+    await client.from('profiles').update({
+      gamer_tag: d.profile.gamerTag || null,
+      updated_at: new Date().toISOString()
+    }).eq('id', Auth.user().id);
+    pushTimer = null; lastPushAt = Date.now(); lastPushError = null;
+  }
+
+  // Divergence heuristic: both sides have real progress and different
+  // achievement sets — surfaces a confirm choice instead of silently
+  // discarding either side's data (see resolveDivergence).
+  function looksDivergent(local, cloud){
+    const bothHaveProgress = (local.toolsCompleted>0) && (cloud.toolsCompleted>0);
+    const a = new Set(local.achievements||[]), b = new Set(cloud.achievements||[]);
+    const differs = [...a].some(id=>!b.has(id)) || [...b].some(id=>!a.has(id));
+    return bothHaveProgress && differs;
+  }
+
+  // Called once, right after a fresh sign-in transition (see Views.account).
+  // Not run on every boot, so a returning signed-in player just gets the
+  // normal debounced push/pull cycle rather than a merge prompt every load.
+  async function pullAndMerge(){
+    const client = await Auth.ensureClient();
+    const { data, error } = await client.from('dna_states')
+      .select('dna, client_updated_at').eq('user_id', Auth.user().id).maybeSingle();
+    firstSyncDone = true;
+    if(error || !data){ await push(); return { outcome:'seeded-cloud' }; }
+    const local = Store.get();
+    const cloudUpdatedAt = new Date(data.client_updated_at).getTime();
+    if(looksDivergent(local, data.dna)){
+      return { outcome:'needs-confirm', cloud: data.dna, cloudUpdatedAt };
+    }
+    if(cloudUpdatedAt > local.updatedAt){
+      Store.update(d=> applyPayload(d, data.dna));
+      return { outcome:'pulled-cloud' };
+    }
+    await push();
+    return { outcome:'kept-local' };
+  }
+  // pickCloud=true applies the cloud payload locally; false keeps this
+  // device's data and pushes it up, overwriting the cloud row.
+  async function resolveDivergence(pickCloud, cloudPayload){
+    if(pickCloud) Store.update(d=> applyPayload(d, cloudPayload));
+    else await push();
+  }
+
+  async function deleteCloudData(){
+    const client = await Auth.ensureClient();
+    const me = Auth.user().id;
+    await client.from('dna_states').delete().eq('user_id', me);
+    await client.from('friend_links').delete().or(`requester_id.eq.${me},addressee_id.eq.${me}`);
+    await client.from('profiles').delete().eq('id', me);
+  }
+
+  function status(){
+    return {
+      pending: !!pushTimer, lastPushAt, firstSyncDone,
+      lastPushError: lastPushError && (lastPushError.message || String(lastPushError))
+    };
+  }
+
+  return { buildPayload, applyPayload, push, pullAndMerge, resolveDivergence, deleteCloudData, status };
+})();
+
+/* ============================================================================
    ATTR — attribute engine: deltas, gamer score, rank, class (DD §3.1.3-3.1.4)
    ============================================================================ */
 const Attr = (function(){
@@ -4406,40 +4601,68 @@ Views.privacy = function(c){
     'How PlayTools handles your data — in short: it doesn\'t collect any.');
 
   panel.append(legalSection('The short version', `
-    <p>PlayTools is a free, single-page browser app with no accounts, no server backend, and no
-    sign-up. Everything you enter — your Gamer DNA profile, test results, friends roster, RPG
-    sheets, RetroPets and Rig progress — is saved with your browser's <code>localStorage</code>
-    and never leaves your device. We don't see it, collect it, or store it anywhere ourselves.</p>`));
+    <p>PlayTools requires no account and no sign-up to use. By default it has no server backend:
+    everything you enter — your Gamer DNA profile, test results, friends roster, RPG sheets,
+    RetroPets and Rig progress — is saved with your browser's <code>localStorage</code> and never
+    leaves your device. We don't see it, collect it, or store it anywhere ourselves.</p>
+    <p>If you choose to use the optional <strong>Cloud Account</strong> feature (sign in with
+    Discord under <a href="#/account">☁️ Cloud Account</a>), a specific, limited subset of your
+    profile is sent to our database provider so it can follow you across devices — see "Optional
+    Cloud Account" below. This is entirely opt-in; nothing about the rest of the app changes if
+    you never use it.</p>`));
 
   panel.append(legalSection('What we collect', `
-    <p>Nothing is transmitted to Playology Entertainment or any third party by the app itself.
-    PlayTools makes no analytics calls, sets no tracking cookies, and loads no third-party
-    trackers or ad scripts. The only "storage" involved is your own browser's local storage,
-    which stays on your device unless you clear it or your browser data is wiped.</p>`));
+    <p>By default, nothing is transmitted to Playology Entertainment or any third party by the
+    app itself. PlayTools makes no analytics calls, sets no tracking cookies, and loads no
+    third-party trackers or ad scripts. The only "storage" involved is your own browser's local
+    storage, which stays on your device unless you clear it or your browser data is wiped.</p>`));
+
+  panel.append(legalSection('Optional Cloud Account', `
+    <p>If you sign in with Discord via <a href="#/account">☁️ Cloud Account</a>, we send the
+    following to our database provider (Supabase) so it can sync across your devices: your Gamer
+    DNA profile (gamer tag, persona, socials as you've entered them), attributes/achievements,
+    tool bests (including arcade high scores), and your Rig/RetroPets economy state.</p>
+    <p>We do <strong>not</strong> send: your Platform Link cards (§"Friends / roster notes" below
+    still applies — those stay local), your local friends' notes, or device-specific hardware
+    readings (mouse calibration, sensitivity). Discord OAuth shares only what Discord's own
+    consent screen discloses to us — your Discord username, avatar, and ID — nothing else from
+    your Discord account.</p>
+    <p>You can delete your synced cloud data at any time from <a href="#/account">☁️ Cloud
+    Account</a>. This removes your synced profile and friend links from our servers; it does not
+    delete the underlying Discord sign-in identity itself — contact us if you need that too.</p>`));
 
   panel.append(legalSection('Friends / roster notes', `
     <p>The Friends feature lets you manually type in details about people you know (a gamer
     tag, notes, etc.) so you can compare stats locally. Those entries are saved the same way as
     the rest of your profile — in your browser only — and are never sent anywhere or shared with
-    the people you add.</p>`));
+    the people you add. If you sign in with Cloud Account, you can additionally add real Discord
+    friends by username; that flow involves a friend-request record stored server-side (so both
+    of you can see the request) — see <a href="#/account">☁️ Cloud Account</a> and
+    <code>DD/CloudSync_DD.md</code> for details.</p>`));
 
   panel.append(legalSection('Hosting & infrastructure', `
-    <p>Because PlayTools has no backend, the only data your browser sends over the network is a
-    standard request to load the page's files from wherever it's hosted. That request may pass
-    through your hosting provider's or CDN's ordinary server logs (e.g. IP address, browser
+    <p>By default PlayTools has no backend, so the only data your browser sends over the network
+    is a standard request to load the page's files from wherever it's hosted. That request may
+    pass through your hosting provider's or CDN's ordinary server logs (e.g. IP address, browser
     type) the same way any website visit would — Playology Entertainment does not separately
-    collect or review this information.</p>`));
+    collect or review this information. If you opt into Cloud Account, your browser additionally
+    talks directly to our database provider, Supabase, for the limited data described in
+    "Optional Cloud Account" above — subject to Supabase's own infrastructure and privacy
+    practices.</p>`));
 
   panel.append(legalSection('Children\'s privacy', `
-    <p>PlayTools is designed to be safe for players of any age precisely because it collects no
-    personal information: there's no sign-up, no account, and nothing to submit to us. If you
-    believe personal information has reached us in error, contact us using the details below and
-    we'll address it.</p>`));
+    <p>Used without signing in, PlayTools is designed to be safe for players of any age precisely
+    because it collects no personal information: there's no sign-up, no account, and nothing to
+    submit to us. The optional Cloud Account sign-in is intended for players old enough to
+    maintain a Discord account per Discord's own terms. If you believe personal information has
+    reached us in error, contact us using the details below and we'll address it.</p>`));
 
   panel.append(legalSection('Clearing your data', `
-    <p>Because everything lives in your browser, you're always in control. Clearing your
-    browser's site data for PlayTools (or using its in-app "Reset" option, where available)
-    permanently deletes your local profile. We have no copy to restore it from.</p>`));
+    <p>Because everything lives in your browser by default, you're always in control. Clearing
+    your browser's site data for PlayTools (or using its in-app "Reset" option, where available)
+    permanently deletes your local profile. We have no copy to restore it from — unless you
+    opted into Cloud Account, in which case your synced cloud copy remains until you delete it
+    from <a href="#/account">☁️ Cloud Account</a> (see "Optional Cloud Account" above).</p>`));
 
   panel.append(legalSection('Changes to this policy', `
     <p>If PlayTools ever changes how it handles data — for example, by adding an optional
@@ -4465,7 +4688,9 @@ Views.terms = function(c){
   panel.append(legalSection('What PlayTools is', `
     <p>PlayTools is a free suite of gamified browser tools — reflex tests, hardware and setup
     calculators, an arcade, RPG character tools and more — provided for entertainment and
-    informational purposes. It requires no account, no download, and no payment.</p>`));
+    informational purposes. It requires no account, no download, and no payment. An optional
+    Cloud Account (Discord sign-in) is available for players who want cross-device sync and real
+    friends — see our Privacy Policy — but it is never required.</p>`));
 
   panel.append(legalSection('No real-money value', `
     <p>Any in-app currency, credits, loot boxes, achievements, ranks or scores (for example,
@@ -4475,9 +4700,12 @@ Views.terms = function(c){
 
   panel.append(legalSection('Your local data', `
     <p>PlayTools stores your profile and progress in your browser's local storage. You're
-    responsible for your own device and browser data — we don't back it up, sync it, or store a
-    copy anywhere, so clearing your browser data or switching devices/browsers will reset your
-    progress.</p>`));
+    responsible for your own device and browser data — by default we don't back it up, sync it,
+    or store a copy anywhere, so clearing your browser data or switching devices/browsers will
+    reset your progress, <strong>unless</strong> you've opted into the optional Cloud Account
+    (Discord sign-in), in which case the subset of your data described in our Privacy Policy is
+    stored on our behalf by our database provider and can be restored on another device by
+    signing in again.</p>`));
 
   panel.append(legalSection('Acceptable use', `
     <p>Use PlayTools for its intended purpose. Don't attempt to disrupt, reverse engineer for
@@ -4502,8 +4730,10 @@ Views.terms = function(c){
     use, PlayTools — including loss of locally stored data.</p>`));
 
   panel.append(legalSection('Changes & termination', `
-    <p>We may modify, suspend, or discontinue PlayTools (or any part of it) at any time. Since
-    there are no accounts, you can simply stop using the app at any time — nothing to cancel.</p>`));
+    <p>We may modify, suspend, or discontinue PlayTools (or any part of it) at any time. For
+    players who don't opt into the optional Cloud Account, there are no accounts, so you can
+    simply stop using the app at any time — nothing to cancel. Players who did sign in can delete
+    their synced cloud data at any time from <a href="#/account">☁️ Cloud Account</a>.</p>`));
 
   panel.append(legalSection('Contact', `
     <p>Questions about these terms? Reach us at
@@ -5189,6 +5419,150 @@ Views.friends = function(c){
   panel.append(grid);
 
   c.append(panel);
+};
+
+/* ----------------------------------------------------------------------------
+   ACCOUNT — optional Discord OAuth2 login + cross-device Cloud Sync
+   (Supabase). Strictly opt-in and additive: this route mounts fine even on an
+   unconfigured deployment (Auth.isConfigured()===false), it's just never
+   linked from the rail in that state (see UI.buildRail). See
+   DD/CloudSync_DD.md and docs/CLOUD_SETUP.md.
+   ---------------------------------------------------------------------------- */
+// Persists across re-visits within a session so a signed-in player doesn't
+// get a divergence prompt every time they revisit #/account — only once per
+// fresh sign-in transition. Resets when the player signs out.
+let accountFirstSyncArmed = false;
+
+Views.account = function(c){
+  const panel = el('div',{class:'panel'});
+  panel.append(
+    el('div',{class:'view-head', html:'<span class="lab-tag">Optional</span>'}),
+    el('h1',{class:'title', html:'☁️ Cloud Account'}),
+    el('p',{class:'view-desc', html:'Sign in with Discord to sync your Gamer DNA, achievements, Rig and RetroPets progress across devices. Completely optional — PlayTools stays 100% anonymous and local-only unless you choose to sign in.'})
+  );
+
+  if(!Auth.isConfigured()){
+    panel.append(el('div',{class:'friend-empty', html:
+      '☁️ Cloud sync isn’t set up for this deployment yet.<br><span class="muted">See <code>docs/CLOUD_SETUP.md</code> in the repo to enable it.</span>'}));
+    c.append(panel);
+    return;
+  }
+
+  panel.append(el('div',{class:'legal-section', html:
+    '<p class="muted">This is different from the Discord card under <a href="#/dna/platforms">🔗 Platforms</a> — that’s a manual stats display and always stays local. Signing in here creates a real account used only for cloud save-sync (and, soon, real Discord friends).</p>'}));
+
+  const body = el('div',{class:'controls-row'});
+  const statusBox = el('div',{class:'legal-section'});
+  panel.append(body, statusBox);
+
+  function renderSignedOut(){
+    body.innerHTML='';
+    const signInBtn = el('button',{class:'btn primary', html:'🎮 Sign in with Discord'});
+    signInBtn.onclick = ()=>{
+      signInBtn.disabled = true; signInBtn.textContent='Redirecting…';
+      Auth.signInWithDiscord().catch(err=>{
+        UI.toast('Sign In Failed', err.message||'Could not start Discord sign-in.');
+        signInBtn.disabled = false; signInBtn.innerHTML='🎮 Sign in with Discord';
+      });
+    };
+    body.append(signInBtn);
+    statusBox.innerHTML='';
+  }
+
+  function renderSyncStatus(){
+    const s = Cloud.status();
+    const line = s.pending ? '🔄 Sync pending…'
+      : s.lastPushError ? ('⚠️ Last sync failed: '+escAttr(s.lastPushError))
+      : s.lastPushAt ? ('✅ Synced '+new Date(s.lastPushAt).toLocaleTimeString())
+      : '⏳ Not synced yet';
+    let line1 = statusBox.querySelector('.sync-line');
+    if(!line1){ line1 = el('p',{class:'sync-line muted'}); statusBox.append(line1); }
+    line1.textContent = line;
+  }
+
+  function renderSignedIn(){
+    body.innerHTML='';
+    const signOutBtn = el('button',{class:'btn', html:'Sign Out'});
+    signOutBtn.onclick = ()=> Auth.signOut();
+    const deleteBtn = el('button',{class:'btn ghost', html:'🗑 Delete My Cloud Data'});
+    deleteBtn.onclick = confirmDelete;
+    body.append(signOutBtn, deleteBtn);
+
+    const u = Auth.user();
+    const meta = (u && u.user_metadata) || {};
+    const handle = meta.full_name || meta.name || (u && u.email) || 'Signed in';
+    statusBox.innerHTML='';
+    statusBox.append(el('p',{html:'Signed in as <strong>'+escAttr(handle)+'</strong>.'}));
+    renderSyncStatus();
+  }
+
+  function confirmDelete(){
+    const root = document.getElementById('modal-root'); if(!root) return;
+    root.innerHTML='';
+    const backdrop = el('div',{class:'modal-backdrop'});
+    const modal = el('div',{class:'modal'});
+    modal.append(
+      el('h3',{html:'Delete cloud data?'}),
+      el('p',{html:'This removes your synced profile and friend links from our servers. Your local, on-device data is untouched. Your underlying Discord sign-in identity is <strong>not</strong> deleted by this — contact us if you need that too.'})
+    );
+    const actions = el('div',{class:'modal-actions'});
+    const cancel = el('button',{class:'btn ghost', html:'Cancel'});
+    const confirmBtn = el('button',{class:'btn primary', html:'Delete'});
+    actions.append(cancel, confirmBtn);
+    modal.append(actions);
+    backdrop.append(modal); root.append(backdrop);
+    function dismiss(){ root.innerHTML=''; }
+    cancel.onclick = dismiss;
+    backdrop.onclick = e=>{ if(e.target===backdrop) dismiss(); };
+    confirmBtn.onclick = ()=>{
+      confirmBtn.disabled = true; confirmBtn.textContent='Deleting…';
+      Cloud.deleteCloudData().then(()=> Auth.signOut()).then(()=>{
+        dismiss();
+        UI.toast('Cloud Data Deleted', 'Your synced data has been removed.');
+        Router.go('#/account');
+      }).catch(err=>{
+        UI.toast('Delete Failed', err.message||'Could not delete cloud data.');
+        confirmBtn.disabled = false; confirmBtn.textContent='Delete';
+      });
+    };
+  }
+
+  function renderDivergence(result){
+    const root = document.getElementById('modal-root'); if(!root) return;
+    root.innerHTML='';
+    const backdrop = el('div',{class:'modal-backdrop'});
+    const modal = el('div',{class:'modal'});
+    modal.append(
+      el('h3',{html:'Two different saves found'}),
+      el('p',{html:'This device and your cloud account both have real progress that doesn’t match. Pick which one to keep — the other will be overwritten.'})
+    );
+    const actions = el('div',{class:'modal-actions'});
+    const keepLocal = el('button',{class:'btn', html:'Keep This Device'});
+    const useCloud  = el('button',{class:'btn primary', html:'Use Cloud Data'});
+    actions.append(keepLocal, useCloud);
+    modal.append(actions);
+    backdrop.append(modal); root.append(backdrop);
+    function dismiss(){ root.innerHTML=''; }
+    keepLocal.onclick = ()=> Cloud.resolveDivergence(false).then(()=>{ dismiss(); UI.toast('Kept This Device', 'Your local data was pushed to the cloud.'); renderSyncStatus(); });
+    useCloud.onclick  = ()=> Cloud.resolveDivergence(true, result.cloud).then(()=>{ dismiss(); UI.toast('Cloud Data Applied', 'Your profile now matches the cloud.'); renderSyncStatus(); });
+  }
+
+  function render(){ Auth.isSignedIn() ? renderSignedIn() : renderSignedOut(); }
+  render();
+
+  const off = Auth.onChange(()=>{
+    render();
+    if(!Auth.isSignedIn()){ accountFirstSyncArmed = false; return; }
+    if(accountFirstSyncArmed) return;
+    accountFirstSyncArmed = true;
+    Cloud.pullAndMerge().then(result=>{
+      if(result.outcome==='needs-confirm') renderDivergence(result);
+      else if(Auth.isSignedIn()) renderSyncStatus();
+    }).catch(err=> UI.toast('Sync Failed', err.message||'Could not sync with the cloud.'));
+  });
+
+  c.append(panel);
+  return off;   // Router calls this as teardown on navigating away
 };
 
 /* ----------------------------------------------------------------------------
@@ -16806,6 +17180,13 @@ const UI = (function(){
     rail.append(railLink({ href:'#/dna/platforms',  icon:'🔗', label:'Platforms' }));
     rail.append(railLink({ href:'#/favorites',      icon:'⭐', label:'Favorites',
       count: Store.favoriteCount() || null }));
+    // Cloud Account — only shown when this deployment has Supabase configured
+    // (Auth.isConfigured()). Unconfigured deployments show no trace of this
+    // feature in the rail, keeping the app's default anonymous/local-only
+    // experience unchanged. See DD/CloudSync_DD.md.
+    if(window.Auth && Auth.isConfigured()){
+      rail.append(railLink({ href:'#/account', icon: Auth.isSignedIn()?'☁️':'🔑', label: Auth.isSignedIn()?'Cloud Account':'Sign In' }));
+    }
 
     // Categories — every lab except The MetaGame (its items are surfaced above).
     // Each carries a tally of its available (shipped) applets, tinted to the lab's accent.
@@ -16894,6 +17275,7 @@ const UI = (function(){
     applySign();
     refreshStrip();
     Store.subscribe(refreshStrip);
+    if(window.Auth) Auth.onChange(()=> buildRail());   // flip Sign In <-> Cloud Account live
 
     document.getElementById('crtToggle').onclick=()=>{
       const nowOff = !Store.getPrefs().signOff;
@@ -16911,6 +17293,8 @@ const UI = (function(){
 
 /* expose UI for modules that reference it before definition (toast in Ach/ShareCard) */
 window.UI = UI; window.Router = Router;
+/* expose Auth/Cloud so tests can drive them and other views can feature-detect */
+window.Auth = Auth; window.Cloud = Cloud;
 
 /* ============================================================================
    BACKGROUND MUSIC — two looping sections sitting next to PlayTools.html.
@@ -19864,6 +20248,7 @@ Router.add('#/', Views.home);
 Router.add('#/favorites', Views.favorites);
 Router.add('#/privacy', Views.privacy);
 Router.add('#/terms', Views.terms);
+Router.add('#/account', Views.account);
 // One filtered-lobby route per category (every lab except The MetaGame).
 (function(){
   const labs=[];
@@ -19934,6 +20319,7 @@ Router.add('#/fun/roast', Views.genRoast);
 
 UI.init();
 Rig.init();   // one-time founder back-pay of past achievements + seed the idle clock (Rig_DD §10)
+Auth.restoreIfConfigured();   // fire-and-forget cloud session restore — no-op unless Supabase is configured
 Router.start();
 
 })();
