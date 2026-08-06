@@ -221,7 +221,7 @@ Add `recordCrossloadRun(score, ctx)` following the exact pattern used by
   run is worth roughly what a strong Snake / Bricks / Mac Pan run is).
 * Counters: `crossloadRuns`, plus context flags for achievements (`boardsCleared`,
   `flawlessBoard`, `bountyGrabs`).
-* Feeds the existing **Arcade Champion** achievement (10,000 Gamer Score) and the
+* Feeds the existing **Arcade Champion** achievement (10,000 arcade points) and the
   Universal Share Card via `ShareCard.open({ lab:'RETRO ARCADE', tool:'Crossload',
   glyph:'🐸', metric })` on game over.
 

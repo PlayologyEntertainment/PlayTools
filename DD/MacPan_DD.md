@@ -253,7 +253,7 @@ Add `recordMacPanRun(score, ctx)` following the exact pattern used by
   Pan run is worth roughly what a strong Snake/Bricks run is).
 * Counters: `macpanRuns`, plus context flags for achievements (`fullCourse`,
   `levelsCleared`, `flawlessLevel`).
-* Feeds the existing **Arcade Champion** achievement (10,000 Gamer Score) and the
+* Feeds the existing **Arcade Champion** achievement (10,000 arcade points) and the
   Universal Share Card via `ShareCard.open({ lab:'RETRO ARCADE', tool:'Mac Pan',
   glyph:'🍳', metric })` on game over.
 

@@ -162,7 +162,7 @@ Add `recordDefragRun(score, ctx)` following the exact pattern used by
   line with the other arcade recorders.
 * Counters for the cabinet achievements: `defragRuns`, `defragBestChain`
   (high-water mark), `defragHypercores`, plus a `defragRecovered` running total.
-* Feeds the existing **Arcade Champion** achievement (10,000 Gamer Score) and the
+* Feeds the existing **Arcade Champion** achievement (10,000 arcade points) and the
   Universal Share Card via `ShareCard.open({ lab:'RETRO ARCADE', tool:'Defrag',
   glyph:'💎', … })` on time-out.
 

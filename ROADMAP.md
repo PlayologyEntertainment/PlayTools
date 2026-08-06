@@ -27,7 +27,7 @@ Everything described below is **live in the app today**. Treat all of it as the 
 | Expansion tools (§5: Flick/Tracking/Double-Click/Spacebar, Lift-Off/Drag/Jitter/Stability, FOV/Aspect/Refresh/Session Planner, Challenge/Username/Clan/Loadout/Roast generators) | ✅ Shipped | All present and routed. |
 | Retro Arcade (original §5.5 roster) | ⚠️ Superseded | Only StarDodger + Mnemonic shipped as named. "Asteroid Survival" and "Reflex Rush" were never built — replaced by a much larger cabinet line (§1.2). |
 | Universal Share Card | ✅ Shipped | Across nearly every tool. |
-| Achievements | ✅ Shipped, expanded | All 11 originally-documented achievements exist, plus dozens more (one set per expansion tool/cabinet). One semantic drift, now decided: *Arcade Champion* is documented as "10,000 arcade points" but actually checks **total Gamer Score ≥ 10,000** — a global, not arcade-specific, gate. **Decision (2026-08-04): fix the code to be arcade-specific** — see backlog item A1. |
+| Achievements | ✅ Shipped, expanded | All 11 originally-documented achievements exist, plus dozens more (one set per expansion tool/cabinet). One semantic drift, now fixed: *Arcade Champion* previously checked **total Gamer Score ≥ 10,000** (a global, not arcade-specific, gate) instead of the documented "10,000 arcade points." **Fixed 2026-08-06 — see backlog item A1 (✅ done).** |
 
 ### 1.2 Retro Arcade Cabinet Line
 
@@ -97,7 +97,7 @@ One ranked list, top to bottom, across every pillar. Grouped into lettered tiers
 
 ### Tier A — Documentation & Consistency (do first, no new features)
 
-1. **[A1] Fix the `arcade_champion` achievement** to gate on actual arcade-cabinet points instead of total Gamer Score, matching `PlayTools_DD.md`'s documented intent (decision 2 in §3). Small, self-contained code change.
+1. **[A1] ✅ Fix the `arcade_champion` achievement** to gate on actual arcade-cabinet points instead of total Gamer Score, matching `PlayTools_DD.md`'s documented intent (decision 2 in §3). Small, self-contained code change. **Done 2026-08-06** — now tests `d.arcadePoints>=10000` instead of `Attr.gamerScore(d)>=10000`.
 2. **[A2] Write DDs for the 7 undocumented cabinets** — Anaconda, Brick Breaker, Hopper Popper, SighMan, Pack Hacker, Sudoku, B0ggle — giving the whole Retro Arcade line the same audit trail as the other seven (Cold Stack, Overdrive, Jack-In, Ecto, Crossload, Mac Pan, Defrag).
 3. **[A3] Write proper spec sections** in `PlayTools_DD.md` for the shipped-but-undocumented tools: **Game Night Planner** (Fun Lab) and **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern** (Tabletop/RPG Lab).
 4. **[A4] Formalize the permanent monetization guardrail.** Promote "money buys content/cosmetics, never skill or Gamer Score; NetCoin and Loot Boxes are never purchasable with real money" from per-subsystem guardrail language (currently duplicated in `Rig_DD.md` §1.2 and `RetroMall_DD.md` §1.2) into a single, explicit Core Principle in `PlayTools_DD.md` §1.3, so every future subsystem doc can just reference it.
