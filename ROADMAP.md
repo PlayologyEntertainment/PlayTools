@@ -22,8 +22,8 @@ Everything described below is **live in the app today**. Treat all of it as the 
 | Reflex Lab (Reaction, CPS, Precision Click) | ✅ Shipped | |
 | Mouse Lab (Polling Rate, Accuracy) | ✅ Shipped | |
 | Setup Lab (eDPI, Sensitivity Converter) | ✅ Shipped | |
-| Fun Lab (DNA Report, Archetype Quiz) | ✅ Shipped | Plus an undocumented **Game Night Planner**. |
-| Tabletop/RPG Lab (Dice Roller) | ✅ Shipped | Full notation parser, presets, advantage/disadvantage. Plus 4 undocumented tools: **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern**. |
+| Fun Lab (DNA Report, Archetype Quiz) | ✅ Shipped | Plus **Game Night Planner**, now specified in `PlayTools_DD.md` §4.4.3 (**Fixed 2026-08-06 — A3, ✅ done**). |
+| Tabletop/RPG Lab (Dice Roller) | ✅ Shipped | Full notation parser, presets, advantage/disadvantage. Plus **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern**, now specified in `PlayTools_DD.md` §4.5.1/4.5.3-4.5.5 (**Fixed 2026-08-06 — A3, ✅ done**). |
 | Expansion tools (§5: Flick/Tracking/Double-Click/Spacebar, Lift-Off/Drag/Jitter/Stability, FOV/Aspect/Refresh/Session Planner, Challenge/Username/Clan/Loadout/Roast generators) | ✅ Shipped | All present and routed. |
 | Retro Arcade (original §5.5 roster) | ⚠️ Superseded | Only StarDodger + Mnemonic shipped as named. "Asteroid Survival" and "Reflex Rush" were never built — replaced by a much larger cabinet line (§1.2). |
 | Universal Share Card | ✅ Shipped | Across nearly every tool. |
@@ -99,7 +99,7 @@ One ranked list, top to bottom, across every pillar. Grouped into lettered tiers
 
 1. **[A1] ✅ Fix the `arcade_champion` achievement** to gate on actual arcade-cabinet points instead of total Gamer Score, matching `PlayTools_DD.md`'s documented intent (decision 2 in §3). Small, self-contained code change. **Done 2026-08-06** — now tests `d.arcadePoints>=10000` instead of `Attr.gamerScore(d)>=10000`.
 2. **[A2] ✅ Write DDs for the 7 undocumented cabinets** — Anaconda, Brick Breaker, Hopper Popper, SighMan, Pack Hacker, Sudoku, B0ggle — giving the whole Retro Arcade line the same audit trail as the other seven (Cold Stack, Overdrive, Jack-In, Ecto, Crossload, Mac Pan, Defrag). **Done 2026-08-06** — all 7 written retroactively against the shipped code; see §1.2 for the small drift items the audit surfaced.
-3. **[A3] Write proper spec sections** in `PlayTools_DD.md` for the shipped-but-undocumented tools: **Game Night Planner** (Fun Lab) and **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern** (Tabletop/RPG Lab).
+3. **[A3] ✅ Write proper spec sections** in `PlayTools_DD.md` for the shipped-but-undocumented tools: **Game Night Planner** (Fun Lab) and **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern** (Tabletop/RPG Lab). **Done 2026-08-06** — all 5 now have full spec sections (§4.4.3, §4.5.1, §4.5.3-4.5.5) grounded in the shipped code, including their real DNA-vector formulas, achievement ties (or lack thereof), and telemetry.
 4. **[A4] Formalize the permanent monetization guardrail.** Promote "money buys content/cosmetics, never skill or Gamer Score; NetCoin and Loot Boxes are never purchasable with real money" from per-subsystem guardrail language (currently duplicated in `Rig_DD.md` §1.2 and `RetroMall_DD.md` §1.2) into a single, explicit Core Principle in `PlayTools_DD.md` §1.3, so every future subsystem doc can just reference it.
 
 ### Tier B — Deepen Existing Systems (close the biggest gaps in what's already shipped)
