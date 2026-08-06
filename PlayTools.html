@@ -2659,6 +2659,24 @@ const Attr = (function(){
   const K_EXP    = 2;     // headroom exponent — stiffness of the asymptotic 100 ceiling
   const ETA_UP   = 0.30;  // easing rate when a run beats the current value (improving)
   const ETA_DOWN = 0.10;  // gentler easing when a run is below current form
+  // Stage 1 — benchmark normalization (DD §3.1.3). Maps one tool's raw
+  // performance scalar x to a run-quality q∈(0,1) via a logistic anchored on
+  // three authored reference points: floor (q≈0.1), median (q=0.5, exact —
+  // this fixes the logistic midpoint m), and elite (q≈0.95). Because floor
+  // and elite are rarely equidistant from median in raw units (human skill
+  // distributions are asymmetric), a single steepness s can't hit both
+  // anchors exactly; s is fit by least-squares regression, in log-odds
+  // space, through the origin at the median — i.e. it balances the two
+  // anchors' errors rather than privileging either one.
+  //   lowerBetter: true for metrics like reaction time where smaller x wins.
+  const LOGIT_FLOOR = Math.log(0.1/0.9);    // target log-odds at the floor anchor (≈ -2.1972)
+  const LOGIT_ELITE = Math.log(0.95/0.05);  // target log-odds at the elite anchor (≈  2.9444)
+  function benchmarkQuality(x, opts){
+    const dir = opts.lowerBetter ? -1 : 1;
+    const xr = dir*x, mr = dir*opts.median, fr = dir*opts.floor - dir*opts.median, er = dir*opts.elite - dir*opts.median;
+    const s = (fr*LOGIT_FLOOR + er*LOGIT_ELITE) / (fr*fr + er*er);
+    return 1/(1 + Math.exp(-s*(xr-mr)));
+  }
   function applyVector(base, quality){
     quality = Math.max(0, Math.min(1, quality==null ? 1 : quality));
     const target = 100 * quality;                 // A* — this run's quality target
@@ -2723,7 +2741,7 @@ const Attr = (function(){
     return map[dom] || 'Arcade Champion';
   }
 
-  return { RANKS, applyVector, gamerScore, rankFor, nextRank, classFor };
+  return { RANKS, applyVector, benchmarkQuality, gamerScore, rankFor, nextRank, classFor };
 })();
 
 /* SighMan (Simon) branding — four neon quadrant pads matching the in-game
@@ -6771,8 +6789,8 @@ Views.reaction = function(c){
     const g = grade(dt), pct=percentile(dt);
     stage.className='stage go';
     stage.innerHTML = `<div class="big">${dt} ms</div><div class="small">Click to go again</div>`;
-    // DNA: quality scales between 320ms (0) and 150ms (1)
-    const quality = clamp01((320-dt)/(320-150));
+    // DNA: logistic benchmark curve (DD §3.1.3) — floor/median/elite anchors
+    const quality = Attr.benchmarkQuality(dt, {lowerBetter:true, floor:420, median:270, elite:160});
     recordRun('reaction', {best:'min', value:dt});
     Attr.applyVector({reflex:12, focus:4}, quality);
     Ach.evaluate({tool:'reaction', grade:g, dt});
@@ -6853,7 +6871,8 @@ Views.cps = function(c){
     stage.className='stage go';
     stage.innerHTML = `<div class="big">${cps.toFixed(2)} CPS</div><div class="small">Click below to try again</div>`;
 
-    const quality = clamp01(cps/14); // 14 CPS ≈ perfect
+    // DNA: logistic benchmark curve (DD §3.1.3) — floor/median/elite anchors
+    const quality = Attr.benchmarkQuality(cps, {lowerBetter:false, floor:4.0, median:6.5, elite:11});
     recordRun('cps', {best:'max', value:+cps.toFixed(2)});
     Attr.applyVector({speed:15, consistency:5}, quality);
     Ach.evaluate({tool:'cps', cps});
@@ -6961,7 +6980,8 @@ Views.precision = function(c){
     const speedScore  = clamp01(1-avgAcq/LIFE);             // 1 = instant
     const rating = Math.round((centerScore*0.6+speedScore*0.4)*100);
 
-    const quality = clamp01(accuracy/100 * 0.7 + rating/100*0.3);
+    // DNA: logistic benchmark curve (DD §3.1.3 "Target Practice — accuracy %")
+    const quality = Attr.benchmarkQuality(accuracy, {lowerBetter:false, floor:55, median:78, elite:97});
     recordRun('precision', {best:'max', value:accuracy});
     Attr.applyVector({precision:16, control:6}, quality);
     Ach.evaluate({tool:'precision', accuracy});
@@ -7196,7 +7216,8 @@ Views.tracking = function(c){
     const control=Math.max(0, Math.min(100, Math.round(100-Math.sqrt(variance)*2)));
 
     const lvl=TRK_LEVELS[levelIdx];
-    const quality=clamp01(onTarget/100);
+    // DNA: logistic benchmark curve (DD §3.1.3 "Aim Tracking — control %")
+    const quality=Attr.benchmarkQuality(control, {lowerBetter:false, floor:50, median:75, elite:95});
     recordRun('tracking', {best:'max', value:onTarget});
     // DNA payout scales with difficulty so easier tiers reward less for the same on-target %.
     Attr.applyVector({control:11, focus:6}, quality*lvl.reward);
@@ -17740,6 +17761,10 @@ const UI = (function(){
 window.UI = UI; window.Router = Router;
 /* expose Auth/Cloud so tests can drive them and other views can feature-detect */
 window.Auth = Auth; window.Cloud = Cloud;
+/* expose Attr (name collides with the builtin DOM Attr interface, so bare
+   references from injected/evaluated code resolve to the builtin, not this
+   module — tests must go through window.Attr) */
+window.Attr = Attr;
 
 /* ============================================================================
    BACKGROUND MUSIC — two looping sections sitting next to PlayTools.html.
