@@ -418,10 +418,13 @@ spec sections (tracked in ROADMAP.md).
 > (pseudo-3D racer, `Overdrive_DD.md`), **Jack-In** (Blackjack, `JackIn_DD.md`),
 > **Ecto** (Galaga-style shooter, `Ecto_DD.md`), **Crossload** (Frogger-style,
 > `Crossload_DD.md`), **Mac Pan** (Pac-Man-style, `MacPan_DD.md`), **Defrag**
-> (match-3, `Defrag_DD.md`) — all fully implemented — plus additional cabinets
-> with no standalone doc yet (Anaconda, Brick Breaker, Hopper Popper, SighMan,
-> Pack Hacker, Sudoku, B0ggle). Arcade A/S-grade clears also pay NetCoin
-> directly (see `Rig_DD.md` §10), a cross-system hook this section predates.
+> (match-3, `Defrag_DD.md`) — all fully implemented — plus seven more cabinets
+> documented retroactively 2026-08-06 (ROADMAP.md backlog item A2): **Anaconda**
+> (`Anaconda_DD.md`), **Brick Breaker** (`BrickBreaker_DD.md`), **Hopper
+> Popper** (`HopperPopper_DD.md`), **SighMan** (`SighMan_DD.md`), **Pack
+> Hacker** (`PackHacker_DD.md`), **Sudoku** (`Sudoku_DD.md`), **B0ggle**
+> (`B0ggle_DD.md`). Arcade A/S-grade clears also pay NetCoin directly (see
+> `Rig_DD.md` §10), a cross-system hook this section predates.
 >
 > Original (partially stale) roster, kept for history:
 * **StarDodger:** A retro vertical-scrolling mini-game where the player moves a single-pixel ship left and right to dodge falling block obstacles . Metrics are tied to a total Survival Score . *(Shipped.)*
