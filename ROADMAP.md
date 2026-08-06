@@ -22,12 +22,12 @@ Everything described below is **live in the app today**. Treat all of it as the 
 | Reflex Lab (Reaction, CPS, Precision Click) | ✅ Shipped | |
 | Mouse Lab (Polling Rate, Accuracy) | ✅ Shipped | |
 | Setup Lab (eDPI, Sensitivity Converter) | ✅ Shipped | |
-| Fun Lab (DNA Report, Archetype Quiz) | ✅ Shipped | Plus an undocumented **Game Night Planner**. |
-| Tabletop/RPG Lab (Dice Roller) | ✅ Shipped | Full notation parser, presets, advantage/disadvantage. Plus 4 undocumented tools: **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern**. |
+| Fun Lab (DNA Report, Archetype Quiz) | ✅ Shipped | Plus **Game Night Planner**, now specified in `PlayTools_DD.md` §4.4.3 (**Fixed 2026-08-06 — A3, ✅ done**). |
+| Tabletop/RPG Lab (Dice Roller) | ✅ Shipped | Full notation parser, presets, advantage/disadvantage. Plus **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern**, now specified in `PlayTools_DD.md` §4.5.1/4.5.3-4.5.5 (**Fixed 2026-08-06 — A3, ✅ done**). |
 | Expansion tools (§5: Flick/Tracking/Double-Click/Spacebar, Lift-Off/Drag/Jitter/Stability, FOV/Aspect/Refresh/Session Planner, Challenge/Username/Clan/Loadout/Roast generators) | ✅ Shipped | All present and routed. |
 | Retro Arcade (original §5.5 roster) | ⚠️ Superseded | Only StarDodger + Mnemonic shipped as named. "Asteroid Survival" and "Reflex Rush" were never built — replaced by a much larger cabinet line (§1.2). |
 | Universal Share Card | ✅ Shipped | Across nearly every tool. |
-| Achievements | ✅ Shipped, expanded | All 11 originally-documented achievements exist, plus dozens more (one set per expansion tool/cabinet). One semantic drift, now decided: *Arcade Champion* is documented as "10,000 arcade points" but actually checks **total Gamer Score ≥ 10,000** — a global, not arcade-specific, gate. **Decision (2026-08-04): fix the code to be arcade-specific** — see backlog item A1. |
+| Achievements | ✅ Shipped, expanded | All 11 originally-documented achievements exist, plus dozens more (one set per expansion tool/cabinet). One semantic drift, now fixed: *Arcade Champion* previously checked **total Gamer Score ≥ 10,000** (a global, not arcade-specific, gate) instead of the documented "10,000 arcade points." **Fixed 2026-08-06 — see backlog item A1 (✅ done).** |
 
 ### 1.2 Retro Arcade Cabinet Line
 
@@ -43,7 +43,7 @@ Seven full cabinets, each with its own DD, all confirmed as genuine, substantial
 | Mac Pan | Pac-Man-style | ✅ Shipped | Solid, faithful build. |
 | Defrag | Match-3 | ✅ Shipped | Cleanest match of the set. |
 
-Beyond these seven, additional cabinets exist **with no standalone design doc yet**: Anaconda, Brick Breaker, Hopper Popper, SighMan, Pack Hacker, Sudoku, B0ggle. All 7+ documented cabinets and this extra set are wired into a universal NetCoin grade-payout gate (A=50/S=100 coins, once per cabinet per day). Writing DDs for these seven is now backlog item A2 — see §4.
+Beyond these seven, additional cabinets now also have design docs, written retroactively 2026-08-06 (backlog item A2, ✅ done): Anaconda (`DD/Anaconda_DD.md`), Brick Breaker (`DD/BrickBreaker_DD.md`), Hopper Popper (`DD/HopperPopper_DD.md`), SighMan (`DD/SighMan_DD.md`), Pack Hacker (`DD/PackHacker_DD.md`), Sudoku (`DD/Sudoku_DD.md`), B0ggle (`DD/B0ggle_DD.md`). All 14 documented cabinets are wired into a universal NetCoin grade-payout gate (A=50/S=100 coins, once per cabinet per day). The audit surfaced a few small real drifts worth a follow-up pass: three cabinets' `Attr.applyVector` calls grant DNA components (a `consistency` or `focus` term) not mentioned in their `CABINETS` registry `dna` strings (Anaconda, Brick Breaker, Hopper Popper); `ctx.misses` (Hopper Popper) and the `mistakes` counter (Sudoku) are tracked but never consulted by any scoring/achievement logic; B0ggle uses its own `b0Grade(comp)` curve and a more generous `arcadePoints` divisor than its siblings, by original design, not drift.
 
 **No arcade cabinet has been touched since 2026-06-12** — the line reads as a stable, completed feature set, not one still being actively iterated (all commits since are RetroPets/Rig work, then a volume-control UI pass and new Privacy Policy/Terms pages on 2026-07-09).
 
@@ -97,9 +97,9 @@ One ranked list, top to bottom, across every pillar. Grouped into lettered tiers
 
 ### Tier A — Documentation & Consistency (do first, no new features)
 
-1. **[A1] Fix the `arcade_champion` achievement** to gate on actual arcade-cabinet points instead of total Gamer Score, matching `PlayTools_DD.md`'s documented intent (decision 2 in §3). Small, self-contained code change.
-2. **[A2] Write DDs for the 7 undocumented cabinets** — Anaconda, Brick Breaker, Hopper Popper, SighMan, Pack Hacker, Sudoku, B0ggle — giving the whole Retro Arcade line the same audit trail as the other seven (Cold Stack, Overdrive, Jack-In, Ecto, Crossload, Mac Pan, Defrag).
-3. **[A3] Write proper spec sections** in `PlayTools_DD.md` for the shipped-but-undocumented tools: **Game Night Planner** (Fun Lab) and **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern** (Tabletop/RPG Lab).
+1. **[A1] ✅ Fix the `arcade_champion` achievement** to gate on actual arcade-cabinet points instead of total Gamer Score, matching `PlayTools_DD.md`'s documented intent (decision 2 in §3). Small, self-contained code change. **Done 2026-08-06** — now tests `d.arcadePoints>=10000` instead of `Attr.gamerScore(d)>=10000`.
+2. **[A2] ✅ Write DDs for the 7 undocumented cabinets** — Anaconda, Brick Breaker, Hopper Popper, SighMan, Pack Hacker, Sudoku, B0ggle — giving the whole Retro Arcade line the same audit trail as the other seven (Cold Stack, Overdrive, Jack-In, Ecto, Crossload, Mac Pan, Defrag). **Done 2026-08-06** — all 7 written retroactively against the shipped code; see §1.2 for the small drift items the audit surfaced.
+3. **[A3] ✅ Write proper spec sections** in `PlayTools_DD.md` for the shipped-but-undocumented tools: **Game Night Planner** (Fun Lab) and **Character Forge, NPC Generator, Initiative Tracker, Quest & Tavern** (Tabletop/RPG Lab). **Done 2026-08-06** — all 5 now have full spec sections (§4.4.3, §4.5.1, §4.5.3-4.5.5) grounded in the shipped code, including their real DNA-vector formulas, achievement ties (or lack thereof), and telemetry.
 4. **[A4] Formalize the permanent monetization guardrail.** Promote "money buys content/cosmetics, never skill or Gamer Score; NetCoin and Loot Boxes are never purchasable with real money" from per-subsystem guardrail language (currently duplicated in `Rig_DD.md` §1.2 and `RetroMall_DD.md` §1.2) into a single, explicit Core Principle in `PlayTools_DD.md` §1.3, so every future subsystem doc can just reference it.
 
 ### Tier B — Deepen Existing Systems (close the biggest gaps in what's already shipped)

@@ -226,7 +226,7 @@ Add `recordColdStackRun(score, ctx)` following the exact pattern used by
 * Counters for the cabinet achievements: `coldstackRuns`, `coldstackWins`,
   `coldstackBestTime` (fastest clean, low-water mark), `coldstackDraw3Wins`,
   plus a `coldstackRecovered` lifetime total of chips compiled.
-* Feeds the existing **Arcade Champion** achievement (10,000 Gamer Score) and the
+* Feeds the existing **Arcade Champion** achievement (10,000 arcade points) and the
   Universal Share Card via `ShareCard.open({ lab:'RETRO ARCADE', tool:'Cold
   Stack', glyph:'🃏', … })` on run end.
 

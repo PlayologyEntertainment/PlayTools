@@ -142,7 +142,7 @@ Add `recordJackInRun(score, ctx)` following the exact pattern used by
   in line with the other arcade recorders.
 * Counters for the cabinet achievements: `jackinRuns`, `jackinBlackjacks`,
   `jackinMaxWins`, `jackinCooler`, plus a `jackinBestStreak` high-water mark.
-* Feeds the existing **Arcade Champion** achievement (10,000 Gamer Score) and the
+* Feeds the existing **Arcade Champion** achievement (10,000 arcade points) and the
   Universal Share Card via `ShareCard.open({ lab:'RETRO ARCADE', tool:'Jack-In',
   glyph:'🃏', … })` on game over.
 
