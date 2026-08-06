@@ -152,23 +152,38 @@ $m$ is the **median-human** anchor ($q=0.5$) and $s$ the steepness. Because the 
 
 | Tool / metric | Orientation | Floor ($q\approx0.1$) | Median $m$ ($q=0.5$) | Elite ($q\approx0.95$) |
 | --- | --- | --- | --- | --- |
-| Reflex Lab — avg reaction (ms) | lower-better | 420 | 270 | 160 |
-| Click Speed — CPS | higher-better | 4.0 | 6.5 | 11 |
-| Target Practice — accuracy % | higher-better | 55 | 78 | 97 |
-| Aim Tracking — control % | higher-better | 50 | 75 | 95 |
+| Reflex Lab (Reaction Time) — avg reaction (ms) | lower-better | 420 | 270 | 160 |
+| Click Speed (CPS Test) — CPS | higher-better | 4.0 | 6.5 | 11 |
+| Target Practice (Precision Click) — accuracy % | higher-better | 55 | 78 | 97 |
+| Aim Tracking (Tracking Trainer) — control % | higher-better | 50 | 75 | 95 |
 | Dice — luck-normalized $q$ | (already $0$–$1$) | — | 0.5 | — |
 
-($s$ is derived per row so the floor / elite anchors land at $q\approx0.1$ / $q\approx0.95$.)
+($s$ is derived per row so the floor / elite anchors land at $q\approx0.1$ / $q\approx0.95$. The table's tool names are the conceptual metric names as originally authored; the parenthetical names are the actual shipped cabinet/tool names, since none of the four is a literal "Target Practice" or "Aim Tracking" applet in the code.)
 
-> **Implementation status (current code).** Stages 2 and 3 below (diminishing
-> returns, idle decay) are implemented **exactly** as specified, constants
-> included ($k{=}2$, $\eta_{up}{=}0.30$, $\eta_{down}{=}0.10$, $\beta{=}0.5$,
-> $h{=}45$). **Stage 1 is not** — each tool currently computes `quality` via a
-> simple **linear clamp** against its own ad-hoc floor/ceiling (e.g. Reaction
-> Time: `clamp01((320-dt)/(320-150))`; CPS: `clamp01(cps/14)`), not the logistic
-> curve/anchor table above. This is a real gap, not just a rounding difference —
-> the anchors don't match either. Implementing the authored logistic Stage 1 is
-> a tracked v2 candidate (see ROADMAP.md).
+> **Implementation status (current code).** All three stages are now implemented
+> as specified. **Stage 1** ships as `Attr.benchmarkQuality(x, {floor, median,
+> elite, lowerBetter})`, wired into the four anchored tools above (Dice needed no
+> change — its raw metric is already the $0$–$1$ quality score). Because a floor
+> and an elite anchor are rarely equidistant from the median in raw units, the
+> code doesn't try to hit both exactly: it fits the steepness $s$ by least-squares
+> regression, in log-odds space, through the origin at the median — i.e. it
+> balances the two anchors' errors rather than exactly solving for one and
+> approximating the other. In practice this lands each tool's floor around
+> $q\approx0.05$–$0.15$ and elite around $q\approx0.89$–$0.96$ — close to, not
+> exactly, the authored $0.1$/$0.95$ targets, consistent with the "≈" in the table
+> header. Precision Click's `quality` now derives purely from accuracy (the old
+> `accuracy*0.7 + rating*0.3` blend is dropped, matching this table's "accuracy %"
+> anchor row; the Precision Rating tile is still shown but no longer feeds DNA).
+> Tracking Trainer's `quality` now derives from its `control` value (matching the
+> "control %" row) rather than the on-target% it previously used. Stages 2 and 3
+> remain implemented **exactly** as specified, constants included ($k{=}2$,
+> $\eta_{up}{=}0.30$, $\eta_{down}{=}0.10$, $\beta{=}0.5$, $h{=}45$).
+> Regression-tested in `test/attribute-benchmark.mjs`. The ~30 Retro Arcade /
+> RPG Lab / RetroPets tools that also feed `Attr.applyVector` still use their own
+> ad-hoc linear `clamp01` formulas — those aren't in this anchor table and are
+> out of scope here, since several of them double as the NetCoin arcade-grade
+> gate (`arcadeGrade(comp)`) and converting them is a separate, live-economy-affecting
+> decision (see ROADMAP.md).
 
 **Stage 2 — Form update (diminishing returns).** Per completed run, the attribute eases toward its quality target $A_\star = 100\,q$ with a weight-scaled, headroom-damped step. Let $w \in (0,1]$ be the tool's normalized attribution weight (the legacy per-tool weights divided by the max weight, e.g. Reflex $12/16 = 0.75$):
 
