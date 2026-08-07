@@ -4617,7 +4617,7 @@ const CABINETS = [
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
     desc:'Link your Steam, Epic, Nintendo & Discord profiles — paste or enter by hand.', dna:'Paste import · Manual KPIs' },
 
-  { id:'daily',      lab:'Daily Challenge', name:'Daily Challenge', railName:'Daily', icon:'🗓️', tag:'mvp', route:'#/daily',
+  { id:'daily',      lab:'Daily', name:'Daily Challenge', railName:'Daily', icon:'🗓️', tag:'mvp', route:'#/daily',
     desc:'One shared seed, one shot — every player gets the identical board on today\'s rotating cabinet. No server, no leaderboard.', dna:'Consistency +weighted' },
 
   { id:'calibration',lab:'Reflex', name:'Latency Calibration', railName:'Latency', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
@@ -4804,7 +4804,7 @@ const LAB_CRT = {
   'Fun'      :'#ffb3c6',   // light pink
   'RPG'      :'#118AB2',   // blue
   'Arcade'   :'#9d4edd',   // bright purple
-  'Daily Challenge':'#f2c14e' // amber — distinct from Arcade's purple
+  'Daily'    :'#f2c14e' // amber — distinct from Arcade's purple
 };
 function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
 
@@ -4812,7 +4812,7 @@ function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
    rail reads as a colourful set of shelves rather than a flat word list. */
 const LAB_ICON = {
   'The MetaGame':'🧬', 'Reflex':'⚡', 'Hardware':'🖱️', 'Setup':'🛠️',
-  'Fun':'🎭', 'RPG':'🎲', 'Arcade':'👾', 'Daily Challenge':'🗓️'
+  'Fun':'🎭', 'RPG':'🎲', 'Arcade':'👾', 'Daily':'🗓️'
 };
 function labIcon(lab){ return LAB_ICON[lab] || '🎮'; }
 
@@ -4827,7 +4827,7 @@ const LAB_DESC = {
   'Fun'      :'Personality and pure mischief. Take the archetype quiz, generate gamertags, clans and loadouts, roll wild challenges, and get your rig gloriously roasted.',
   'RPG'      :'Tools for the tabletop. Forge D&D characters, roll any dice, conjure NPCs, track initiative, and spin up quests, taverns and rumours on the fly.',
   'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Mnemonic, Hopper Popper and more — quick games that still feed your Gamer DNA.',
-  'Daily Challenge':'One shared seed, one shot. Every player gets the identical board on today\'s rotating cabinet — no server, no leaderboard, just a Share Card to prove it.'
+  'Daily'    :'Same seed, every player, every day. Today\'s rotating cabinet plus whatever other daily rituals land here — no server, no leaderboard, just a Share Card to prove it.'
 };
 function labDesc(lab){ return LAB_DESC[lab] || 'A shelf of applets all from this category. Pick <strong>Lobby</strong> in the sidebar to see everything again.'; }
 
