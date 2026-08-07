@@ -1,6 +1,8 @@
 # RetroPets — Creature Collection, Care & Arena Design Spec
 
-**Version:** 1.0 (Phase 1 implemented — shipped; Phases 2-3 not started)
+**Version:** 1.1 (Phase 1 implemented — shipped; Phase 2's PvE Arena shipped
+2026-08-07; remaining Phase 2 cosmetics/Shard-spend work and all of Phase 3
+not started)
 **Author:** Playology Entertainment
 **Status:** Phase 1 (Foundation / Vertical Slice, §10) is live in-app as
 **RetroPets** under "The MetaGame" nav group, route `#/pets` (store at
@@ -8,9 +10,10 @@
 default (every commit and code identifier uses it; "The RetroMall" / "RetroPet"
 below are the original working titles, kept only where this doc's history is
 being described). Phase 1 shipped *ahead* of spec (3 care mini-games instead of
-the planned 1). Phase 2 (Arena, full cosmetics/Shard sinks) and Phase 3
-(Gifting, seasonal boxes, habitat décor) are **not built** — see ROADMAP.md for
-current v2 planning.
+the planned 1). The **PvE Arena** (`#/pets/arena`, §6) shipped 2026-08-07 —
+see §10 for what shipped vs. the original spec. The rest of Phase 2 (full
+cosmetics/Shard sinks) and all of Phase 3 (Gifting, seasonal boxes, habitat
+décor) are **not built** — see ROADMAP.md for current v2 planning.
 **Parent Doc:** `PlayTools_DD.md` (this introduces a **new top-level world** — a
 collect/raise/battle layer that plugs into the existing **NetCoin** economy and
 **GamerDNA** skill model; it is *not* a Retro Arcade cabinet)
@@ -165,16 +168,31 @@ skill profile** the labs feed — without ever letting NetCoin touch it.
 
 ---
 
-## 6. The Arena (PvE skill)
+## 6. The Arena (PvE skill) — ✅ SHIPPED 2026-08-07
 
-A **Battledome homage**, reframed as a neon mall fighting-game cabinet.
-- You pilot one RetroPet vs escalating CPU foes through a **reaction/timing**
-  mini-game (read the tell → choose attack/guard/dodge in the window).
-- **Outcome is skill-driven.** Pet Energy gates *entry*; rarity affects *cosmetics
-  and flavor*, not the win — the player's timing decides the match.
-- **Rewards:** NetCoin, rare cosmetic/RetroPet drops, and GamerDNA (Strategy/Reflex).
+A **Battledome homage**, reframed as a neon mall fighting-game cabinet, live at
+`#/pets/arena`.
+- You pilot one RetroPet vs CPU foes through a **reaction/timing** mini-game:
+  read the tell (Lunge/Wind-up/Opening) → choose the matching counter
+  (Dodge/Guard/Attack) before the window closes.
+- **Outcome is skill-driven.** Pet Energy gates *entry* (and is spent per
+  fight, win or lose); rarity affects *cosmetics and flavor only* — the
+  player's read/react quality decides the match.
+- **Two modes**, both shipped: a **Ladder** — a permanent Arena Rank that only
+  ever advances on a win (a loss never regresses it — no punishing loss) —
+  and an optional **Gauntlet**: an endless run that always restarts at foe #1,
+  ends on the first loss, and pays a lump-sum bonus for the streak reached.
+  Gauntlet never touches the permanent ladder rank.
+- **Enemies:** procedural "wild" foes reuse the existing Pet silhouette
+  renderer (zero new art), plus 3 curated named milestone bosses (Rookie
+  Titan @ rank 10, Veteran Specter @ 25, Champion Wyrm @ 50).
+- **Difficulty** scales purely by execution speed (the tell-to-window timing
+  tightens with rank/run depth) — the 3 tells never change.
+- **Rewards:** NetCoin scaling with rank (boss fights pay more), a rank-gated
+  chance at a bonus Loot Box pull reusing the exact paid-pull/pity/dupe→Shard
+  logic, and GamerDNA (Strategy/Reflex).
 - Gives rare and well-raised RetroPets a **purpose** beyond display.
-- **PvE only** in scope (single-player/client-side). No live PvP.
+- **PvE only**, as scoped (single-player/client-side). No live PvP.
 
 ---
 
@@ -248,15 +266,24 @@ add depth and social.
    reflex/focus, precision/control respectively).
 7. ✅ **RetroPet Share Card** + rarity-capped sale price (`sellPrice()`).
 
-**Phase 2 — Depth — ❌ NOT STARTED:**
-1. ❌ **PvE Arena** (`#/pets/arena`) — no route, no combat logic exists anywhere
-   in the codebase. This is the single biggest gap versus this doc.
+**Phase 2 — Depth — ⚠️ PARTIALLY SHIPPED (Arena done 2026-08-07):**
+1. ✅ **PvE Arena** (`#/pets/arena`, §6) — shipped 2026-08-07, ahead of the
+   original single-mode spec: a permanent Ladder rank **plus** an optional
+   Gauntlet endless-run mode, 3 curated milestone bosses on top of the
+   procedural foe roster, and a rank-gated bonus-Loot-Box drop chance that
+   reuses the paid-pull pity/dupe→Shard logic exactly. 5 new achievements
+   (First Blood, Rookie/Veteran/Arena Champ, Gauntlet Runner). Regression
+   coverage in `test/pets-arena.mjs` (`npm run test:pets-arena`).
 2. ✅ Care mini-games already cover 6 of 7 vectors (see Phase 1 note above).
 3. ❌ **Cosmetics** catalog / NetStore tab for Pets — not built. Shards are
-   minted (via dupes) but never spent — no crafting/targeting UI exists.
-4. ⚠️ **Bond** exists and feeds the sale-price ceiling, but no broader stable
-   management UI or deeper species/rarity expansion has shipped.
-5. ⚠️ Achievement set exists but is not the full Phase-2-scope list envisioned.
+   minted (via dupes and, now, Arena drops) but still never spent — no
+   crafting/targeting UI exists.
+4. ⚠️ **Bond** exists and feeds the sale-price ceiling (and now a modest
+   per-Arena-win bump), but no broader stable management UI or deeper
+   species/rarity expansion has shipped.
+5. ⚠️ Achievement set now includes the 5 Arena achievements above, but is
+   still not the full Phase-2-scope list originally envisioned (cosmetics
+   milestones remain unbuilt alongside the cosmetics catalog itself).
 
 **Phase 3 — Social & Polish — ❌ NOT STARTED:**
 1. ❌ Gifting (P2P treats/cosmetics) + Stable-wide Share Card.
