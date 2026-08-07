@@ -20693,10 +20693,10 @@ Views.retroPets = function(c){
     arenaB.append(el('h2',{class:'sub', text:'⚔️ The Arena'}));
     arenaB.append(el('p',{class:'muted', text:'Fight in the Arena to raise your Rank and be the best. You must have at least one Pet to compete.'}));
     const az = Pets.arena();
-    const arenaStats = el('div',{class:'rig-wallet'});
+    const arenaStats = el('div',{class:'rig-wallet', style:'gap:40px;'});
     arenaStats.innerHTML =
       `<div><div class="sub-stat">Rank</div><b>${az.rank}</b></div>`+
-      `<div><div class="sub-stat">Best Gauntlet Streak</div><b>${az.gauntlet.bestStreak}</b></div>`;
+      `<div><div class="sub-stat">Streak</div><b>${az.gauntlet.bestStreak}</b></div>`;
     arenaB.append(arenaStats);
     const arenaRow = el('div',{class:'controls-row'});
     const arenaBtn = el('button',{class:'btn primary', html:'⚔️ Enter Arena'});
