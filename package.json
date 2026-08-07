@@ -11,6 +11,7 @@
     "test:tuner": "node test/tuner.mjs",
     "test:arcade-coins": "node test/arcade-grade-coins.mjs",
     "test:attr-benchmark": "node test/attribute-benchmark.mjs",
+    "test:daily-challenge": "node test/daily-challenge.mjs",
     "browser": "node test/browser.mjs",
     "rig:preview": "node tools/rig-preview.mjs",
     "rig:edit": "node tools/rig-edit.mjs",

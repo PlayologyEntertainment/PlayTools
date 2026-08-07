@@ -1426,6 +1426,8 @@
   .friend-card .fc-attrs .track{flex:1; height:7px; background:rgba(124,92,255,0.15); border-radius:5px; overflow:hidden;}
   .friend-card .fc-attrs .fill{display:block; height:100%; background:var(--neon);}
   .friend-card .fc-attrs .val{width:24px; text-align:right; font:700 11px monospace; color:var(--neon);}
+  .friend-card .fc-daily{font:600 11px monospace; color:#cfd6ff; border:1px dashed var(--line); border-radius:8px; padding:6px 9px;}
+  .friend-card .fc-daily.muted{color:var(--ink-dim); font-weight:400;}
   .friend-card .fc-note{
     width:100%; box-sizing:border-box; background:var(--panel); color:var(--ink); border:1px solid var(--line);
     border-radius:6px; padding:8px 10px; font-family:inherit; font-size:12px; resize:vertical; min-height:38px;
@@ -2047,6 +2049,15 @@ const Store = (function(){
         lastIdleTs: Date.now(),// capped idle-accrual clock (Rig-style), shared across the stable
         tapDay: null,          // local day key for the daily tap-NetCoin cap
         tapCoins: 0            // NetCoin already paid from tapping today
+      },
+      // Daily Challenge (DD/DailyChallenge_DD.md, ROADMAP §4 C1) — a shared,
+      // hashed-local-day seed rotates one Arcade cabinet per day so every
+      // player gets the identical board/deck/run. One locked attempt/day.
+      dailyChallenge: {
+        lastPlayedDay: null,  // local day key of the last completed attempt — the once-per-day lock
+        streak: 0,            // consecutive local days played
+        bestStreak: 0,        // all-time best streak
+        history: []           // [{day, cabinet, grade, score}], most-recent last, capped ~30
       }
     };
   }
@@ -2115,7 +2126,14 @@ const Store = (function(){
           const m = Object.assign(defaultDNA().pets, pp||{});
           m.pals = Array.isArray(pp && pp.pals) ? pp.pals : [];
           return m;
-        })(parsed.pets)
+        })(parsed.pets),
+        // Deep-merge Daily Challenge the same way, so saves that predate it
+        // inherit the current defaults instead of being clobbered.
+        dailyChallenge: (function(dc){
+          const m = Object.assign(defaultDNA().dailyChallenge, dc||{});
+          m.history = Array.isArray(dc && dc.history) ? dc.history : [];
+          return m;
+        })(parsed.dailyChallenge)
       });
       return seedAndDecay(merged);
     }catch(e){ console.warn('[PlayTools] corrupt save, resetting', e); return defaultDNA(); }
@@ -3151,6 +3169,17 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='pet_dodge' && (c.grade==='A'||c.grade==='S') },
     { id:'pets_groom_ace', name:'Fetch Master', icon:'🎾', desc:'Earn an A grade or better at Fetch.',
       test:(d,c)=> c && c.tool==='pet_groom' && (c.grade==='A'||c.grade==='S') },
+    // ---- Daily Challenge set (DD/DailyChallenge_DD.md, ROADMAP §4 C1) ----
+    { id:'daily_first', name:'Show Up', icon:'🗓️', desc:'Complete your first Daily Challenge.',
+      test:(d,c)=> (c && c.tool==='dailychallenge') || !!(d.dailyChallenge && d.dailyChallenge.history && d.dailyChallenge.history.length>=1) },
+    { id:'daily_streak_3', name:'Creature of Habit', icon:'🔥', desc:'Reach a 3-day Daily Challenge streak.',
+      test:(d)=> !!(d.dailyChallenge && d.dailyChallenge.streak>=3) },
+    { id:'daily_streak_7', name:'Week One', icon:'📆', desc:'Reach a 7-day Daily Challenge streak.',
+      test:(d)=> !!(d.dailyChallenge && d.dailyChallenge.streak>=7) },
+    { id:'daily_streak_30', name:'Every Single Day', icon:'🏅', desc:'Reach a 30-day Daily Challenge streak.',
+      test:(d)=> !!(d.dailyChallenge && d.dailyChallenge.streak>=30) },
+    { id:'daily_rotation', name:'Cabinet Tourist', icon:'🎡', desc:'Play a Daily Challenge on every rotating cabinet at least once.',
+      test:(d)=>{ const h=(d.dailyChallenge&&d.dailyChallenge.history)||[]; const seen=new Set(h.map(x=>x.cabinet)); return DailyChallenge.POOL.every(id=> seen.has(id)); } },
     { id:'completionist', name:'Completionist', icon:'💯', desc:'Unlock every other achievement.',
       test:(d)=> DEFS.filter(x=>x.id!=='completionist').every(x=> d.achievements.includes(x.id)) }
   ];
@@ -3826,6 +3855,8 @@ const Rig = (function(){
     if(id==='pets_first_legendary') return 750;
     if(id==='pets_full_stable')     return 1000;
     if(id==='rig_streak_7')    return 750;
+    if(id==='daily_streak_30') return 2000;
+    if(id==='daily_streak_7')  return 750;
     if(/^rig_|^forge_legend$/.test(id)) return 500;
     if(/_ace$/.test(id))       return 150;
     return 300;
@@ -3906,6 +3937,92 @@ const Rig = (function(){
   };
 })();
 window.Rig = Rig;
+
+/* ============================================================================
+   DAILY CHALLENGE — shared daily seed, one attempt/day, no backend, ever
+   (DD/DailyChallenge_DD.md, ROADMAP §4 C1). A hashed local-day key both picks
+   which of the 14 Arcade cabinets is "today's" challenge and seeds that
+   cabinet's mulberry32 stream (see hashSeed/mulberry32 near the top-level
+   utility helpers), so every player's device independently computes the
+   identical board/deck/run for the same calendar day — no server round-trip.
+   Comparison stays P2P (Share Card + ProfileIO import), never a leaderboard.
+   Deliberately its own tool identity/payout gate, not lab:'Arcade' — a Daily
+   Challenge run never touches the underlying cabinet's own per-cabinet-per-day
+   Rig.payArcadeGrade cap (see each cabinet's dailyMode-aware Ach.evaluate call).
+   ============================================================================ */
+const DailyChallenge = (function(){
+  const DAY_MS = 86400000;
+  // Internal tool ids — must match each cabinet's own Ach ctx.tool string.
+  const POOL = ['coldstack','jackin','ecto','crossload','defrag','macpan','snake','bricks','whack','sequence','overdrive','packer','sudoku','b0ggle'];
+  const NAMES = { coldstack:'Cold Stack', jackin:'Jack-In', ecto:'Ecto', crossload:'Crossload', defrag:'Defrag',
+    macpan:'Mac Pan', snake:'Anaconda', bricks:'Brick Breaker', whack:'Hopper Popper', sequence:'SighMan',
+    overdrive:'Overdrive', packer:'Pack Hacker', sudoku:'Sudoku', b0ggle:'B0ggle' };
+  // Route each pool id resolves to, so the hub's Play button can send the
+  // player straight into that cabinet with today's seed attached.
+  const ROUTES = { coldstack:'#/arcade/coldstack', jackin:'#/arcade/jackin', ecto:'#/arcade/ecto',
+    crossload:'#/arcade/crossload', defrag:'#/arcade/defrag', macpan:'#/arcade/macpan', snake:'#/arcade/snake',
+    bricks:'#/arcade/bricks', whack:'#/arcade/whack', sequence:'#/arcade/sequence', overdrive:'#/arcade/overdrive',
+    packer:'#/arcade/packer', sudoku:'#/arcade/sudoku', b0ggle:'#/arcade/b0ggle' };
+  // CABINETS registry id for each pool id — irregular in one case (SighMan's
+  // registry id is 'arcade_seq', not 'arcade_sequence') — used to look up an
+  // icon/desc via getCab() for the hub card.
+  const CAB_ID = { coldstack:'arcade_coldstack', jackin:'arcade_jackin', ecto:'arcade_ecto', crossload:'arcade_crossload',
+    defrag:'arcade_defrag', macpan:'arcade_macpan', snake:'arcade_snake', bricks:'arcade_bricks', whack:'arcade_whack',
+    sequence:'arcade_seq', overdrive:'arcade_overdrive', packer:'arcade_packer', sudoku:'arcade_sudoku', b0ggle:'arcade_b0ggle' };
+
+  function dayKey(ts){ const t=ts?new Date(ts):new Date(); return t.getFullYear()+'-'+(t.getMonth()+1)+'-'+t.getDate(); }
+  function today(){ return dayKey(); }
+  function yesterday(){ return dayKey(Date.now()-DAY_MS); }
+  function cabinetFor(dk){ return POOL[hashSeed((dk||today())+'::pick') % POOL.length]; }
+  function seedFor(dk){ return hashSeed((dk||today())+'::seed'); }
+  function nameFor(id){ return NAMES[id] || id; }
+  function routeFor(id){ return ROUTES[id] || '#/'; }
+  function cabIdFor(id){ return CAB_ID[id] || id; }
+
+  function state(){ return Store.get().dailyChallenge; }
+  function available(){ return state().lastPlayedDay !== today(); }
+
+  // grade -> NetCoin. A bespoke gate independent of Rig.payArcadeGrade — this
+  // is Daily Challenge's own once-per-day payout, not the generic per-cabinet
+  // Arcade cap (ROADMAP §3 decision 1 / §4 C1: "own bespoke gate").
+  const GRADE_COIN = { S:100, A:50, B:20, C:0, F:0 };
+
+  function record(grade, score, extra){
+    if(!available()) return { paid:0, streak: state().streak };
+    const cab = cabinetFor(today());
+    let newStreak = 1;
+    Store.update(s=>{
+      const dc = s.dailyChallenge;
+      newStreak = (dc.lastPlayedDay === yesterday()) ? (dc.streak||0)+1 : 1;
+      dc.streak = newStreak;
+      dc.bestStreak = Math.max(dc.bestStreak||0, newStreak);
+      dc.lastPlayedDay = today();
+      dc.history.push(Object.assign({ day: today(), cabinet: cab, grade: grade||'F', score: score|0 }, extra||{}));
+      if(dc.history.length>30) dc.history = dc.history.slice(-30);
+    });
+    const amt = GRADE_COIN[grade] || 0;
+    if(amt>0) Store.update(s=>{ s.rig.netcoin += amt; s.rig.totalEarned += amt; });
+    if(window.UI && amt>0) UI.toast('Daily Challenge Cleared', '+'+amt+' NetCoin · '+(grade||'F')+'-grade · streak '+newStreak);
+    return { paid: amt, streak: newStreak };
+  }
+
+  // Calendar strip mirroring Rig.dailyCalendar()'s cell-grid shape, keyed off
+  // dc.history (a played/missed timeline) rather than a claim cycle.
+  function calendar(days){
+    const n = days||14;
+    const dc = state();
+    const played = new Set((dc.history||[]).map(h=>h.day));
+    const cells = [];
+    for(let i=n-1;i>=0;i--){
+      const dk = dayKey(Date.now()-i*DAY_MS);
+      cells.push({ day: dk, isToday: dk===today(), played: played.has(dk) });
+    }
+    return cells;
+  }
+
+  return { POOL, today, dayKey, yesterday, cabinetFor, seedFor, nameFor, routeFor, cabIdFor, available, record, calendar, state, GRADE_COIN };
+})();
+window.DailyChallenge = DailyChallenge;
 
 /* ============================================================================
    RETROPETS — collect / raise / care economy (RetroMall_DD.md, Phase 1)
@@ -4500,6 +4617,9 @@ const CABINETS = [
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
     desc:'Link your Steam, Epic, Nintendo & Discord profiles — paste or enter by hand.', dna:'Paste import · Manual KPIs' },
 
+  { id:'daily',      lab:'Daily Challenge', name:'Daily Challenge', railName:'Daily', icon:'🗓️', tag:'mvp', route:'#/daily',
+    desc:'One shared seed, one shot — every player gets the identical board on today\'s rotating cabinet. No server, no leaderboard.', dna:'Consistency +weighted' },
+
   { id:'calibration',lab:'Reflex', name:'Latency Calibration', railName:'Latency', icon:'📡', tag:'mvp', route:'#/reflex/calibration',
     desc:'3-click baseline to factor out system latency.', dna:'Calibrates t_link' },
   { id:'reaction',   lab:'Reflex', name:'Reaction Time', railName:'Reaction', icon:'⚡', tag:'mvp', route:'#/reflex/reaction',
@@ -4683,7 +4803,8 @@ const LAB_CRT = {
   'Setup'    :'#FFD166',   // yellow
   'Fun'      :'#ffb3c6',   // light pink
   'RPG'      :'#118AB2',   // blue
-  'Arcade'   :'#9d4edd'    // bright purple
+  'Arcade'   :'#9d4edd',   // bright purple
+  'Daily Challenge':'#f2c14e' // amber — distinct from Arcade's purple
 };
 function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
 
@@ -4691,7 +4812,7 @@ function labColor(lab){ return LAB_CRT[lab] || 'var(--neon)'; }
    rail reads as a colourful set of shelves rather than a flat word list. */
 const LAB_ICON = {
   'The MetaGame':'🧬', 'Reflex':'⚡', 'Hardware':'🖱️', 'Setup':'🛠️',
-  'Fun':'🎭', 'RPG':'🎲', 'Arcade':'👾'
+  'Fun':'🎭', 'RPG':'🎲', 'Arcade':'👾', 'Daily Challenge':'🗓️'
 };
 function labIcon(lab){ return LAB_ICON[lab] || '🎮'; }
 
@@ -4705,7 +4826,8 @@ const LAB_DESC = {
   'Setup'    :'Dial in your battlestation. Crunch eDPI, convert sensitivity between games, and calculate FOV, aspect ratio, refresh rate and a balanced play schedule.',
   'Fun'      :'Personality and pure mischief. Take the archetype quiz, generate gamertags, clans and loadouts, roll wild challenges, and get your rig gloriously roasted.',
   'RPG'      :'Tools for the tabletop. Forge D&D characters, roll any dice, conjure NPCs, track initiative, and spin up quests, taverns and rumours on the fly.',
-  'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Mnemonic, Hopper Popper and more — quick games that still feed your Gamer DNA.'
+  'Arcade'   :'Drop a coin and play. Classic cabinets — Snake, Brick Breaker, Mnemonic, Hopper Popper and more — quick games that still feed your Gamer DNA.',
+  'Daily Challenge':'One shared seed, one shot. Every player gets the identical board on today\'s rotating cabinet — no server, no leaderboard, just a Share Card to prove it.'
 };
 function labDesc(lab){ return LAB_DESC[lab] || 'A shelf of applets all from this category. Pick <strong>Lobby</strong> in the sidebar to see everything again.'; }
 
@@ -4714,6 +4836,13 @@ const CRT_BRANDS = ['PLAYOTRON','VECTREX','NOVA-9','RETROVUE','ARC-80','PIXLCORP
 const CRT_LOGOS  = ['◉','▣','✦','◈','⬢','▤'];
 function rnd(a,b){ return a + Math.random()*(b-a); }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* Seeded PRNG pair shared by every Arcade cabinet's Daily Challenge retrofit
+   (DD/DailyChallenge_DD.md) — mulberry32(seed) drop-in replaces Math.random()
+   so the same seed always produces the same stream of draws; hashSeed(str)
+   (FNV-1a) turns a local-day key into that integer seed. */
+function mulberry32(seed){ let a=seed>>>0; return function(){ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function hashSeed(str){ let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
 
 /* Build the control-panel strip: a brand logo on the left, then a random mix
    of knobs, buttons and blinking lights pushed to the right. Lights get their
@@ -5338,6 +5467,7 @@ const ProfileIO = (function(){
   function buildPayload(){
     const d = Store.get();
     const score = Attr.gamerScore(d);
+    const dc = d.dailyChallenge || {};
     return {
       _pt: SIG, v: SCHEMA, exportedAt: Date.now(),
       tag: d.profile.gamerTag || 'Player One',
@@ -5349,7 +5479,11 @@ const ProfileIO = (function(){
       rigScore: (d.rig && d.rig.rigScore) || 0,
       achievements: (d.achievements||[]).slice(),
       toolsCompleted: d.toolsCompleted||0,
-      runs: d.runs||0
+      runs: d.runs||0,
+      // Daily Challenge (DD/DailyChallenge_DD.md) — a light slice, not the full
+      // history, so exports stay small. This is the only field that lets a
+      // friend's imported snapshot show a per-cabinet score at all today.
+      dailyChallenge: { streak: dc.streak||0, bestStreak: dc.bestStreak||0, last: (dc.history||[]).slice(-7) }
     };
   }
 
@@ -5368,6 +5502,11 @@ const ProfileIO = (function(){
       achievements: Array.isArray(p.achievements) ? p.achievements : [],
       toolsCompleted: p.toolsCompleted|0,
       runs: p.runs|0,
+      dailyChallenge: {
+        streak: (p.dailyChallenge && p.dailyChallenge.streak)|0,
+        bestStreak: (p.dailyChallenge && p.dailyChallenge.bestStreak)|0,
+        last: Array.isArray(p.dailyChallenge && p.dailyChallenge.last) ? p.dailyChallenge.last : []
+      },
       note: '',                       // local-only contact override (DD §3.2)
       importedAt: Date.now()
     };
@@ -5711,6 +5850,66 @@ Views.friends = function(c){
   }
 
   c.append(panel);
+};
+
+/* ============================================================================
+   DAILY CHALLENGE HUB (DD/DailyChallenge_DD.md, ROADMAP §4 C1) — shows today's
+   rotating cabinet, the Play button (locked to one attempt/local day), the
+   streak calendar, and today's result once played. The actual round happens
+   inside the underlying cabinet's own existing view (routed with ?daily=1);
+   this hub never duplicates any cabinet's gameplay UI.
+   ============================================================================ */
+Views.dailyChallenge = function(c){
+  const cab = getCab('daily');
+  const panel = toolShell(c, cab);
+
+  const dc = DailyChallenge.state();
+  const cabId = DailyChallenge.cabinetFor(DailyChallenge.today());
+  const cabName = DailyChallenge.nameFor(cabId);
+  const cabMeta = getCab(DailyChallenge.cabIdFor(cabId));
+  const avail = DailyChallenge.available();
+  const todayEntry = (dc.history||[]).find(h=> h.day===DailyChallenge.today());
+
+  const stats = el('div',{class:'stat-cards'});
+  stats.innerHTML = `
+    <div class="stat-card"><div class="k">Streak</div><div class="v gold">${dc.streak||0}</div></div>
+    <div class="stat-card"><div class="k">Best Streak</div><div class="v">${dc.bestStreak||0}</div></div>
+    <div class="stat-card"><div class="k">Today's Cabinet</div><div class="v" style="font-size:15px">${cabMeta?cabMeta.icon+' ':''}${escAttr(cabName)}</div></div>`;
+  panel.append(stats);
+
+  const body = el('div',{class:'panel-section'});
+  if(avail){
+    body.append(el('p',{class:'view-desc', html:`Today's shared seed picks <strong>${escAttr(cabName)}</strong> for every player. One locked attempt — the exact same board/deck/run as everyone else who plays today. Compare results with friends via a Share Card or an imported profile, never a live leaderboard.`}));
+    const row = el('div',{class:'controls-row'});
+    const play = el('button',{class:'btn primary', html:`▶ Play Today's Challenge — ${escAttr(cabName)}`});
+    play.onclick = ()=> Router.go(DailyChallenge.routeFor(cabId)+'?daily=1');
+    row.append(play);
+    body.append(row);
+  } else if(todayEntry){
+    body.append(el('h2',{class:'sub', text:'Challenge Cleared'}));
+    body.append(el('p',{class:'view-desc', html:`${escAttr(cabName)} · Grade <strong>${escAttr(todayEntry.grade)}</strong> · ${(todayEntry.score||0).toLocaleString()} pts · streak ${dc.streak||0}`}));
+    body.append(el('p',{class:'muted', html:'Come back tomorrow for a new seed.'}));
+  } else {
+    // Streak record predates this local day's played flag (e.g. a corrupted/edited
+    // save) — fall back to a generic "already played" notice rather than crash.
+    body.append(el('p',{class:'muted', html:'Today\'s challenge is already locked in. Come back tomorrow for a new seed.'}));
+  }
+  panel.append(body);
+
+  panel.append(el('h2',{class:'sub', text:'Streak Calendar'}));
+  const cal = DailyChallenge.calendar(14);
+  const calWrap = el('div',{class:'rig-daily-cal'});
+  let html = `<div class="cal-head">Last 14 days</div><div class="cal-grid">`;
+  cal.forEach(cell=>{
+    const cls = ['cal-cell']; if(cell.played) cls.push('collected'); if(cell.isToday) cls.push('today');
+    const dom = cell.day.split('-').pop();   // day-of-month only, matches the Rig calendar's compact cell style
+    html += `<div class="${cls.join(' ')}" title="${escAttr(cell.day)}${cell.played?' · played':''}">${escAttr(dom)}</div>`;
+  });
+  html += `</div>`;
+  calWrap.innerHTML = html;
+  panel.append(calWrap);
+
+  panel.append(el('p',{class:'muted', style:'margin-top:14px', html:'No backend, ever — the daily pick and seed are computed on-device from today\'s date. Share Card and Friends P2P import are the only ways to compare scores.'}));
 };
 
 // Discord search/add box + incoming-requests list mounted into #/friends for
@@ -6179,6 +6378,7 @@ function friendCard(f){
        <span class="fc-chip">TOOLS <b>${f.toolsCompleted||0}</b></span>
        <span class="fc-chip">ACH <b>${(f.achievements||[]).length}</b></span>
      </div>
+     ${dailyChallengeChip(f)}
      <div class="fc-attrs">${attrsHtml}</div>`;
 
   // local-only contact note (DD §3.2 "manual contact fields") — only for P2P
@@ -6211,6 +6411,17 @@ function friendCard(f){
   return card;
 }
 function escAttr(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+
+// Daily Challenge comparison (ROADMAP §3 decision 1 — P2P only, never live):
+// shows a friend's result for TODAY only if their imported snapshot happens
+// to include it. A stale snapshot from an earlier day just shows nothing
+// here — this is a point-in-time file, not a live feed.
+function dailyChallengeChip(f){
+  const dc = f.dailyChallenge; if(!dc || !Array.isArray(dc.last)) return '';
+  const today = dc.last.find(h=> h.day===DailyChallenge.today());
+  if(!today) return `<div class="fc-daily muted">🗓️ Daily streak: ${dc.streak||0} (best ${dc.bestStreak||0}) · no snapshot of today's run yet</div>`;
+  return `<div class="fc-daily">🗓️ Today's Daily Challenge: <b>${escAttr(DailyChallenge.nameFor(today.cabinet))}</b> · Grade ${escAttr(today.grade)} · ${(today.score||0).toLocaleString()} pts · streak ${dc.streak||0}</div>`;
+}
 
 // Comparative Stat Radar (DD §3.2) — overlay YOU vs a friend across the 7 vectors.
 function openCompare(friend){
@@ -9523,6 +9734,12 @@ Views.overdrive = function(c){
   const sndGate =()=> [660,990].forEach((f,i)=> setTimeout(()=>blip(f,0.12,'triangle',0.05),i*70));
   const sndHit  =()=> [200,140,90].forEach((f,i)=> setTimeout(()=>blip(f,0.20,'sawtooth',0.07),i*80));
 
+  // Daily Challenge: the whole course (track, gates, hazards, traffic) is
+  // already generated from one seeded mulberry32 stream per tier (see
+  // buildCourse() below) — folding the daily seed into that formula is the
+  // whole retrofit; nothing else in Overdrive needs to change.
+  const dailyMode = Router.query().get('daily')==='1';
+
   // ---- starting-tier selector + controls ----
   let tierIdx = 0;
   const diffField = el('div',{class:'field', html:'<label>Difficulty</label>'});
@@ -9669,7 +9886,7 @@ Views.overdrive = function(c){
 
   function buildCourse(){
     segments=[]; gates=[]; hazards=[]; cars=[]; decor=[];
-    const rng=mulberry32(0x9E37+tierIdx*1013);
+    const rng=mulberry32(dailyMode ? (DailyChallenge.seedFor(DailyChallenge.today())^(0x9E37+tierIdx*1013)) : (0x9E37+tierIdx*1013));
     const addSeg=(curve)=>{ const n=segments.length; segments.push({index:n,curve, p1:{world:{z:n*OD_SEG},camera:{},screen:{}}, p2:{world:{z:(n+1)*OD_SEG},camera:{},screen:{}}, finish:false}); };
     const stretch=(enter,hold,leave,curve)=>{ for(let i=0;i<enter;i++) addSeg(easeInOut(0,curve,i/enter)); for(let i=0;i<hold;i++) addSeg(curve); for(let i=0;i<leave;i++) addSeg(easeInOut(curve,0,i/leave)); };
     stretch(0,40,0,0);                                        // launch straight
@@ -9862,7 +10079,8 @@ Views.overdrive = function(c){
     const g=arcadeGrade(comp);
     Attr.applyVector({reflex:12, control:8}, comp);
     recordOverdriveRun(finalScore, {finished:won, banked, spins, diff:tier.key, elapsed});
-    Ach.evaluate({tool:'overdrive', grade:g, score:finalScore, finished:won, spins, diff:tier.key});
+    if(dailyMode){ DailyChallenge.record(g, finalScore); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'overdrive', grade:g, score:finalScore, finished:won, spins, diff:tier.key}); }
+    else Ach.evaluate({tool:'overdrive', grade:g, score:finalScore, finished:won, spins, diff:tier.key});
 
     draw();
     overlay.style.display='flex';
@@ -10088,7 +10306,11 @@ Views.snake = function(c){
   let playing=false, raf=null, lastT=0, acc=0, stepMs=lvl.start;
   let snake=[], dir={x:1,y:0}, nextDir={x:1,y:0}, food={x:0,y:0}, score=0;
   let particles=[];   // sparkle burst when a pellet is eaten (pixel space)
-  const rnd=n=>Math.floor(Math.random()*n);
+  // Daily Challenge: food placement re-rolls every time a pellet is eaten —
+  // rng stays in this closure so the whole run's food sequence is deterministic.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+  const rnd=n=>Math.floor(rng()*n);
   function rr(x,y,w,h,r){ ctx2d.beginPath(); ctx2d.moveTo(x+r,y); ctx2d.arcTo(x+w,y,x+w,y+h,r); ctx2d.arcTo(x+w,y+h,x,y+h,r); ctx2d.arcTo(x,y+h,x,y,r); ctx2d.arcTo(x,y,x+w,y,r); ctx2d.closePath(); }
   const occupied=(x,y)=> snake.some(s=>s.x===x&&s.y===y) || obstacles.some(o=>o.x===x&&o.y===y);
 
@@ -10195,7 +10417,8 @@ Views.snake = function(c){
     const comp=clamp01(score/lvl.gradeMax), g=arcadeGrade(comp);
     Attr.applyVector({control:14, focus:6, consistency:4}, comp);
     recordSnakeRun(score, {length:len, diff:lvl.key});
-    Ach.evaluate({tool:'snake', grade:g, score, length:len});
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'snake', grade:g, score, length:len}); }
+    else Ach.evaluate({tool:'snake', grade:g, score, length:len});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">${lvl.name} · Length ${len} · Score ${score}</div>`;
@@ -10262,7 +10485,12 @@ Views.crossload = function(c){
   const SOCKET_ROW=0, STREAM0=1, STREAM1=5, MEDIAN=6, BUS0=7, BUS1=11, START_ROW=12;
   const SOCKET_COLS=[1,4,6,8,11], START_COL=6;
   const clampN=(v,a,b)=> v<a?a:v>b?b:v;
-  const rnd=n=>Math.floor(Math.random()*n);
+  // Daily Challenge: the bounty's spawn socket/timing is Crossload's only
+  // gameplay randomness, re-rolled continuously via updateBounty() every
+  // frame — rng stays in this closure so the whole run is deterministic.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+  const rnd=n=>Math.floor(rng()*n);
 
   let levelIdx=1, lvl=CROSS_LEVELS[levelIdx];   // default Standard
 
@@ -10556,7 +10784,8 @@ Views.crossload = function(c){
     const ctx={ diff:lvl.key, score, docked, fullBoard:(fullBoards>0), flawless:(flawlessRuns>0), board, bounty:(bountyGrabs>0) };
     Attr.applyVector({reflex:14, control:6, focus:4}, comp);
     recordCrossloadRun(score, ctx);
-    Ach.evaluate(Object.assign({tool:'crossload', grade:g}, ctx));
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate(Object.assign({tool:'dailychallenge', dailyCabinet:'crossload', grade:g}, ctx)); }
+    else Ach.evaluate(Object.assign({tool:'crossload', grade:g}, ctx));
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">FLUSHED</div><div class="small">${lvl.name} · Board ${board} · Score ${score}</div>`;
@@ -10685,6 +10914,12 @@ Views.macPan = function(c){
 
   const ROWS=MP_MAZE.length, COLS=MP_MAZE[0].length, CELL=14, W=COLS*CELL, H=ROWS*CELL;
   const cx=t=> t*CELL + CELL/2;                       // tile-centre coord -> pixel
+
+  // Daily Challenge: a frightened enemy's turn choice re-rolls every tick it
+  // hits an intersection — rng stays in this closure so the whole run (every
+  // Heat Mode window) is deterministic for a given seed.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
 
   // ---- DOM (matches the other arcade cabinets) ----
   let levelIdx=1, diffCfg=MP_LEVELS[levelIdx];        // default Medium
@@ -10825,7 +11060,7 @@ Views.macPan = function(c){
   }
   function randDir(f,col,row){
     const opts=TURN.filter(d=> !(d.x===-f.dir.x&&d.y===-f.dir.y) && open(col+d.x,row+d.y,false));
-    return opts.length? opts[(Math.random()*opts.length)|0] : {x:-f.dir.x,y:-f.dir.y};
+    return opts.length? opts[(rng()*opts.length)|0] : {x:-f.dir.x,y:-f.dir.y};
   }
   function leaveDir(f,col,row){
     if(row<=11){ f.state='hunt'; f.fright = frightTimer>0; return {x:0,y:-1}; }   // cleared the door
@@ -11092,7 +11327,8 @@ Views.macPan = function(c){
     const g = arcadeGrade(comp);
     Attr.applyVector({control:12, strategy:8, focus:4}, comp);
     recordMacPanRun(score, {level, diff:diffCfg.key, cleared:levelsCleared, fullCourse:fullCourseFlag});
-    Ach.evaluate({tool:'macpan', grade:g, score, level, diff:diffCfg.key, cleared:levelsCleared, fullCourse:fullCourseFlag});
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'macpan', grade:g, score, level, diff:diffCfg.key, cleared:levelsCleared, fullCourse:fullCourseFlag}); }
+    else Ach.evaluate({tool:'macpan', grade:g, score, level, diff:diffCfg.key, cleared:levelsCleared, fullCourse:fullCourseFlag});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">${diffCfg.name} · Level ${level} · ${score} pts</div>`;
@@ -11202,6 +11438,11 @@ Views.brickBreaker = function(c){
   let playing=false, raf=null, lastT=0;
   let padX=W/2, keyDir=0, ball, bricks=[], score=0, lives=3, live=0;
 
+  // Daily Challenge: only the ball's launch direction is randomized (round
+  // start + each life lost) — rng stays in this closure for determinism.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+
   function buildBricks(){
     bricks=[];
     for(let r=0;r<ROWS;r++) for(let col=0;col<COLS;col++){
@@ -11209,7 +11450,7 @@ Views.brickBreaker = function(c){
     }
     live=bricks.length;
   }
-  function launchBall(){ ball={ x:W/2, y:PAD_Y-12, vx:(Math.random()<0.5?-1:1)*lvl.vx0, vy:-lvl.vy0, stuck:false }; }
+  function launchBall(){ ball={ x:W/2, y:PAD_Y-12, vx:(rng()<0.5?-1:1)*lvl.vx0, vy:-lvl.vy0, stuck:false }; }
   function reset(){ lvl=BRK_LEVELS[levelIdx]; PAD_W=lvl.padW; padX=W/2; keyDir=0; score=0; lives=3; buildBricks(); launchBall(); }
 
   const brickBest = (diff)=>{ const b=Store.get().bests.arcade_bricks; return (b&&b.diff&&b.diff[diff])||0; };
@@ -11282,7 +11523,8 @@ Views.brickBreaker = function(c){
     Attr.applyVector({precision:12, reflex:6, consistency:4}, clamp01(comp));
     const flawless = cleared && lives===3;
     recordBrickRun(score, {cleared, diff:lvl.key, flawless});
-    Ach.evaluate({tool:'bricks', grade:g, score, cleared, diff:lvl.key, flawless});
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'bricks', grade:g, score, cleared, diff:lvl.key, flawless}); }
+    else Ach.evaluate({tool:'bricks', grade:g, score, cleared, diff:lvl.key, flawless});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">${cleared?'WALL CLEARED':'GAME OVER'}</div><div class="small">${lvl.name} · Score ${score}${flawless?' · flawless wall!':(cleared?' · wall cleared!':'')}</div>`;
@@ -11350,6 +11592,11 @@ Views.whackMole = function(c){
   const W=360, H=360, ROUND=30;
   let levelIdx=1, lvl=WHK_LEVELS[levelIdx];   // default Medium
 
+  // Daily Challenge: which hole pops next re-rolls every spawn gap for the
+  // whole round — rng stays in this closure for determinism.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+
   const startRow = el('div',{class:'controls-row'});
   const startBtn = el('button',{class:'btn primary', html:'▶ START'});
   startRow.append(startBtn, soundToggle('whackMute'));
@@ -11392,7 +11639,7 @@ Views.whackMole = function(c){
   function spawn(){
     const empty=holes.map((h,i)=>i).filter(i=> !holes[i].active && holes[i].rise<0.08 && holes[i].whack<=0);
     if(!empty.length) return;
-    const idx=empty[Math.floor(Math.random()*empty.length)];
+    const idx=empty[Math.floor(rng()*empty.length)];
     const h=holes[idx];
     h.active=true; h.ttl=lvl.up; h.seed=Math.random()*6.283;
     sndPop();
@@ -11580,7 +11827,8 @@ Views.whackMole = function(c){
     const comp=clamp01(hits/lvl.target), g=arcadeGrade(comp);
     Attr.applyVector({reflex:14, speed:6, focus:4}, comp*lvl.reward);
     recordWhackRun(hits, {misses, diff:lvl.key});
-    Ach.evaluate({tool:'whack', grade:g, hits, difficulty:lvl.key});
+    if(dailyMode){ DailyChallenge.record(g, hits); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'whack', grade:g, hits, difficulty:lvl.key}); }
+    else Ach.evaluate({tool:'whack', grade:g, hits, difficulty:lvl.key});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">TIME!</div><div class="small">${lvl.name} · ${hits} popped · ${misses} missed</div>`;
@@ -11631,6 +11879,10 @@ Views.sequence = function(c){
   const sndFail=()=> [220,150,90].forEach((f,i)=> setTimeout(()=>blip(f,0.16,'sawtooth',0.11), i*90));
 
   const W=320, H=320;
+  // Daily Challenge: each new sequence step re-rolls throughout the run —
+  // rng stays in this closure for determinism.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
   const startRow = el('div',{class:'controls-row'});
   const startBtn = el('button',{class:'btn primary', html:'▶ START'});
   startRow.append(startBtn, soundToggle('seqMute'));
@@ -11681,7 +11933,7 @@ Views.sequence = function(c){
     const dur=Math.max(220, 480-seq.length*14);
     timers.push(setTimeout(()=>{ active=-1; draw(); if(done) done(); }, dur));
   }
-  function addStep(){ seq.push(Math.floor(Math.random()*4)); }
+  function addStep(){ seq.push(Math.floor(rng()*4)); }
   function playback(){
     mode='watch'; renderHud(); let i=0;
     function showNext(){
@@ -11714,7 +11966,8 @@ Views.sequence = function(c){
     const comp=clamp01(score/12), g=arcadeGrade(comp);
     Attr.applyVector({focus:14, consistency:6}, comp);
     recordSimonRun(score, {});
-    Ach.evaluate({tool:'sequence', grade:g, length:score});
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'sequence', grade:g, length:score}); }
+    else Ach.evaluate({tool:'sequence', grade:g, length:score});
     active=-1; draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">GAME OVER</div><div class="small">Recalled ${score} step${score===1?'':'s'}</div>`;
@@ -11786,6 +12039,11 @@ Views.packer = function(c){
   // ---- state ----
   let board, pieces=[], score=0, best=0, combo=1, playing=false, over=false;
   let linesCleared=0, maxCombo=1, maxClear=0;
+
+  // Daily Challenge: genPieces() re-fires every time the 3-piece tray empties,
+  // throughout the whole run — rng stays in this closure for determinism.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
   let drag=null;        // { pieceIdx, anchorX, anchorY, pointerId }
   let preview=null;     // { r, c, valid }
   let clearing=null;    // { cells:Set<idx>, t0, dur } flash animation
@@ -11995,8 +12253,8 @@ Views.packer = function(c){
   }
   function genPieces(){
     pieces=[0,1,2].map(()=>({
-      shape: PK_PIECES[Math.floor(Math.random()*PK_PIECES.length)],
-      color: PK_COLORS[Math.floor(Math.random()*PK_COLORS.length)],
+      shape: PK_PIECES[Math.floor(rng()*PK_PIECES.length)],
+      color: PK_COLORS[Math.floor(rng()*PK_COLORS.length)],
       used:false
     }));
   }
@@ -12030,7 +12288,8 @@ Views.packer = function(c){
     const g=arcadeGrade(comp);
     Attr.applyVector({strategy:14, control:6}, comp);
     recordPackerRun(score, {maxClear, lines:linesCleared});
-    Ach.evaluate({tool:'packer', grade:g, score, maxClear, lines:linesCleared});
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'packer', grade:g, score, maxClear, lines:linesCleared}); }
+    else Ach.evaluate({tool:'packer', grade:g, score, maxClear, lines:linesCleared});
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">NO ROOM</div><div class="small">${score} pts · ${linesCleared} lines cleared</div>`;
@@ -12107,6 +12366,13 @@ Views.sudoku = function(c){
   // ---- timer ----
   let elapsedMs=0, startMs=0, timerId=null;
 
+  // Daily Challenge: the whole puzzle (solved grid + which givens are kept)
+  // is generated once at round start from shuffled() below — a standard
+  // bounded backtracking generator, safe to reseed (single-pass, no retry
+  // loop, so no infinite-loop risk from a different PRNG stream).
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+
   // ---- sudoku helpers ----
   const idxRC=(r,c)=> r*9+c;
   function fits(g,idx,n){
@@ -12117,7 +12383,7 @@ Views.sudoku = function(c){
     }
     return true;
   }
-  function shuffled(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+  function shuffled(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
   // backtracking fill with randomized candidates -> a complete valid solution
   function fillSolution(g){
     const idx=g.indexOf(0);
@@ -12330,7 +12596,8 @@ Views.sudoku = function(c){
     const score=Math.round(lv.base * comp);
     Attr.applyVector({focus:12, strategy:8}, comp*lv.reward);
     recordSudokuRun(score, {diff:lv.key, seconds, hints:hintsUsed});
-    Ach.evaluate({tool:'sudoku', grade:g, score, difficulty:lv.key, hints:hintsUsed, seconds});
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'sudoku', grade:g, score, difficulty:lv.key, hints:hintsUsed, seconds}); }
+    else Ach.evaluate({tool:'sudoku', grade:g, score, difficulty:lv.key, hints:hintsUsed, seconds});
     selected=null; render(); renderHud();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">SOLVED!</div><div class="small">${lv.name} · ${fmt(seconds)} · ${hintsUsed} hint${hintsUsed===1?'':'s'}</div>`;
@@ -14602,13 +14869,20 @@ Views.b0ggle = function(c){
     });
   }
 
+  // Daily Challenge: the letter-dice grid is generated once at round start —
+  // rng stays in this closure for determinism (the player-triggered SCRAMBLE
+  // button only reorders already-rolled letters, no gameplay-state effect,
+  // so it's fine left on the seeded stream too via shuffled() below).
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+
   // ---- board generation ----
-  function shuffled(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+  function shuffled(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
   function rollTiles(){
     const lv=B0_LEVELS[levelIdx];
     const dice=shuffled(lv.size===4? B0_DICE_4 : B0_DICE_5);
     tiles = dice.slice(0, lv.size*lv.size).map(die=>{
-      const ch=die[Math.floor(Math.random()*die.length)];
+      const ch=die[Math.floor(rng()*die.length)];
       return ch==='Q'? {face:'Qu', val:'qu'} : {face:ch, val:ch.toLowerCase()};
     });
   }
@@ -14645,7 +14919,8 @@ Views.b0ggle = function(c){
     const comp=clamp01(score/lv.gradeMax), g=b0Grade(comp);
     Attr.applyVector({strategy:14, focus:6}, comp*lv.reward);
     recordB0ggleRun(score, {diff:lv.key, words:foundOrder.length, longest});
-    Ach.evaluate({tool:'b0ggle', grade:g, score, difficulty:lv.key, words:foundOrder.length, longest});
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({tool:'dailychallenge', dailyCabinet:'b0ggle', grade:g, score, difficulty:lv.key, words:foundOrder.length, longest}); }
+    else Ach.evaluate({tool:'b0ggle', grade:g, score, difficulty:lv.key, words:foundOrder.length, longest});
     renderBoard();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">TRACE COMPLETE</div><div class="small">${lv.name} · ${foundOrder.length} word${foundOrder.length===1?'':'s'} cracked</div>`;
@@ -14730,11 +15005,16 @@ Views.jackIn = function(c){
   let state='betting';            // 'betting' | 'player' | 'reveal' | 'over'
   let revealHole=false, sessionOver=false, revealTO=null;
 
+  // Daily Challenge: a seed on the route context swaps every shoe shuffle
+  // (initial + any mid-session reshuffle) over to one deterministic stream.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+
   // ---- deck / hand math ----
   function freshDeck(){
     const d=[];
     for(let s=0;s<4;s++) for(let r=0;r<13;r++) d.push({r, s});
-    for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+    for(let i=d.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
     return d;
   }
   function draw(){ if(deck.length<12) deck=freshDeck(); return deck.pop(); }
@@ -14948,7 +15228,8 @@ Views.jackIn = function(c){
     Attr.applyVector({strategy:12, focus:8}, comp);
     const ctx={ grade:g, score, peak, bestStreak, blackjack:sawBlackjack, maxBetWin:sawMaxWin, cooler:sawCooler };
     recordJackInRun(score, ctx);
-    Ach.evaluate(Object.assign({tool:'jackin'}, ctx));
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate(Object.assign({tool:'dailychallenge', dailyCabinet:'jackin'}, ctx)); }
+    else Ach.evaluate(Object.assign({tool:'jackin'}, ctx));
     renderHud(); updateControls();
     msg.textContent = busted ? 'BUST OUT — the mainframe drained your credits.' : 'Cashed out — run banked.';
     const r=el('div',{class:'results'});
@@ -15040,10 +15321,17 @@ Views.defrag = function(c){
   let running=false, over=false, timeLeft=0, elapsed=0, timeUp=false;
   let raf=null, lastT=0;
 
+  // Daily Challenge: Defrag's randomness is almost entirely mid-round
+  // (applyGravity refills after every clear/cascade, reshuffleBoard when
+  // stuck, randomPresentColor on Hypercore) — rng stays in this closure so
+  // the whole cascade sequence is deterministic for a given seed.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+
   // cell: { c:colorIdx(-1=hyper), s:null|'lance'|'hyper', dir:'h'|'v'|null, px, py, sc }
   function newCell(color, special, dir){ return { c:color, s:special||null, dir:dir||null, px:0, py:0, sc:1 }; }
   function colorsCount(){ return DF_LEVELS[diffIdx].colors; }
-  function randColor(){ return Math.floor(Math.random()*colorsCount()); }
+  function randColor(){ return Math.floor(rng()*colorsCount()); }
   const targetPx=(col)=> PAD+col*(CELL+GAP);
   const targetPy=(row)=> PAD+row*(CELL+GAP);
   const key=(r,c)=> r+','+c;
@@ -15244,7 +15532,7 @@ Views.defrag = function(c){
     do{
       const colors=[];
       for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cell=grid[r][c]; if(cell && cell.s!=='hyper') colors.push(cell.c); }
-      for(let i=colors.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=colors[i]; colors[i]=colors[j]; colors[j]=t; }
+      for(let i=colors.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); const t=colors[i]; colors[i]=colors[j]; colors[j]=t; }
       let k=0; for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cell=grid[r][c]; if(cell && cell.s!=='hyper') cell.c=colors[k++]; }
     } while((findMatches().length>0 || !hasLegalMove()) && guard++<40);
     positionsToTarget();
@@ -15253,7 +15541,7 @@ Views.defrag = function(c){
   function randomPresentColor(){
     const present=[]; const seen={};
     for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const cl=grid[r][c]; if(cl&&cl.c>=0&&!seen[cl.c]){ seen[cl.c]=1; present.push(cl.c); } }
-    return present.length? present[Math.floor(Math.random()*present.length)] : 0;
+    return present.length? present[Math.floor(rng()*present.length)] : 0;
   }
   function pickForge(run, prefs){
     if(prefs){ for(const p of prefs){ if(p && run.cells.some(q=>q.r===p.r&&q.c===p.c)) return p; } }
@@ -15443,7 +15731,8 @@ Views.defrag = function(c){
     const g = arcadeGrade(comp);
     Attr.applyVector({focus:12, speed:8}, comp);
     recordDefragRun(score, { mode, diff:DF_LEVELS[diffIdx].key, bestChain, hyper:hyperDetonated, recovered });
-    Ach.evaluate({ tool:'defrag', grade:g, score, bestChain, hyper:hyperDetonated, recovered });
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({ tool:'dailychallenge', dailyCabinet:'defrag', grade:g, score, bestChain, hyper:hyperDetonated, recovered }); }
+    else Ach.evaluate({ tool:'defrag', grade:g, score, bestChain, hyper:hyperDetonated, recovered });
     draw();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">DRIVE DEFRAGGED</div><div class="small">${score} pts · ${recovered} shards · best chain ×${bestChain}</div>`;
@@ -15525,6 +15814,11 @@ Views.coldStack = function(c){
   let history=[], lastTap={id:'',t:0};
   let timerId=null, compileId=null;
 
+  // Daily Challenge: a seed on the route context swaps the deck shuffle over
+  // to a deterministic stream so every player deals the identical deck today.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+
   // ---- helpers ----
   const isRed=(s)=> JI_SUITS[s].c==='red';
   const foundTotal=()=> found.reduce((a,f)=>a+f.length,0);
@@ -15533,7 +15827,7 @@ Views.coldStack = function(c){
 
   function freshDeck(){
     const d=[]; for(let s=0;s<4;s++) for(let r=0;r<13;r++) d.push({r,s,up:false});
-    for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+    for(let i=d.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
     return d;
   }
   function deal(){
@@ -15806,7 +16100,8 @@ Views.coldStack = function(c){
     const fast = win && elapsed<120;
     const ctx={ grade:g, score, win, draw3:drawN===3, cardsHome, fast, time:Math.floor(elapsed) };
     recordColdStackRun(score, ctx);
-    Ach.evaluate(Object.assign({tool:'coldstack'}, ctx));
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate(Object.assign({tool:'dailychallenge', dailyCabinet:'coldstack'}, ctx)); }
+    else Ach.evaluate(Object.assign({tool:'coldstack'}, ctx));
     startBtn.innerHTML='▶ START';
     render(); renderHud(); updateControls();
     overlay.style.display='flex';
@@ -15951,7 +16246,13 @@ Views.ecto = function(c){
   let keyLeft=false, keyRight=false, keyFire=false, pointerActive=false, pointerX=EC_W/2;
 
   const PLAYER_SPD=235, BULLET_SPD=560, FIRE_INT=0.16, ENTRY_DUR=0.85, SEANCE_DUR=4.6;
-  const rand=(a,b)=> a+Math.random()*(b-a);
+  // Daily Challenge: virtually all of Ecto's gameplay randomness (which spirit
+  // dives, when, its bullet trajectory) is continuous, not a one-time setup —
+  // rng stays in this closure and keeps advancing every frame, same as
+  // Math.random() would, just from a deterministic stream when seeded.
+  const dailyMode = Router.query().get('daily')==='1';
+  let rng = dailyMode ? mulberry32(DailyChallenge.seedFor(DailyChallenge.today())) : Math.random;
+  const rand=(a,b)=> a+rng()*(b-a);
   const hit=(ax,ay,ar,bx,by,br)=>{ const dx=ax-bx, dy=ay-by, r=ar+br; return dx*dx+dy*dy<r*r; };
   const slotX=(col)=> EC_FX0+col*EC_FDX;
   const slotY=(row)=> EC_FY0+row*EC_FDY;
@@ -16018,7 +16319,7 @@ Views.ecto = function(c){
   }
   function launchDive(){
     const forms=spirits.filter(s=>s.state==='form'); if(!forms.length) return;
-    const sp=forms[Math.floor(Math.random()*forms.length)];
+    const sp=forms[Math.floor(rng()*forms.length)];
     startDive(sp); sndDive();
     if(sp.type==='phantom'){   // Phantoms dive in pairs (DD §1.1)
       const mate = forms.find(s=>s!==sp && s.type==='phantom' && s.state==='form' && s.row===sp.row && Math.abs(s.col-sp.col)===1)
@@ -16055,7 +16356,7 @@ Views.ecto = function(c){
       if(sp.x<10) sp.x=10; else if(sp.x>EC_W-10) sp.x=EC_W-10;
       sp.dropT-=dt;
       if(sp.dropT<=0 && sp.y>40 && sp.y<EC_H-60){
-        ebullets.push({ x:sp.x, y:sp.y+8, vx:(player.x>sp.x?1:-1)*Math.random()*40, vy:(120+Math.random()*40)*diff.bsp });
+        ebullets.push({ x:sp.x, y:sp.y+8, vx:(player.x>sp.x?1:-1)*rng()*40, vy:(120+rng()*40)*diff.bsp });
         sp.dropT=rand(0.4,0.85)/diff.ecto;
       }
       if(sp.y>EC_H+26){ sp.state='return'; sp.y=-26; sp.x=slotX(sp.col)+swayX; }
@@ -16338,7 +16639,8 @@ Views.ecto = function(c){
     const lv=EC_DIFF[diffIdx], comp=clamp01(score/lv.par), g=arcadeGrade(comp);
     Attr.applyVector({precision:12, reflex:8}, comp);   // DNA: Precision + Reflex (DD §4.1 / §8.1)
     recordEctoRun(score, { diff:lv.key, stage:reachedStage, busted:bustedThisRun, perfects:perfectsThisRun, cleanShift:runCleanShift });
-    Ach.evaluate({ tool:'ecto', grade:g, score, stage:reachedStage, perfect:perfectsThisRun>0, cleanShift:runCleanShift });
+    if(dailyMode){ DailyChallenge.record(g, score); Ach.evaluate({ tool:'dailychallenge', dailyCabinet:'ecto', grade:g, score, stage:reachedStage, perfect:perfectsThisRun>0, cleanShift:runCleanShift }); }
+    else Ach.evaluate({ tool:'ecto', grade:g, score, stage:reachedStage, perfect:perfectsThisRun>0, cleanShift:runCleanShift });
     best=Math.max(best,bestScore()); renderHud();
     overlay.style.display='flex';
     overlay.innerHTML = `<div class="big">SHIFT OVER</div><div class="small">${score} pts · stage ${reachedStage} · ${bustedThisRun} spirits busted</div>`;
@@ -16673,7 +16975,21 @@ function shareRow(cardData){
   const row=el('div',{class:'controls-row'});
   const share=el('button',{class:'btn primary', html:'📸 Share Result'});
   const dna=el('button',{class:'btn ghost', html:'🧬 View Gamer DNA'});
-  share.onclick=()=> ShareCard.open(cardData);
+  share.onclick=()=>{
+    // Daily Challenge: the round-end screen is still on the ?daily=1 route,
+    // so brand the card here (once, for all 14 cabinets) rather than
+    // touching every cabinet's own shareRow() call site — the Day metric is
+    // what lets two players' independently-generated cards visually confirm
+    // they played the same day's challenge.
+    let cd = cardData;
+    if(window.Router && Router.query && Router.query().get('daily')==='1' && window.DailyChallenge){
+      cd = Object.assign({}, cardData, {
+        lab: 'DAILY CHALLENGE',
+        metric: [{k:'Day', v: DailyChallenge.today()}, {k:'Streak', v: String(DailyChallenge.state().streak)}].concat(cardData.metric||[])
+      });
+    }
+    ShareCard.open(cd);
+  };
   dna.onclick=()=> Router.go('#/dna');
   row.append(share, dna);
   return row;
@@ -20752,6 +21068,7 @@ Router.add('#/pets/groom', Views.petsGroom);
 Router.add('#/dna', Views.dna);
 Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);
+Router.add('#/daily', Views.dailyChallenge);
 Router.add('#/reflex/calibration', Views.calibration);
 Router.add('#/reflex/reaction', Views.reaction);
 Router.add('#/reflex/cps', Views.cps);
