@@ -20687,6 +20687,27 @@ Views.retroPets = function(c){
     collectRow.append(collect);
     tankB.append(gauge, tline, bline, collectRow);
     panel.append(tankB);
+
+    // ---- arena entrance ----
+    const arenaB = el('div',{class:'rig-block'});
+    arenaB.append(el('h2',{class:'sub', text:'⚔️ The Arena'}));
+    arenaB.append(el('p',{class:'muted', text:'Fight in the Arena to raise your Rank and be the best. You must have at least one Pet to compete.'}));
+    const az = Pets.arena();
+    const arenaStats = el('div',{class:'rig-wallet'});
+    arenaStats.innerHTML =
+      `<div><div class="sub-stat">Rank</div><b>${az.rank}</b></div>`+
+      `<div><div class="sub-stat">Best Gauntlet Streak</div><b>${az.gauntlet.bestStreak}</b></div>`;
+    arenaB.append(arenaStats);
+    const arenaRow = el('div',{class:'controls-row'});
+    const arenaBtn = el('button',{class:'btn primary', html:'⚔️ Enter Arena'});
+    const hasPets = Pets.roster().length>0;
+    arenaBtn.disabled = !hasPets;
+    if(!hasPets) arenaBtn.title = 'Adopt a Pet first to compete in the Arena';
+    arenaBtn.onclick = ()=> Router.go('#/pets/arena');
+    arenaRow.append(arenaBtn);
+    arenaB.append(arenaRow);
+    panel.append(arenaB);
+
     function updateTank(){
       const frac=Pets.idleFrac(), full=Pets.idleFull(), pend=Pets.idlePending();
       const n=Pets.roster().length, total=Pets.SPECIES.length, rm=Pets.rosterMult();
@@ -20721,9 +20742,7 @@ Views.retroPets = function(c){
       tagBtn.onclick = ()=> Router.go('#/pets/play');
       const fetchBtn = el('button',{class:'btn', html:BALL_ICON+' Fetch'});
       fetchBtn.onclick = ()=> Router.go('#/pets/groom');
-      const arenaBtn = el('button',{class:'btn', html:'⚔️ Arena'});
-      arenaBtn.onclick = ()=> Router.go('#/pets/arena');
-      trainRow.append(feedBtn, tagBtn, fetchBtn, arenaBtn);
+      trainRow.append(feedBtn, tagBtn, fetchBtn);
       rosterB.append(trainRow);
       const grid = el('div',{class:'pets-grid'});
       Pets.roster().forEach(pal=> grid.append(makeCard(pal, cards)));
