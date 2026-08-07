@@ -20687,6 +20687,27 @@ Views.retroPets = function(c){
     collectRow.append(collect);
     tankB.append(gauge, tline, bline, collectRow);
     panel.append(tankB);
+
+    // ---- arena entrance ----
+    const arenaB = el('div',{class:'rig-block'});
+    arenaB.append(el('h2',{class:'sub', text:'⚔️ The Arena'}));
+    arenaB.append(el('p',{class:'muted', text:'Fight in the Arena to raise your Rank and be the best. You must have at least one Pet to compete.'}));
+    const az = Pets.arena();
+    const arenaStats = el('div',{class:'rig-wallet'});
+    arenaStats.innerHTML =
+      `<div><div class="sub-stat">Rank</div><b>${az.rank}</b></div>`+
+      `<div><div class="sub-stat">Best Gauntlet Streak</div><b>${az.gauntlet.bestStreak}</b></div>`;
+    arenaB.append(arenaStats);
+    const arenaRow = el('div',{class:'controls-row'});
+    const arenaBtn = el('button',{class:'btn primary', html:'⚔️ Enter Arena'});
+    const hasPets = Pets.roster().length>0;
+    arenaBtn.disabled = !hasPets;
+    if(!hasPets) arenaBtn.title = 'Adopt a Pet first to compete in the Arena';
+    arenaBtn.onclick = ()=> Router.go('#/pets/arena');
+    arenaRow.append(arenaBtn);
+    arenaB.append(arenaRow);
+    panel.append(arenaB);
+
     function updateTank(){
       const frac=Pets.idleFrac(), full=Pets.idleFull(), pend=Pets.idlePending();
       const n=Pets.roster().length, total=Pets.SPECIES.length, rm=Pets.rosterMult();
@@ -20721,9 +20742,7 @@ Views.retroPets = function(c){
       tagBtn.onclick = ()=> Router.go('#/pets/play');
       const fetchBtn = el('button',{class:'btn', html:BALL_ICON+' Fetch'});
       fetchBtn.onclick = ()=> Router.go('#/pets/groom');
-      const arenaBtn = el('button',{class:'btn', html:'⚔️ Arena'});
-      arenaBtn.onclick = ()=> Router.go('#/pets/arena');
-      trainRow.append(feedBtn, tagBtn, fetchBtn, arenaBtn);
+      trainRow.append(feedBtn, tagBtn, fetchBtn);
       rosterB.append(trainRow);
       const grid = el('div',{class:'pets-grid'});
       Pets.roster().forEach(pal=> grid.append(makeCard(pal, cards)));
@@ -21248,8 +21267,8 @@ Views.petsArena = function(c){
     title: gauntletMode ? '♾️ Gauntlet' : '⚔️ Arena',
     energyMin: Pets.cfg.ARENA_ENERGY_MIN, energyCost: Pets.cfg.ARENA_ENERGY_COST,
     desc: gauntletMode
-      ? 'An endless run of wild foes that always starts fresh at foe #1 and escalates fast. Read each tell, counter it before three faults end your streak — your first loss ends the run and pays a lump-sum bonus for the streak reached. <b>Never touches your permanent Arena Rank.</b> <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5) — Strategy &amp; Reflex.</span>'
-      : 'Pilot your Pet through the neon mall\'s fighting-game cabinet — read the tell, pick the right counter before the window closes. A win climbs your permanent <b>Arena Rank</b> forever; a loss never costs you rank, only the Energy spent. <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5) — Strategy &amp; Reflex.</span>' });
+      ? 'An endless run of wild foes that always starts fresh at #1 and escalates fast. Read the tell and pick the right counter before the window closes. Opening = Attack, Wind Up = Guard, Lunge = Dodge. Your first loss ends the run and pays a lump-sum bonus for the streak reached. Never touches your permanent Arena Rank. Improves the Strategy &amp; Reflex stats of your Gamer DNA.'
+      : 'Pilot your Pet through the Arena cabinet. Read the tell and pick the right counter before the window closes. Opening = Attack, Wind Up = Guard, Lunge = Dodge. Wins climb your Rank forever but a loss never costs you Rank, only Energy. Improves the Strategy &amp; Reflex stats of your Gamer DNA.' });
   if(!S) return;
   const { game, sel, refresh, energyOk } = S;
 
