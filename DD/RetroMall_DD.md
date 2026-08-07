@@ -280,7 +280,9 @@ add depth and social.
    crafting/targeting UI exists.
 4. ⚠️ **Bond** exists and feeds the sale-price ceiling (and now a modest
    per-Arena-win bump), but no broader stable management UI or deeper
-   species/rarity expansion has shipped.
+   species/rarity expansion has shipped. Its non-cosmetic idle-bonus question
+   (§12) is now **decided** (2026-08-07: small, capped idle-earn bonus
+   allowed) but not yet implemented — scoped into B3.
 5. ⚠️ Achievement set now includes the 5 Arena achievements above, but is
    still not the full Phase-2-scope list originally envisioned (cosmetics
    milestones remain unbuilt alongside the cosmetics catalog itself).
@@ -308,9 +310,17 @@ compounds sensibly.
 
 - ✅ **Resolved:** Final name lock — **RetroPets** shipped and is the name used
   everywhere in code/commits; this doc's "RetroMall/RetroPet" title is legacy.
-- Whether bond unlocks any *non-cosmetic* idle bonus — currently Bond only feeds
-  the sale-price ceiling, which is arguably already brushing against the
-  honesty guardrail (§1.2). Worth an explicit decision in v2 planning.
+- ✅ **Resolved 2026-08-07 (product owner, ROADMAP.md §3 decision 8):** Bond
+  is allowed a small **non-cosmetic idle-earn bonus**, on top of its existing
+  cosmetic/sale-price/Arena-win effects — care investment gets a real economic
+  payoff, not just a cosmetic one. The bonus must stay capped low enough that
+  it reads as a nice-to-have, not a pay/grind requirement, and it does not
+  touch the permanent monetization guardrail (§1.2): NetCoin and Loot Boxes
+  remain never purchasable with real money regardless of Bond level. This
+  unblocks the Shard crafting/spending build (ROADMAP.md item B3) and Phase 3
+  Gifting (item D3) to spec Bond's final role without an open question hanging
+  over them. Implementation (the actual idle-earn-rate curve/cap) is scoped
+  into B3, not this doc pass.
 - Async "ghost" friend battles (import a friend's stable to fight CPU-piloted
   copies) — deferred; blocked on the Arena existing at all (Phase 2, unbuilt).
 - Habitat/room builder as a deeper cosmetic sink (post-Phase 3, unbuilt).
