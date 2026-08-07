@@ -2048,7 +2048,17 @@ const Store = (function(){
         pulls: 0,              // lifetime Loot Boxes opened
         lastIdleTs: Date.now(),// capped idle-accrual clock (Rig-style), shared across the stable
         tapDay: null,          // local day key for the daily tap-NetCoin cap
-        tapCoins: 0            // NetCoin already paid from tapping today
+        tapCoins: 0,           // NetCoin already paid from tapping today
+        // PvE Arena (RetroMall_DD.md §6, ROADMAP B1). `rank` is a PERMANENT
+        // ladder — win-only increment, a loss never regresses it (no
+        // punishing loss, DD §1.2). Gauntlet state is fully separate and
+        // never mutates `rank`.
+        arena: {
+          rank: 0,              // permanent ladder rank
+          lastTs: null,         // ms of the last arena fight (any mode/outcome)
+          bossesBeaten: [],     // BOSSES ids beaten at least once
+          gauntlet: { bestStreak: 0, lastStreak: 0 }
+        }
       },
       // Daily Challenge (DD/DailyChallenge_DD.md, ROADMAP §4 C1) — a shared,
       // hashed-local-day seed rotates one Arcade cabinet per day so every
@@ -3169,6 +3179,17 @@ const Ach = (function(){
       test:(d,c)=> c && c.tool==='pet_dodge' && (c.grade==='A'||c.grade==='S') },
     { id:'pets_groom_ace', name:'Fetch Master', icon:'🎾', desc:'Earn an A grade or better at Fetch.',
       test:(d,c)=> c && c.tool==='pet_groom' && (c.grade==='A'||c.grade==='S') },
+    // ---- RetroPets Arena (RetroMall_DD.md §6, ROADMAP B1) ----
+    { id:'pets_arena_first_win', name:'First Blood', icon:'⚔️', desc:'Win your first Arena fight.',
+      test:(d,c)=> !!(c && c.tool==='pet_arena' && c.win) },
+    { id:'pets_arena_rookie', name:'Rookie Champ', icon:'🥊', desc:'Defeat the Rookie Titan.',
+      test:(d)=> !!(d.pets && d.pets.arena && d.pets.arena.bossesBeaten && d.pets.arena.bossesBeaten.includes('rookie_titan')) },
+    { id:'pets_arena_veteran', name:'Veteran Champ', icon:'🛡️', desc:'Defeat the Veteran Specter.',
+      test:(d)=> !!(d.pets && d.pets.arena && d.pets.arena.bossesBeaten && d.pets.arena.bossesBeaten.includes('veteran_specter')) },
+    { id:'pets_arena_champ', name:'Arena Champ', icon:'🏆', desc:'Defeat the Champion Wyrm.',
+      test:(d)=> !!(d.pets && d.pets.arena && d.pets.arena.bossesBeaten && d.pets.arena.bossesBeaten.includes('champion_wyrm')) },
+    { id:'pets_gauntlet_runner', name:'Gauntlet Runner', icon:'🏃', desc:'Reach a 10-win Gauntlet streak.',
+      test:(d)=> !!(d.pets && d.pets.arena && d.pets.arena.gauntlet && d.pets.arena.gauntlet.bestStreak>=10) },
     // ---- Daily Challenge set (DD/DailyChallenge_DD.md, ROADMAP §4 C1) ----
     { id:'daily_first', name:'Show Up', icon:'🗓️', desc:'Complete your first Daily Challenge.',
       test:(d,c)=> (c && c.tool==='dailychallenge') || !!(d.dailyChallenge && d.dailyChallenge.history && d.dailyChallenge.history.length>=1) },
@@ -4136,6 +4157,97 @@ const Pets = (function(){
   function rngFrom(seed){ let a=seed>>>0; return function(){ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 
   /* ------------------------------------------------------------------------
+     PvE ARENA baseline (RetroMall_DD.md §6, ROADMAP B1). A reaction/timing
+     skill mini-game vs CPU foes — outcome is decided by the player's read/
+     react quality, never by Pet rarity or stats (honesty guardrail, DD §1.2).
+     Energy gates entry; rarity only flavors a foe's cosmetic glow. Ladder
+     `rank` is a PERMANENT, win-only counter (a loss never regresses it — no
+     punishing loss); Gauntlet is a separate, always-restarts-at-foe-#1
+     endless mode that pays a lump sum on its first loss and never touches
+     `rank`.
+     ------------------------------------------------------------------------ */
+  const ARENA_ENERGY_MIN    = 40;   // Energy required to enter an Arena fight
+  const ARENA_ENERGY_COST   = 45;   // Energy spent per fight, win or lose (bigger commitment than the mini-games)
+  const ARENA_BOND_PER_WIN  = 20;   // Bond gained on a ladder/gauntlet win (doubled for a boss)
+  const FOE_HP              = 5;    // correct reads needed to beat a standard wild foe
+  const BOSS_HP             = 8;    // correct reads needed to beat a curated boss
+  const FAULT_LIMIT         = 3;    // faults (wrong choice / too slow / jumped early) end the match as a loss
+  const ARENA_BASE_REWARD     = 40; // NetCoin floor on a ladder win
+  const ARENA_REWARD_PER_RANK = 6;  // NetCoin added per rank on a ladder win
+  const BOSS_REWARD_MULT      = 3;  // NetCoin multiplier for a boss win
+  const ARENA_DROP_BASE       = 0.05;  // base chance of a rare-drop roll on a win
+  const ARENA_DROP_PER_RANK   = 0.004; // chance added per rank (clamp01'd at use site)
+  const BOSS_DROP_MULT        = 2;     // drop-chance multiplier for a boss win
+  const GAUNTLET_PER_FOE     = 15;  // NetCoin per foe beaten in a Gauntlet run
+  const GAUNTLET_BONUS_QUAD  = 1.2; // quadratic bonus term — rewards depth disproportionately
+
+  // Tell → correct counter mapping (deterministic recognition, not RNG rock-
+  // paper-scissors): the same 3 tells/counters are used at every rank; only
+  // timing tightens (locked decision — pure execution-speed scaling).
+  const ARENA_TELLS = [
+    { key:'lunge',  label:'LUNGE!',   counter:'dodge',  hint:'A low sweeping strike — sidestep it.' },
+    { key:'windup', label:'WIND-UP!', counter:'guard',  hint:'A heavy charge — brace and block.' },
+    { key:'flinch', label:'OPENING!', counter:'attack', hint:'A brief opening — strike now.' }
+  ];
+
+  // Exactly 3 curated milestone bosses (locked decision): fixed
+  // species/seed/name so each renders identically every time, structured
+  // like SPECIES/BOXES. Selection is a rank lookup, never random.
+  const BOSSES = [
+    { id:'rookie_titan',    atRank:10, name:'Rookie Titan',    species:'bear',
+      seed:0xB055,  blurb:"The mall arcade's reigning floor champ." },
+    { id:'veteran_specter', atRank:25, name:'Veteran Specter', species:'fox',
+      seed:0x5EC7,  blurb:'Nobody reads a tell twice on this one.' },
+    { id:'champion_wyrm',   atRank:50, name:'Champion Wyrm',   species:'frog',
+      seed:0xC4A2,  blurb:'The undisputed neon-mall champion.' }
+  ];
+  function bossFor(rank){ return BOSSES.find(b=>b.atRank===rank) || null; }
+
+  // A procedural "wild" foe — NOT a real Pet: no id/meters, never joins the
+  // roster or idle economy, rendered purely via drawPet/render (below).
+  // Rarity climbs loosely with rank for cosmetic flourish ONLY — it never
+  // touches tell speed/window (honesty guardrail — only Energy gates entry,
+  // only the player's read/react decides the fight).
+  function rollFoe(rank){
+    const rnd = rngFrom(((Date.now() ^ (rank*2654435761)) >>> 0) || 1);
+    const sp = SPECIES[Math.floor(rnd()*SPECIES.length)];
+    const tierCap = Math.min(RARITIES.length-1, Math.floor(rank/6));
+    const r = RARITIES[Math.floor(rnd()*(tierCap+1))];
+    return { kind:'wild', species:sp.key, seed:(rnd()*0xFFFFFFFF)>>>0,
+             rarity:r.key, name:sp.name+' Rival', hp:FOE_HP };
+  }
+  function rollBoss(boss){
+    return { kind:'boss', id:boss.id, species:boss.species, seed:boss.seed,
+             rarity:'legendary', name:boss.name, blurb:boss.blurb, hp:BOSS_HP };
+  }
+  // The foe for the NEXT ladder fight at the given (pre-fight) rank — a boss
+  // lookup when rank+1 lands on a milestone, procedural otherwise.
+  function foeForRank(rank){
+    const boss = bossFor(rank+1);
+    return boss ? rollBoss(boss) : rollFoe(rank+1);
+  }
+
+  // One shared asymptotic-ease curve: `depth` closes toward the floor with a
+  // half-life of `halfLife` steps. Ladder fights pass `rank`; Gauntlet fights
+  // pass the in-run foe index with a steeper half-life, so a Gauntlet run
+  // always starts easy (foe #1) and escalates fast within the run, while the
+  // permanent ladder eases in gradually over many ranks (locked decision:
+  // pure execution-speed scaling, one curve, two depth inputs).
+  const ARENA_BASE_ARM_MIN=900,  ARENA_BASE_ARM_MAX=2200;   // rank-0 wait→tell arm delay (ms)
+  const ARENA_FLOOR_ARM_MIN=350, ARENA_FLOOR_ARM_MAX=900;   // toughest floor
+  const ARENA_BASE_REACT_MS=900, ARENA_FLOOR_REACT_MS=320;  // choose-within window (ms)
+  const ARENA_HALFLIFE=18;       // ranks to close half the remaining ladder gap to floor
+  const GAUNTLET_HALFLIFE=6;     // steeper — a single run should visibly escalate
+  function difficultyCurve(depth, halfLife){
+    const t = 1 - Math.pow(0.5, Math.max(0,depth)/halfLife);
+    return {
+      armMin:  ARENA_BASE_ARM_MIN  - (ARENA_BASE_ARM_MIN -ARENA_FLOOR_ARM_MIN )*t,
+      armMax:  ARENA_BASE_ARM_MAX  - (ARENA_BASE_ARM_MAX -ARENA_FLOOR_ARM_MAX )*t,
+      reactMs: ARENA_BASE_REACT_MS - (ARENA_BASE_REACT_MS-ARENA_FLOOR_REACT_MS)*t
+    };
+  }
+
+  /* ------------------------------------------------------------------------
      PROCEDURAL VECTOR RENDERER (Hopper-fidelity)
      Smooth canvas illustration seeded per-Pet: radial-gradient body, neon rim +
      warm key light, layered belly/muzzle/ears, paws, species tail, expressive
@@ -4446,37 +4558,44 @@ const Pets = (function(){
   function ownedSpecies(key){ return pets().pals.find(p=>p.species===key) || null; }
   function boxOf(boxKey){ return BOX[boxKey] || BOXES[0]; }
   function canOpen(boxKey){ return Store.get().rig.netcoin >= boxOf(boxKey).cost; }
+  // Shared pull core: rolls a species/rarity and mutates the draft state `s`
+  // exactly like a paid Loot Box pull (pity advance/reset, dupe→Shard, grade
+  // upgrade). Extracted so the paid openBox() and the Arena's free rare-drop
+  // grant (grantArenaLoot, below) share one pull code path — a duplicate from
+  // either source always recycles into Shards the same way.
+  function _applyPull(s, box){
+    const pt = s.pets;
+    const rnd = Math.random;
+    const seed = (Math.random()*0xFFFFFFFF)>>>0;
+    const sp = SPECIES[Math.floor(rnd()*SPECIES.length)];
+    const force = pt.pity+1 >= PITY_THRESHOLD;
+    const rarity = rollRarity(rnd, force, box);
+    pt.pulls = (pt.pulls||0)+1;
+    // pity: reset on rare-or-better, otherwise advance
+    pt.pity = (rarity.tier>=2) ? 0 : (pt.pity+1);
+    const owned = pt.pals.find(p=>p.species===sp.key);
+    let result;
+    if(!owned){
+      const pal = { id:'pal_'+seed.toString(36), seed, species:sp.key, rarity:rarity.key,
+        name: sp.name, adoptedAt:Date.now(), bond:0, hunger:80, happy:80, energy:90, lastTickTs:Date.now() };
+      pt.pals.push(pal);
+      result = { kind:'new', pal };
+    } else if(RARITY[rarity.key].tier > RARITY[owned.rarity].tier){
+      const from = owned.rarity; owned.rarity = rarity.key;   // dupe of a higher grade upgrades the Pet
+      result = { kind:'upgrade', pal:owned, from, to:rarity.key };
+    } else {
+      const sh = DUPE_SHARDS[rarity.key]||5; pt.shards = (pt.shards||0)+sh;
+      result = { kind:'dupe', species:sp.key, rarity:rarity.key, shards:sh, pal:owned };
+    }
+    return result;
+  }
   // Open one Loot Box of the given type (defaults to Common). Returns a result
   // describing the pull for the reveal UI.
   function openBox(boxKey){
     const box = boxOf(boxKey);
     if(Store.get().rig.netcoin < box.cost) return null;
-    const rnd = Math.random;
-    const seed = (Math.random()*0xFFFFFFFF)>>>0;
-    const sp = SPECIES[Math.floor(rnd()*SPECIES.length)];
-    const force = pets().pity+1 >= PITY_THRESHOLD;
-    const rarity = rollRarity(rnd, force, box);
     let result;
-    Store.update(s=>{
-      const pt = s.pets;
-      s.rig.netcoin -= box.cost;
-      pt.pulls = (pt.pulls||0)+1;
-      // pity: reset on rare-or-better, otherwise advance
-      pt.pity = (rarity.tier>=2) ? 0 : (pt.pity+1);
-      const owned = pt.pals.find(p=>p.species===sp.key);
-      if(!owned){
-        const pal = { id:'pal_'+seed.toString(36), seed, species:sp.key, rarity:rarity.key,
-          name: sp.name, adoptedAt:Date.now(), bond:0, hunger:80, happy:80, energy:90, lastTickTs:Date.now() };
-        pt.pals.push(pal);
-        result = { kind:'new', pal };
-      } else if(RARITY[rarity.key].tier > RARITY[owned.rarity].tier){
-        const from = owned.rarity; owned.rarity = rarity.key;   // dupe of a higher grade upgrades the Pet
-        result = { kind:'upgrade', pal:owned, from, to:rarity.key };
-      } else {
-        const sh = DUPE_SHARDS[rarity.key]||5; pt.shards = (pt.shards||0)+sh;
-        result = { kind:'dupe', species:sp.key, rarity:rarity.key, shards:sh, pal:owned };
-      }
-    });
+    Store.update(s=>{ s.rig.netcoin -= box.cost; result = _applyPull(s, box); });
     Ach.evaluate({ pets:true });   // First Hatch / Full Stable / First Legendary (pays NetCoin)
     if(result) result.box = box.key;
     return result;
@@ -4516,6 +4635,62 @@ const Pets = (function(){
     });
   }
 
+  // ---- PvE Arena (RetroMall_DD.md §6, ROADMAP B1) ----
+  function ensureArena(s){ return s.pets.arena || (s.pets.arena={rank:0,lastTs:null,bossesBeaten:[],gauntlet:{bestStreak:0,lastStreak:0}}); }
+  function arena(){ return ensureArena(Store.get()); }
+  // NetCoin payout for a ladder win at the given (post-win) rank; 0 on a loss.
+  function arenaReward(rank, isBoss, win){
+    if(!win) return 0;
+    const base = ARENA_BASE_REWARD + ARENA_REWARD_PER_RANK*rank;
+    return Math.round(isBoss ? base*BOSS_REWARD_MULT : base);
+  }
+  // Apply a resolved ladder fight: spend Energy (win or lose — no punishing
+  // loss, but the attempt still costs the commitment), pay the reward. On a
+  // win only: advance rank, mark a beaten boss, and roll the rank-gated
+  // rare-drop (reusing the exact paid-pull code path via _applyPull so a
+  // dupe always recycles into Shards the same way a paid pull would).
+  // Returns the loot-pull result (or null) for the result screen.
+  function applyArenaResult(id, opts){
+    const { win, reward, isBoss, bossId } = opts||{};
+    commit();
+    let loot = null;
+    Store.update(s=>{
+      const q=s.pets.pals.find(x=>x.id===id);
+      const a = ensureArena(s);
+      a.lastTs = Date.now();
+      if(q){ q.energy=clamp100(q.energy-ARENA_ENERGY_COST); }
+      if(win){
+        if(q){ q.happy=clamp100(q.happy+6); q.bond=clamp100((q.bond||0)+(isBoss?ARENA_BOND_PER_WIN*2:ARENA_BOND_PER_WIN)); }
+        a.rank += 1;
+        if(isBoss && bossId && !a.bossesBeaten.includes(bossId)) a.bossesBeaten.push(bossId);
+        const dropChance = clamp01(ARENA_DROP_BASE + a.rank*ARENA_DROP_PER_RANK) * (isBoss?BOSS_DROP_MULT:1);
+        if(Math.random() < dropChance) loot = _applyPull(s, null);
+      }
+      if(reward>0){ s.rig.netcoin+=reward; s.rig.totalEarned+=reward; }
+    });
+    return loot;
+  }
+  // Record the end of a Gauntlet run (streak = wild foes beaten before the
+  // first loss). Spends Energy and pays a lump-sum bonus ONCE per run —
+  // never per foe. Updates best/last streak but NEVER touches
+  // pets.arena.rank: Gauntlet is fully separate from the permanent ladder
+  // (locked decision — no punishing loss on the ladder, ever).
+  function recordGauntletEnd(id, streak){
+    commit();
+    const reward = Math.round(GAUNTLET_PER_FOE*streak + GAUNTLET_BONUS_QUAD*streak*streak);
+    Store.update(s=>{
+      const q=s.pets.pals.find(x=>x.id===id);
+      if(q){ q.energy=clamp100(q.energy-ARENA_ENERGY_COST);
+        if(streak>0){ q.happy=clamp100(q.happy+6); q.bond=clamp100((q.bond||0)+ARENA_BOND_PER_WIN); } }
+      const a = ensureArena(s);
+      a.lastTs = Date.now();
+      a.gauntlet.lastStreak = streak;
+      a.gauntlet.bestStreak = Math.max(a.gauntlet.bestStreak||0, streak);
+      if(reward>0){ s.rig.netcoin+=reward; s.rig.totalEarned+=reward; }
+    });
+    return reward;
+  }
+
   // ---- sell (liquidate a Pet for NetCoin). Each rarity has a sale-value cap —
   // the price a fully-bonded, fully-happy Pet fetches: Common 500, Uncommon 750,
   // Rare 1000, Epic 2000, Legendary 3000. Bond scales the ceiling from half-cap
@@ -4542,7 +4717,12 @@ const Pets = (function(){
     derive, commit, moodOf, moodFor, bondPct,
     idleFrac, idlePending, idleFull, stableRate, petRate, collectIdle, happyMult, rarityMult, rosterMult,
     canOpen, openBox, feed, tap, applyGameResult, sellPrice, sell,
-    cfg:{ BOX_COST, PITY_THRESHOLD, FEED_COST, FEED_ENERGY_MIN, FEED_ENERGY_COST, PET_RATE, IDLE_CAP_H, DUPE_SHARDS },
+    // Arena
+    ARENA_TELLS, BOSSES, FOE_HP, BOSS_HP, FAULT_LIMIT,
+    foeForRank, rollFoe, bossFor, difficultyCurve,
+    arena, arenaReward, applyArenaResult, recordGauntletEnd,
+    cfg:{ BOX_COST, PITY_THRESHOLD, FEED_COST, FEED_ENERGY_MIN, FEED_ENERGY_COST, PET_RATE, IDLE_CAP_H, DUPE_SHARDS,
+      ARENA_ENERGY_MIN, ARENA_ENERGY_COST, ARENA_HALFLIFE, GAUNTLET_HALFLIFE },
     pity(){ return pets().pity; }, shards(){ return pets().shards; }, roster(){ return pets().pals; }
   };
 })();
@@ -4611,7 +4791,7 @@ const CABINETS = [
   { id:'rig',        lab:'The MetaGame', name:'The Rig', railName:'The Rig', icon:RIG_ICON, tag:'mvp', route:'#/rig',
     desc:'Mine NetCoin, build your battlestation & climb your Rig Score.', dna:'Idle · NetCoin · Rig Score' },
   { id:'pets',       lab:'The MetaGame', name:'RetroPets', railName:'RetroPets', icon:'🐾', tag:'mvp', route:'#/pets',
-    desc:'Crack Loot Boxes, raise a stable of pixel Pets, and train them for NetCoin.', dna:'Collect · Care · Idle · Train (Tap · Tag · Fetch)' },
+    desc:'Crack Loot Boxes, raise a stable of pixel Pets, train them, and fight for NetCoin.', dna:'Collect · Care · Idle · Train (Tap · Tag · Fetch) · Arena (Strategy · Reflex)' },
   { id:'friends',    lab:'The MetaGame', name:'Friends', railName:'Friends', icon:'👥', tag:'mvp', route:'#/friends',
     desc:'Import friends\' DNA, compare stats & sort your roster.', dna:'Import · Export · Compare' },
   { id:'platforms',  lab:'The MetaGame', name:'Platform Link', railName:'Platforms', icon:'🔗', tag:'mvp', route:'#/dna/platforms',
@@ -20541,7 +20721,9 @@ Views.retroPets = function(c){
       tagBtn.onclick = ()=> Router.go('#/pets/play');
       const fetchBtn = el('button',{class:'btn', html:BALL_ICON+' Fetch'});
       fetchBtn.onclick = ()=> Router.go('#/pets/groom');
-      trainRow.append(feedBtn, tagBtn, fetchBtn);
+      const arenaBtn = el('button',{class:'btn', html:'⚔️ Arena'});
+      arenaBtn.onclick = ()=> Router.go('#/pets/arena');
+      trainRow.append(feedBtn, tagBtn, fetchBtn, arenaBtn);
       rosterB.append(trainRow);
       const grid = el('div',{class:'pets-grid'});
       Pets.roster().forEach(pal=> grid.append(makeCard(pal, cards)));
@@ -20830,6 +21012,12 @@ function petsTrainScaffold(c, opts){
     return null;
   }
 
+  // Energy-gate thresholds default to the care mini-games' constants; a
+  // caller (the Arena) can pass its own — a bigger commitment than a mini-
+  // game session (DD §6 — Energy gates Arena entry).
+  const energyMin  = opts.energyMin  != null ? opts.energyMin  : Pets.cfg.FEED_ENERGY_MIN;
+  const energyCost = opts.energyCost != null ? opts.energyCost : Pets.cfg.FEED_ENERGY_COST;
+
   let selId = Pets.roster()[0].id;
   const pick = el('div',{class:'rig-block'});
   pick.append(el('h2',{class:'sub', text:'Pick a Pet to train'}));
@@ -20837,22 +21025,22 @@ function petsTrainScaffold(c, opts){
   function refresh(){
     seg.innerHTML='';
     Pets.roster().forEach(p=>{
-      const m=Pets.derive(p,Date.now()); const ok=m.energy>=Pets.cfg.FEED_ENERGY_MIN;
+      const m=Pets.derive(p,Date.now()); const ok=m.energy>=energyMin;
       const btn=el('button',{class:'btn'+(p.id===selId?' primary':'')+(ok?'':' ghost'), html:`${p.name} <span class="sub-stat">⚡${Math.round(m.energy)}</span>`});
       btn.disabled = !ok && p.id!==selId;
-      btn.title = ok?'':'Needs ⚡'+Pets.cfg.FEED_ENERGY_MIN+'+ energy — let it rest first.';
+      btn.title = ok?'':'Needs ⚡'+energyMin+'+ energy — let it rest first.';
       btn.onclick = ()=>{ selId=p.id; refresh(); };
       seg.append(btn);
     });
   }
   refresh();
   pick.append(seg);
-  pick.append(el('p',{class:'muted', style:'font-size:11px; margin:6px 0 0;', html:`Training costs ⚡${Pets.cfg.FEED_ENERGY_COST} energy. Energy rests back over time.`}));
+  pick.append(el('p',{class:'muted', style:'font-size:11px; margin:6px 0 0;', html:`Training costs ⚡${energyCost} energy. Energy rests back over time.`}));
   panel.append(pick);
 
   const game = el('div',{class:'rig-block'}); panel.append(game);
   // Energy gate shared by all three games: a tired Pet can't train (DD §3.2).
-  function energyOk(){ const p=Pets.roster().find(x=>x.id===selId); return p && Pets.derive(p,Date.now()).energy >= Pets.cfg.FEED_ENERGY_MIN; }
+  function energyOk(){ const p=Pets.roster().find(x=>x.id===selId); return p && Pets.derive(p,Date.now()).energy >= energyMin; }
   return { panel, game, selId:()=>selId, sel:()=>Pets.roster().find(p=>p.id===selId), refresh, energyOk };
 }
 
@@ -21044,6 +21232,220 @@ Views.petsGroom = function(c){
   return ()=>{ running=false; if(raf) cancelAnimationFrame(raf); };
 };
 
+/* ---- PvE Arena (RetroMall_DD.md §6, ROADMAP B1): read the tell, pick the
+   right counter (Attack/Guard/Dodge) before the reaction window closes.
+   Outcome is entirely read/react quality — Pet rarity/stats never decide a
+   fight (only Energy gates entry, honesty guardrail DD §1.2). Two modes on
+   one route/view, toggled via ?mode=gauntlet:
+     Ladder   — one fight per session; a win permanently advances Arena Rank
+                forever; a loss never regresses it (no punishing loss).
+     Gauntlet — an endless run that always restarts at foe #1, chains wins
+                automatically, ends on the first loss, and pays a lump-sum
+                bonus for the streak reached. NEVER touches Arena Rank. ---- */
+Views.petsArena = function(c){
+  const gauntletMode = Router.query().get('mode')==='gauntlet';
+  const S = petsTrainScaffold(c, {
+    title: gauntletMode ? '♾️ Gauntlet' : '⚔️ Arena',
+    energyMin: Pets.cfg.ARENA_ENERGY_MIN, energyCost: Pets.cfg.ARENA_ENERGY_COST,
+    desc: gauntletMode
+      ? 'An endless run of wild foes that always starts fresh at foe #1 and escalates fast. Read each tell, counter it before three faults end your streak — your first loss ends the run and pays a lump-sum bonus for the streak reached. <b>Never touches your permanent Arena Rank.</b> <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5) — Strategy &amp; Reflex.</span>'
+      : 'Pilot your Pet through the neon mall\'s fighting-game cabinet — read the tell, pick the right counter before the window closes. A win climbs your permanent <b>Arena Rank</b> forever; a loss never costs you rank, only the Energy spent. <span class="muted">One of the RetroPets surfaces that moves your skill profile (DD §5) — Strategy &amp; Reflex.</span>' });
+  if(!S) return;
+  const { game, sel, refresh, energyOk } = S;
+
+  const modeRow = el('div',{class:'controls-row'});
+  const ladderBtn = el('button',{class:'btn'+(gauntletMode?'':' primary'), html:'🏆 Ladder'});
+  const gauntletBtn = el('button',{class:'btn'+(gauntletMode?' primary':''), html:'♾️ Gauntlet'});
+  ladderBtn.onclick = ()=> Router.go('#/pets/arena');
+  gauntletBtn.onclick = ()=> Router.go('#/pets/arena?mode=gauntlet');
+  modeRow.append(ladderBtn, gauntletBtn);
+  game.append(modeRow);
+
+  const statRow = el('div',{class:'results'});
+  game.append(statRow);
+  function paintStats(){
+    const a = Pets.arena();
+    statRow.innerHTML='';
+    if(gauntletMode){
+      statRow.append(
+        el('div',{class:'result-tile', html:`<div class="k">Best Streak</div><div class="v">${a.gauntlet.bestStreak}</div>`}),
+        el('div',{class:'result-tile', html:`<div class="k">Last Streak</div><div class="v">${a.gauntlet.lastStreak}</div>`}));
+    } else {
+      statRow.append(
+        el('div',{class:'result-tile', html:`<div class="k">Arena Rank</div><div class="v">${a.rank}</div>`}),
+        el('div',{class:'result-tile', html:`<div class="k">Bosses Beaten</div><div class="v">${a.bossesBeaten.length}/${Pets.BOSSES.length}</div>`}));
+    }
+  }
+  paintStats();
+
+  game.append(el('h2',{class:'sub', text:'Read the Tell'}));
+  const arenaWrap = el('div',{style:'display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin:10px 0;'});
+  const foeCanvas = document.createElement('canvas');
+  const foeName = el('div',{class:'muted', style:'font-size:12px; text-align:center; margin-top:4px;'});
+  const foeCol = el('div',{style:'flex:0 0 auto; text-align:center;'});
+  foeCol.append(foeCanvas, foeName);
+  const stage = el('div',{class:'stage pets-dodge', style:'flex:1 1 260px;'});
+  arenaWrap.append(foeCol, stage);
+  game.append(arenaWrap);
+
+  const choiceRow = el('div',{class:'controls-row'});
+  const atkBtn = el('button',{class:'btn', html:'⚔️ Attack <span class="muted">(1)</span>'});
+  const guardBtn = el('button',{class:'btn', html:'🛡️ Guard <span class="muted">(2)</span>'});
+  const dodgeBtn = el('button',{class:'btn', html:'💨 Dodge <span class="muted">(3)</span>'});
+  choiceRow.append(atkBtn, guardBtn, dodgeBtn);
+  game.append(choiceRow);
+
+  const ctrls = el('div',{class:'controls-row'});
+  const start = el('button',{class:'btn primary', html: gauntletMode?'▶ Start Gauntlet':'▶ Start Fight'});
+  ctrls.append(start); game.append(ctrls);
+  const result = el('div',{}); game.append(result);
+
+  const GAP_MS = 700, NEXT_FOE_MS = 900;
+  let raf=null, running=false, startT=0;
+  let foe=null, isBoss=false, difficulty=null, foeIndex=0;
+  let hits=0, faults=0, times=[], state='idle', curTell=null, tellShownAt=0;
+  let armTimer=null, reactTimer=null, gapTimer=null;
+
+  function clearTimers(){ [armTimer,reactTimer,gapTimer].forEach(t=>{ if(t) clearTimeout(t); }); armTimer=reactTimer=gapTimer=null; }
+  function setStage(cls, big, small){ stage.className='stage pets-dodge'+(cls?' '+cls:''); stage.innerHTML=`<div class="big">${big}</div>`+(small?`<div class="small">${small}</div>`:''); }
+  function drawFoe(t){ if(foe) Pets.render(foe, foeCanvas, 140, 'ok', t); }
+  function loopFoe(now){ if(!running) return; drawFoe((now-startT)/1000); raf=requestAnimationFrame(loopFoe); }
+
+  function nextFoe(){
+    if(gauntletMode){ foe = Pets.rollFoe(foeIndex); isBoss=false; difficulty = Pets.difficultyCurve(foeIndex, Pets.cfg.GAUNTLET_HALFLIFE); }
+    else { const rank = Pets.arena().rank; foe = Pets.foeForRank(rank); isBoss = foe.kind==='boss'; difficulty = Pets.difficultyCurve(rank, Pets.cfg.ARENA_HALFLIFE); }
+    hits=0; faults=0; times=[];
+    foeName.textContent = (isBoss?'👑 ':'')+foe.name;
+    drawFoe(0);
+  }
+  function arm(){
+    state='wait'; setStage('wait','WAIT FOR THE TELL…', isBoss?(foe.blurb||'Boss fight — stay sharp.'):'Watch closely…');
+    armTimer=setTimeout(showTell, difficulty.armMin + Math.random()*(difficulty.armMax-difficulty.armMin));
+  }
+  function showTell(){
+    curTell = Pets.ARENA_TELLS[Math.floor(Math.random()*Pets.ARENA_TELLS.length)];
+    state='tell'; tellShownAt=performance.now();
+    setStage('go', curTell.label, curTell.hint);
+    reactTimer=setTimeout(()=>resolveRead(null), difficulty.reactMs);
+  }
+  function resolveRead(counter){
+    if(state!=='tell') return;
+    clearTimeout(reactTimer); reactTimer=null;
+    const elapsed = performance.now()-tellShownAt;
+    const correct = counter!=null && counter===curTell.counter && elapsed<=difficulty.reactMs;
+    if(correct){ hits++; times.push(clamp01(1-elapsed/difficulty.reactMs)); }
+    else faults++;
+    state='shown';
+    const label = correct ? 'HIT!' : (counter==null ? 'TOO SLOW' : 'WRONG COUNTER');
+    setStage(correct?'':'foul', label, `${hits}/${foe.hp} hits · ${faults}/${Pets.FAULT_LIMIT} faults`);
+    settle();
+  }
+  function jumpEarly(){
+    if(state!=='wait') return;
+    clearTimers(); faults++; state='shown';
+    setStage('foul','JUMPED!', `${hits}/${foe.hp} hits · ${faults}/${Pets.FAULT_LIMIT} faults`);
+    settle();
+  }
+  function settle(){
+    if(hits>=foe.hp){ finishMatch(true); return; }
+    if(faults>=Pets.FAULT_LIMIT){ finishMatch(false); return; }
+    gapTimer=setTimeout(arm, GAP_MS);
+  }
+  function choose(counter){
+    if(!running) return;
+    if(state==='wait'){ jumpEarly(); return; }
+    if(state==='tell'){ resolveRead(counter); return; }
+  }
+
+  function finishMatch(win){
+    clearTimers();
+    const accuracy = (hits+faults)>0 ? hits/(hits+faults) : 0;
+    const speedScore = times.length ? times.reduce((s,v)=>s+v,0)/times.length : 0;
+    const quality = clamp01(0.5*accuracy + 0.5*speedScore);
+    const grade = quality>=0.85?'S':quality>=0.7?'A':quality>=0.5?'B':quality>=0.3?'C':'F';
+    const toolId = gauntletMode ? 'pet_arena_gauntlet' : 'pet_arena';
+    // GamerDNA via the SAME path the labs use (honest skill bridge, DD §5) —
+    // posted on every resolved bout, win or lose, in both modes.
+    recordRun(toolId, {best:'max', value: gauntletMode ? foeIndex : Pets.arena().rank});
+    Attr.applyVector({strategy:14, reflex:8}, quality);
+
+    if(gauntletMode && win){
+      foeIndex++;
+      setStage('','VICTORY!','Next foe incoming…');
+      paintStats();
+      gapTimer=setTimeout(()=>{ nextFoe(); arm(); }, NEXT_FOE_MS);
+      return;
+    }
+
+    running=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    const pal = sel();
+    let payload;
+    if(gauntletMode){
+      const reward = Pets.recordGauntletEnd(pal.id, foeIndex);
+      Ach.evaluate({tool:toolId, grade, streak:foeIndex});
+      setStage('','Run Over', 'Streak: '+foeIndex);
+      payload = { win:false, grade, reward, streak:foeIndex };
+    } else {
+      const rank = Pets.arena().rank;
+      const reward = Pets.arenaReward(win?rank+1:rank, isBoss, win);
+      const loot = Pets.applyArenaResult(pal.id, {win, reward, isBoss, bossId: isBoss?foe.id:null});
+      Ach.evaluate({tool:toolId, grade, win, isBoss, rank:Pets.arena().rank});
+      setStage('', win?'VICTORY!':'DEFEATED', win?'Rank up!':'No rank lost — try again.');
+      payload = { win, grade, reward, loot };
+    }
+    paintStats(); refresh();
+    showResult(payload, pal);
+    start.disabled=false; start.innerHTML = gauntletMode ? '▶ Try Gauntlet Again' : '▶ Fight Again';
+  }
+
+  function showResult(p, pal){
+    result.innerHTML='';
+    const res = el('div',{class:'results'});
+    let tiles = `<div class="result-tile"><div class="k">Grade</div><div class="grade-badge grade-${p.grade}">${p.grade}</div></div>`+
+      `<div class="result-tile"><div class="k">NetCoin</div><div class="v">+${p.reward}</div></div>`;
+    tiles += gauntletMode
+      ? `<div class="result-tile"><div class="k">Streak</div><div class="v">${p.streak}</div></div>`
+      : `<div class="result-tile"><div class="k">Rank</div><div class="v">${Pets.arena().rank}</div></div>`;
+    tiles += `<div class="result-tile"><div class="k">DNA</div><div class="v">Strategy · Reflex</div></div>`;
+    res.innerHTML = tiles;
+    result.append(res);
+    if(!gauntletMode && p.loot){
+      const l = p.loot;
+      const lootTxt = l.kind==='new' ? `Bonus drop: a new ${l.pal.name} joined your stable!`
+        : l.kind==='upgrade' ? `Bonus drop: ${pal?pal.name:'your Pet'}'s find upgraded to ${Pets.RARITY[l.to].label}!`
+        : `Bonus drop: +${l.shards} Shards!`;
+      result.append(el('p',{class:'muted', style:'font-size:12px;', html:lootTxt}));
+    }
+    result.append(el('p',{class:'muted', style:'font-size:12px;', html:`${pal?pal.name:'Your Pet'} spent ⚡${Pets.cfg.ARENA_ENERGY_COST} energy in the Arena.`}));
+    result.append(shareRow({ lab:'RETROPETS', tool: gauntletMode?'Gauntlet':'Arena', glyph:'⚔️', grade:p.grade,
+      metric: gauntletMode ? [{k:'Streak', v:String(p.streak)},{k:'NetCoin', v:'+'+p.reward}]
+                            : [{k:'Rank', v:String(Pets.arena().rank)},{k:'NetCoin', v:'+'+p.reward}],
+      designation: p.grade==='S'?'Combat Master': p.grade==='A'?'Sharp Reader':'Finding the Rhythm',
+      badge: p.grade==='S'?'Flawless Read':null }));
+  }
+
+  function begin(){
+    if(!energyOk()){ const p=sel(); UI.toast('Too tired', `${p?p.name:'Your Pet'} needs to rest before entering the Arena.`); return; }
+    result.innerHTML=''; running=true; start.disabled=true; startT=performance.now(); foeIndex=0;
+    nextFoe(); arm();
+    raf=requestAnimationFrame(loopFoe);
+  }
+  function onKey(e){
+    if(e.code==='Digit1'||e.code==='Numpad1'){ e.preventDefault(); choose('attack'); }
+    else if(e.code==='Digit2'||e.code==='Numpad2'){ e.preventDefault(); choose('guard'); }
+    else if(e.code==='Digit3'||e.code==='Numpad3'){ e.preventDefault(); choose('dodge'); }
+  }
+  atkBtn.onclick = ()=>choose('attack');
+  guardBtn.onclick = ()=>choose('guard');
+  dodgeBtn.onclick = ()=>choose('dodge');
+  start.onclick = begin;
+  window.addEventListener('keydown', onKey);
+  setStage('','⚔️ Ready?', gauntletMode
+    ? 'Press Start, then read each tell and pick the right counter — Attack, Guard or Dodge. Ends on your first loss.'
+    : 'Press Start, then read the tell and pick the right counter before the window closes.');
+  return ()=>{ clearTimers(); running=false; if(raf) cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); };
+};
+
 /* ============================================================================
    BOOT
    ============================================================================ */
@@ -21065,6 +21467,7 @@ Router.add('#/pets/store', Views.petsStore);
 Router.add('#/pets/feed', Views.petsFeed);
 Router.add('#/pets/play', Views.petsDodge);
 Router.add('#/pets/groom', Views.petsGroom);
+Router.add('#/pets/arena', Views.petsArena);
 Router.add('#/dna', Views.dna);
 Router.add('#/dna/platforms', Views.platforms);
 Router.add('#/friends', Views.friends);
