@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'PlayTools.html'
+      - 'Images/PlayTools_OG.jpg'
       - 'tools/rig-inapp.bundle.js'
       - 'tools/cloud-sync.bundle.js'
       - 'assets/rig/**'
@@ -33,6 +34,7 @@ jobs:
               --user "$AUTH" -T "$1" "$BASE/$1"
           }
           up PlayTools.html
+          up Images/PlayTools_OG.jpg
           up tools/rig-inapp.bundle.js
           up tools/cloud-sync.bundle.js
           up assets/rig/rig_manifest.json
